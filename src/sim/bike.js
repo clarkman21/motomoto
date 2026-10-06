@@ -1,4 +1,4 @@
-import { BIKES, PHYSICS, HAZARDS, WORLD, GEARBOX, BRAKES } from '../config.js';
+import { BIKES, PHYSICS, HAZARDS, WORLD, GEARBOX, BRAKES, LOAD } from '../config.js';
 import { wrapAngle } from '../world/iso.js';
 
 // Arcade bike physics. No Phaser here, so the tests can run it.
@@ -29,6 +29,10 @@ export function createBike(world, type = 'petrol') {
     revs: 0, // 0..1 of the rev limit (electric: fraction of top speed)
     brakePads: 1, // 1 = new, 0 = fully worn
     brakesWarned: false,
+    loadKg: 0, // passenger or cargo
+    odometer: 0, // metres ridden (for the service bill)
+    pushing: false, // true when you push an empty bike
+    regenToday: 0, // energy that regen put back today, as a fraction of a full battery
   };
 }
 
@@ -131,16 +135,20 @@ export function stepBike(bike, input, world, dt) {
   }
   bike.revs = revsFor(spec, bike.gear, v);
 
-  // Engine.
+  // Engine. A load makes the bike heavier, so the same engine force gives less acceleration.
+  const massFactor = 1 + bike.loadKg / LOAD.baseMassKg;
   let accel = slopeAccel;
-  if (throttle > 0) accel += throttle * enginePull(spec, bike, v);
+  if (throttle > 0) accel += (throttle * enginePull(spec, bike, v)) / massFactor;
+  // No energy left: you can only push the bike at walking speed.
+  bike.pushing = !hasEnergy && input.throttle > 0;
+  if (bike.pushing && v < PHYSICS.pushSpeedKmh * KMH) accel += 1.2;
   if (v > vmax) accel -= (v - vmax) * 1.5; // never faster than top speed; a slow surface pulls you down to its limit
 
   // Brakes. Electric: regen brakes first and charges the battery. Friction brakes do the rest and wear.
   let regenBrake = 0;
   let frictionBrake = 0;
   if (brake > 0 && v > 0.05) {
-    const demand = brake * spec.brakeMs2;
+    const demand = (brake * spec.brakeMs2) / massFactor;
     regenBrake = v > 1 ? Math.min(demand, spec.regenBrakeMs2) : 0;
     frictionBrake = (demand - regenBrake) * brakeEfficiency(bike.brakePads);
     accel -= regenBrake + frictionBrake;
@@ -155,7 +163,7 @@ export function stepBike(bike, input, world, dt) {
 
   // Drag always works against motion and never flips its direction.
   let drag = surface.rollingMs2 + PHYSICS.airDragPerMs * Math.abs(v);
-  if (throttle === 0) {
+  if (throttle === 0 && !bike.pushing) {
     // Petrol: engine braking grows with revs, so a downshift slows you without the brakes.
     if (spec.gears && bike.shiftTimer === 0 && v > 0.5) drag += PHYSICS.engineBrakeMs2 * Math.min(1.2, bike.revs) ** 2;
     else drag += PHYSICS.coastDragMs2;
@@ -176,9 +184,12 @@ export function stepBike(bike, input, world, dt) {
     }
   }
 
+  // Net forward acceleration this step (negative = slowing down). Passengers feel hard braking.
+  const netAccel = (v - vStart) / dt;
+  bike.netAccel = netAccel;
+
   // Petrol: warn when the engine struggles in a gear that is too high (lugs, or loses speed at full throttle).
   if (spec.gears) {
-    const netAccel = (v - vStart) / dt;
     const struggling = throttle > 0.5 && bike.gear > 0 && bike.shiftTimer === 0 &&
       (bike.revs < GEARBOX.lugRevs || (netAccel < -0.2 && bike.revs < 0.7));
     bike.lugTime = struggling ? (bike.lugTime ?? 0) + dt : 0;
@@ -199,12 +210,14 @@ export function stepBike(bike, input, world, dt) {
   const speedBefore = Math.hypot(bike.vx, bike.vy);
   const dist = speedBefore * dt;
   const steps = Math.max(1, Math.ceil(dist / PHYSICS.maxStepMetres));
+  const x0 = bike.x, y0 = bike.y;
   for (let i = 0; i < steps; i++) {
     if (moveWithCollision(bike, world, (bike.vx * dt) / steps, (bike.vy * dt) / steps)) {
       events.push({ type: 'wall', speed: speedBefore });
       break;
     }
   }
+  bike.odometer += Math.hypot(bike.x - x0, bike.y - y0);
   bike.z = world.heightAt(bike.x, bike.y);
 
   // Hazards trigger once when you enter their tile.
@@ -218,10 +231,12 @@ export function stepBike(bike, input, world, dt) {
 
   // Energy. Regen braking puts a part of the braking energy back into the battery.
   const fuelRevs = spec.gears ? GEARBOX.fuelAtIdle + GEARBOX.fuelPerRev * Math.min(1, bike.revs) : 1;
-  let use = energyUse(spec, surface, grade, throttle, v, topSpeed) * (throttle > 0 ? fuelRevs : 1);
+  let use = energyUse(spec, surface, grade, throttle, v, topSpeed) * (throttle > 0 ? fuelRevs * massFactor : 1);
   if (regenBrake > 0) use -= (spec.regenBrakeFraction * regenBrake * Math.abs(v)) / barInKinetic(spec);
   bike.energyRate = use; // fraction of a full bar per second (negative = charging)
+  const before = bike.energy;
   bike.energy = clamp(bike.energy - use * dt, 0, 1);
+  if (bike.energy > before) bike.regenToday += bike.energy - before;
   if (hasEnergy && bike.energy === 0) events.push({ type: 'empty' });
   return events;
 }

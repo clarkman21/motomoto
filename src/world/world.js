@@ -14,7 +14,12 @@ const CHAR_INFO = {
   '=': { surface: 'tarmac', hazard: 'speedBump' },
   t: { surface: 'grass', block: 'tree' },
   M: { surface: 'grass', block: 'monument' },
+  F: { surface: 'tarmac', block: 'fuel', blockLevels: 2 },
+  S: { surface: 'tarmac', block: 'swap', blockLevels: 2 },
 };
+
+// Blocks that join with neighbours of the same kind into one building (one colour, no inner walls).
+const GROUPED = ['building', 'fuel', 'swap'];
 
 // Trees are round and smaller than a tile. Other blocks fill the whole tile.
 const TREE_RADIUS_TILES = 0.28;
@@ -31,6 +36,10 @@ export class World {
       }
     }
     this.start = mapData.start;
+    this.places = mapData.places ?? [];
+    this.zones = mapData.zones ?? [];
+    this.cameras = (mapData.cameras ?? []).map((c, i) => ({ id: i, ...c }));
+    this.signs = mapData.signs ?? [];
     this.tiles = this.#parseTiles();
     this.vertexLevels = this.#buildHeights(mapData.hills ?? []);
     this.blocks = this.#buildBlocks();
@@ -79,14 +88,14 @@ export class World {
     const ids = new Map();
     let nextId = 0;
     for (const t of this.tiles) {
-      if (t.block !== 'building' || ids.has(t)) continue;
+      if (!GROUPED.includes(t.block) || ids.has(t)) continue;
       const stack = [t];
       ids.set(t, nextId);
       while (stack.length) {
         const cur = stack.pop();
         for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
           const n = this.tile(cur.tx + dx, cur.ty + dy);
-          if (n && n.block === 'building' && !ids.has(n)) {
+          if (n && n.block === t.block && !ids.has(n)) {
             ids.set(n, nextId);
             stack.push(n);
           }
@@ -113,6 +122,11 @@ export class World {
       });
     }
     return blocks;
+  }
+
+  /** A place by id (see map data). */
+  place(id) {
+    return this.places.find((p) => p.id === id) ?? null;
   }
 
   /** Solid block on a tile, or null. */

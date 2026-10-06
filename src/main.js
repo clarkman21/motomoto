@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { RideScene } from './scenes/RideScene.js';
 import { HudScene } from './scenes/HudScene.js';
+import { DayEndScene } from './scenes/DayEndScene.js';
 
 async function boot() {
   // Wait for the brand fonts, so the HUD text does not draw with a fallback font first.
@@ -32,7 +33,7 @@ async function boot() {
       height: window.innerHeight,
     },
     input: { activePointers: 3 },
-    scene: [RideScene, HudScene],
+    scene: [RideScene, HudScene, DayEndScene],
   });
   window.motoGame = game; // for debugging in the browser console
 }

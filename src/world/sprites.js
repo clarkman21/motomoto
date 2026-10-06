@@ -138,6 +138,7 @@ export function drawBlock(block, world) {
   const c = new PixelCanvas(maxX - minX, maxY - minY, minX, minY);
 
   if (block.kind === 'building') drawBuilding(c, block, pt, world);
+  else if (block.kind === 'fuel' || block.kind === 'swap') drawStation(c, block, pt, world);
   else if (block.kind === 'tree') drawTree(c, block, pt, world);
   else drawMonument(c, block, pt, world);
   return { canvas: c, depth: tx + ty + 1 };
@@ -234,4 +235,131 @@ function drawMonument(c, block, pt, world) {
     const r = 0.16;
     drawBox(c, tx - r, ty - r, tx + r, ty + r, top, top + 6, pt, stone(1.1), stone(0.72), stone(0.9));
   }
+}
+
+// ---------------------------------------------------------------------------
+// Stations
+// ---------------------------------------------------------------------------
+
+/** Fuel station (white and red) or Ampersand swap station (Surge Yellow, black, battery bays). */
+function drawStation(c, block, pt, world) {
+  const { tx, ty, baseLevel, topLevel } = block;
+  const swap = block.kind === 'swap';
+  const wall = swap ? COLOURS.ampersandYellow : 0xf0efe6;
+  const band = swap ? 0x111111 : 0xc0392b;
+  const wallShade = (k) => (along, z, px, py) => {
+    const zl = z - baseLevel;
+    let col = wall;
+    if (topLevel - z < 0.45) col = band; // sign band at the top
+    else if (zl < 0.15) col = shadeColour(wall, 0.7);
+    else if (swap) {
+      // Battery bays: dark slots with a green charge light.
+      const a = (along * 4) % 1;
+      if (zl > 0.3 && zl < 1.2 && a > 0.2 && a < 0.8) col = zl > 1.0 && a > 0.45 && a < 0.55 ? 0x44bc9d : 0x1a1a1a;
+    } else {
+      // Fuel station: a dark door and a pump in front of each tile.
+      const a = (along * 2) % 1;
+      if (zl > 0.15 && zl < 1.1 && a > 0.35 && a < 0.65) col = 0x3a3f44;
+    }
+    return shadeColour(col, k);
+  };
+  const roof = swap ? 0x111111 : 0x7a7a7a;
+  const roofShade = (u, v, px, py) => (hash2(px + c.ox, py + c.oy, 4) > 0.9 ? shadeColour(roof, 1.15) : roof);
+  drawBox(c, tx, ty, tx + 1, ty + 1, baseLevel, topLevel, pt, roofShade, wallShade(0.72), wallShade(0.88), visibleFaces(block, world));
+}
+
+// ---------------------------------------------------------------------------
+// Road furniture: speed cameras and speed limit signs. Origin = ground point (bottom centre).
+// ---------------------------------------------------------------------------
+
+export const PROP_CANVAS = { width: 18, height: 34, groundX: 9, groundY: 32 };
+
+const DIGITS = {
+  0: ['111', '101', '101', '101', '111'],
+  1: ['010', '110', '010', '010', '111'],
+  2: ['111', '001', '111', '100', '111'],
+  3: ['111', '001', '111', '001', '111'],
+  4: ['101', '101', '111', '001', '001'],
+  5: ['111', '100', '111', '001', '111'],
+  6: ['111', '100', '111', '101', '111'],
+  7: ['111', '001', '001', '001', '001'],
+  8: ['111', '101', '111', '101', '111'],
+  9: ['111', '101', '111', '001', '111'],
+};
+
+/** Draw a number in a 3 × 5 pixel font, centred on (cx, top). */
+export function drawDigits(c, text, cx, top, rgb) {
+  const w = text.length * 4 - 1;
+  let x0 = Math.round(cx - w / 2);
+  for (const ch of text) {
+    const rows = DIGITS[ch];
+    if (rows) rows.forEach((row, y) => [...row].forEach((bit, x) => bit === '1' && c.setPixel(x0 + x, top + y, rgb)));
+    x0 += 4;
+  }
+}
+
+function pole(c, topY) {
+  for (let y = topY; y <= PROP_CANVAS.groundY; y++) c.setPixel(PROP_CANVAS.groundX, y, 0x8a8a8a);
+}
+
+export function drawCamera() {
+  const c = new PixelCanvas(PROP_CANVAS.width, PROP_CANVAS.height);
+  pole(c, 10);
+  // Camera box on top of the pole
+  for (let y = 5; y < 11; y++) for (let x = 4; x < 14; x++) c.setPixel(x, y, y === 5 ? 0x5a5a5a : 0x3a3a3a);
+  c.setPixel(5, 7, 0x9fd3f0); c.setPixel(6, 7, 0x9fd3f0); c.setPixel(5, 8, 0x9fd3f0); c.setPixel(6, 8, 0x9fd3f0); // lens
+  c.setPixel(12, 7, 0xff4a3a); // red light
+  c.outline(0x161616);
+  return c;
+}
+
+export function drawSpeedSign(limitKmh) {
+  const c = new PixelCanvas(PROP_CANVAS.width, PROP_CANVAS.height);
+  pole(c, 12);
+  const cx = PROP_CANVAS.groundX + 0.5, cy = 8.5;
+  for (let y = 0; y < 18; y++) {
+    for (let x = 0; x < 18; x++) {
+      const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy);
+      if (d <= 7.6) c.setPixel(x, y, d > 5.6 ? 0xd0302a : 0xffffff);
+    }
+  }
+  drawDigits(c, String(limitKmh), PROP_CANVAS.groundX + 0.5, 6, 0x111111);
+  c.outline(0x161616);
+  return c;
+}
+
+// ---------------------------------------------------------------------------
+// Job marker (ring on the ground and a pin above it) and the direction arrow
+// ---------------------------------------------------------------------------
+
+export function drawMarkerRing(rgb) {
+  const c = new PixelCanvas(40, 20);
+  for (let y = 0; y < 20; y++) {
+    for (let x = 0; x < 40; x++) {
+      const d = Math.hypot((x + 0.5 - 20) / 20, (y + 0.5 - 10) / 10);
+      if (d <= 1 && d > 0.78) c.setPixel(x, y, rgb);
+    }
+  }
+  return c;
+}
+
+export function drawMarkerPin(rgb) {
+  const c = new PixelCanvas(11, 14);
+  for (let y = 0; y < 14; y++) {
+    const half = y < 7 ? 5 : Math.max(0, 5 - (y - 6));
+    for (let x = 5 - half; x <= 5 + half; x++) c.setPixel(x, y, rgb);
+  }
+  c.fillDisc(5.5, 4.5, 1.6, 0xffffff);
+  c.outline(0x161616);
+  return c;
+}
+
+export function drawArrow() {
+  const c = new PixelCanvas(13, 11);
+  for (let x = 0; x < 11; x++) {
+    const half = Math.floor((11 - x) / 2.2);
+    for (let y = 5 - half; y <= 5 + half; y++) c.setPixel(x + 1, y, 0xf6f5ec);
+  }
+  c.outline(0x161616);
+  return c;
 }

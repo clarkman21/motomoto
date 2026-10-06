@@ -1,25 +1,33 @@
 import Phaser from 'phaser';
-import { VIEW, WORLD, BIKES } from '../config.js';
+import { VIEW, WORLD, BIKES, DAY, MONEY } from '../config.js';
 import { World } from '../world/world.js';
 import { TEST_MAP } from '../world/map-data.js';
 import { toScreen } from '../world/iso.js';
 import { renderTerrain } from '../world/terrain-render.js';
-import { drawBike, drawBlock, drawShadow, drawGlow, drawPuff, bikeFrameForHeading, BIKE_CANVAS, BIKE_DIRECTIONS } from '../world/sprites.js';
+import {
+  drawBike, drawBlock, drawShadow, drawGlow, drawPuff, bikeFrameForHeading, BIKE_CANVAS, BIKE_DIRECTIONS,
+  drawCamera, drawSpeedSign, drawMarkerRing, drawMarkerPin, drawArrow, PROP_CANVAS,
+} from '../world/sprites.js';
 import { createBike, stepBike, forwardSpeed, shiftGear, bestGear } from '../sim/bike.js';
 import { readControls, STEERING_MODES } from '../sim/controls.js';
 import { EngineSound } from '../audio/engine-sound.js';
+import { createWallet, earn, spend, buyFuel, swapBattery, fuelFillCost, repairCost, endDay } from '../sim/economy.js';
+import { createJobBoard, updateBoard, acceptOffer, cancelJob, updateJob, jobTarget } from '../sim/jobs.js';
+import { createCameraState, checkCameras, speedLimitAt } from '../sim/law.js';
 
 const FIXED_DT = 1 / 120; // physics step in seconds
 const BARKS = {
   pothole: 'Pothole! Speed −30%',
   bumpHard: 'Speed bump too fast!',
   wall: 'Bang!',
-  empty: 'Out of energy. Press R to reset.',
+  empty: 'Out of energy! Hold throttle to push the bike to a station',
   overRev: 'Too fast to shift down',
   noGears: 'Electric moto: no gears',
   brakesWorn: 'Brakes worn! Downshift or use regen',
   lugging: 'Shift down!',
 };
+const REPAIR_LABELS = { pothole: 'Pothole damage', bumpHard: 'Speed bump damage', wall: 'Crash damage' };
+const STATION_RANGE_METRES = 6;
 
 export class RideScene extends Phaser.Scene {
   constructor() {
@@ -61,7 +69,16 @@ export class RideScene extends Phaser.Scene {
     this.puffs = [];
     this.puffTimer = 0;
 
+    this.#createProps();
+
     this.bike = createBike(this.world, 'petrol');
+    this.wallet = createWallet();
+    this.board = createJobBoard(this.world, Date.now() & 0xffff);
+    this.cameraState = createCameraState(this.world);
+    this.dayTime = 0; // real seconds since 06:00 today
+    this.station = null; // the station the bike stands at: 'fuel' or 'swap'
+    this.refuel = null; // { kind, timeLeft, total } while you fill up or swap
+    this.speedLimit = speedLimitAt(this.world, this.bike.x, this.bike.y);
     this.steeringMode = 'bike';
     this.controls = { throttle: 0, brake: 0, steer: 0 };
     this.touch = { stick: { x: 0, y: 0, active: false }, throttle: false, brake: false };
@@ -99,6 +116,9 @@ export class RideScene extends Phaser.Scene {
         case 'KeyE': case 'KeyX': this.shift(1); break;
         case 'KeyQ': case 'KeyZ': this.shift(-1); break;
         case 'KeyG': this.toggleAutoShift(); break;
+        case 'Digit1': case 'Digit2': case 'Digit3': this.acceptJob(Number(e.code.slice(5)) - 1); break;
+        case 'Backspace': this.cancelJob(); break;
+        case 'KeyF': this.startRefuel(); break;
       }
     });
     this.input.on('pointerdown', () => this.engineSound.start());
@@ -132,6 +152,129 @@ export class RideScene extends Phaser.Scene {
     this.bike = createBike(this.world, type);
     this.bike.autoShift = autoShift;
     this.#placeBike();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Money: jobs, stations, fines, day end
+  // ---------------------------------------------------------------------------
+
+  acceptJob(index) {
+    if (this.board.active) {
+      this.events.emit('bark', 'Finish your job first (Backspace cancels it)');
+      return;
+    }
+    const job = acceptOffer(this.board, index);
+    if (job) this.events.emit('bark', `Go to ${job.from.name}`);
+  }
+
+  cancelJob() {
+    if (!this.board.active) return;
+    cancelJob(this.board, this.bike);
+    this.events.emit('bark', 'Job cancelled. No pay.');
+  }
+
+  /** What a stop at this station would cost, or a reason why you cannot use it. */
+  stationOffer() {
+    const kind = this.station;
+    if (!kind || this.refuel) return null;
+    const type = this.bike.type;
+    if (kind === 'fuel' && type !== 'petrol') return { ok: false, text: 'Fuel station. Your electric moto needs a swap station.' };
+    if (kind === 'swap' && type !== 'electric') return { ok: false, text: 'Swap station. Your petrol moto needs a fuel station.' };
+    if (kind === 'fuel') {
+      const cost = fuelFillCost(this.bike);
+      if (cost < 40) return { ok: false, text: 'The tank is full.' };
+      return { ok: true, text: `F: Fill up (${cost.toLocaleString('en')} RWF, ${MONEY.fuelSeconds} s + queue)` };
+    }
+    if (this.bike.energy > 0.97) return { ok: false, text: 'The battery is full.' };
+    if (this.wallet.cash < MONEY.swapFee) return { ok: false, text: `A swap costs ${MONEY.swapFee.toLocaleString('en')} RWF. Not enough cash.` };
+    return { ok: true, text: `F: Swap battery (${MONEY.swapFee.toLocaleString('en')} RWF, ${MONEY.swapSeconds} s)` };
+  }
+
+  startRefuel() {
+    const offer = this.stationOffer();
+    if (!offer) return;
+    if (!offer.ok) {
+      this.events.emit('bark', offer.text);
+      return;
+    }
+    const total = this.station === 'fuel' ? MONEY.fuelSeconds + Math.random() * MONEY.fuelQueueMaxSeconds : MONEY.swapSeconds;
+    this.refuel = { kind: this.station, timeLeft: total, total };
+  }
+
+  #finishRefuel() {
+    const kind = this.refuel.kind;
+    this.refuel = null;
+    const r = kind === 'fuel' ? buyFuel(this.wallet, this.bike) : swapBattery(this.wallet, this.bike);
+    if (r.ok) this.events.emit('money', -r.cost, kind === 'fuel' ? 'Fuel' : 'Battery swap');
+    else this.events.emit('bark', 'Not enough cash');
+  }
+
+  #pay(category, amount, label) {
+    if (amount <= 0) return;
+    spend(this.wallet, category, amount);
+    this.events.emit('money', -amount, label);
+  }
+
+  /** Money and law effects of one physics step. */
+  #economyStep(bikeEvents) {
+    const b = this.bike;
+    for (const e of bikeEvents) {
+      const cost = repairCost(e);
+      if (cost) this.#pay('repairs', cost, REPAIR_LABELS[e.type]);
+    }
+    for (const e of updateJob(this.board, b, bikeEvents, FIXED_DT)) {
+      if (e.type === 'pickup') {
+        this.events.emit('bark', e.job.type === 'passenger' ? `Passenger on board. Go to ${e.job.to.name}` : `${e.job.kg} kg cargo loaded. Go to ${e.job.to.name}`);
+      } else {
+        earn(this.wallet, e.job.type === 'passenger' ? 'fares' : 'cargo', e.fare);
+        this.events.emit('money', e.fare, e.job.type === 'passenger' ? 'Fare' : 'Cargo delivered');
+        if (e.tip > 0) {
+          earn(this.wallet, 'tips', e.tip);
+          this.time.delayedCall(700, () => this.events.emit('money', e.tip, `Tip (comfort ${Math.round(e.job.comfort)}%)`));
+        }
+      }
+    }
+    const kmh = Math.abs(forwardSpeed(b)) * 3.6;
+    for (const e of checkCameras(this.world, this.cameraState, b, kmh)) {
+      this.events.emit('camera', e);
+      if (e.fine) this.#pay('fines', e.fine, `Speed camera: ${Math.round(e.speedKmh)} km/h in a ${e.limitKmh} zone`);
+    }
+  }
+
+  #updateStation() {
+    const b = this.bike;
+    const slow = Math.abs(forwardSpeed(b)) * 3.6 < 3;
+    this.station = null;
+    if (!slow) return;
+    for (const kind of ['fuel', 'swap']) {
+      const p = this.world.place(kind);
+      if (p && Math.hypot(b.x - p.x * WORLD.tileMetres, b.y - p.y * WORLD.tileMetres) < STATION_RANGE_METRES) this.station = kind;
+    }
+  }
+
+  #endDay() {
+    if (this.board.active) cancelJob(this.board, this.bike);
+    this.refuel = null;
+    const summary = endDay(this.wallet, this.bike);
+    this.dayOver = true;
+    this.scene.pause();
+    this.scene.launch('dayEnd', { summary, onContinue: () => this.#startDay() });
+  }
+
+  #startDay() {
+    this.dayTime = 0;
+    this.dayOver = false;
+    const { type, autoShift, energy, brakePads, brakesWarned } = this.bike;
+    this.bike = createBike(this.world, type);
+    Object.assign(this.bike, { autoShift, energy, brakePads, brakesWarned });
+    this.board = createJobBoard(this.world, Date.now() & 0xffff);
+    this.#placeBike();
+    this.scene.resume();
+  }
+
+  /** Game clock as hours (6.0 .. 22.0). */
+  get clockHours() {
+    return DAY.startHour + ((DAY.endHour - DAY.startHour) * this.dayTime) / DAY.realSeconds;
   }
 
   horn() {
@@ -175,18 +318,74 @@ export class RideScene extends Phaser.Scene {
     this.accumulator += dt;
     const raw = this.#rawInput();
     while (this.accumulator >= FIXED_DT) {
-      this.controls = readControls(this.steeringMode, raw, this.bike);
-      for (const e of stepBike(this.bike, this.controls, this.world, FIXED_DT)) {
+      // While you fill up or swap, the bike stands still.
+      this.controls = this.refuel ? { throttle: 0, brake: 1, steer: 0 } : readControls(this.steeringMode, raw, this.bike);
+      const events = stepBike(this.bike, this.controls, this.world, FIXED_DT);
+      for (const e of events) {
         if (e.type === 'wall' && e.speed < 4) continue; // no bark when you only touch a wall
         if (BARKS[e.type]) this.events.emit('bark', BARKS[e.type]);
       }
+      this.#economyStep(events);
       this.accumulator -= FIXED_DT;
     }
+    if (this.refuel && (this.refuel.timeLeft -= dt) <= 0) this.#finishRefuel();
+    this.#updateStation();
+    updateBoard(this.board, this.world, dt);
+    this.speedLimit = speedLimitAt(this.world, this.bike.x, this.bike.y);
+    this.#updateMarker();
     this.#placeBike();
     this.#updateSmoke(dt);
     this.#updateOcclusion();
     this.#updateCamera(dt);
     this.engineSound.update(this.bike.type, Math.min(1, this.bike.revs), this.controls.throttle);
+    this.dayTime += dt;
+    if (this.dayTime >= DAY.realSeconds) this.#endDay();
+  }
+
+  // Cameras and signs stand beside the road. They sort by depth like the blocks.
+  #createProps() {
+    addCanvasTexture(this, 'camera', drawCamera());
+    const ox = PROP_CANVAS.groundX / PROP_CANVAS.width, oy = PROP_CANVAS.groundY / PROP_CANVAS.height;
+    const place = (key, x, y) => {
+      const s = toScreen(x * WORLD.tileMetres, y * WORLD.tileMetres, this.world.heightAt(x * WORLD.tileMetres, y * WORLD.tileMetres));
+      this.add.image(s.x, s.y, key).setOrigin(ox, oy).setDepth(x + y);
+    };
+    for (const c of this.world.cameras) place('camera', c.x, c.y);
+    for (const sign of this.world.signs) {
+      const key = `sign-${sign.limitKmh}`;
+      if (!this.textures.exists(key)) addCanvasTexture(this, key, drawSpeedSign(sign.limitKmh));
+      place(key, sign.x, sign.y);
+    }
+    addCanvasTexture(this, 'ring-pickup', drawMarkerRing(0x44bc9d));
+    addCanvasTexture(this, 'ring-dropoff', drawMarkerRing(0xf6f5ec));
+    addCanvasTexture(this, 'pin-pickup', drawMarkerPin(0x44bc9d));
+    addCanvasTexture(this, 'pin-dropoff', drawMarkerPin(0xf6f5ec));
+    addCanvasTexture(this, 'arrow', drawArrow());
+    this.markerRing = this.add.image(0, 0, 'ring-pickup').setVisible(false);
+    this.markerPin = this.add.image(0, 0, 'pin-pickup').setOrigin(0.5, 1).setDepth(1e5).setVisible(false);
+    this.arrow = this.add.image(0, 0, 'arrow').setDepth(1e6).setVisible(false);
+  }
+
+  // Show where to go: a ring and a pin on the target place, and an arrow beside the bike.
+  #updateMarker() {
+    const job = this.board.active;
+    const visible = !!job;
+    this.markerRing.setVisible(visible);
+    this.markerPin.setVisible(visible);
+    this.arrow.setVisible(visible);
+    if (!job) return;
+    const kind = job.stage === 'toPickup' ? 'pickup' : 'dropoff';
+    const t = jobTarget(job);
+    const wx = t.x * WORLD.tileMetres, wy = t.y * WORLD.tileMetres;
+    const s = toScreen(wx, wy, this.world.heightAt(wx, wy));
+    const pulse = 1 + 0.12 * Math.sin(this.time.now / 160);
+    this.markerRing.setTexture(`ring-${kind}`).setPosition(s.x, s.y).setScale(pulse).setDepth((wx + wy) / WORLD.tileMetres - 0.5);
+    this.markerPin.setTexture(`pin-${kind}`).setPosition(s.x, s.y - 26 - 3 * Math.sin(this.time.now / 220));
+    const dx = s.x - this.bikeScreen.x, dy = s.y - this.bikeScreen.y;
+    const d = Math.hypot(dx, dy);
+    this.arrow.setVisible(d > 40);
+    this.arrow.setPosition(this.bikeScreen.x + (dx / d) * 24, this.bikeScreen.y - 10 + (dy / d) * 16).setRotation(Math.atan2(dy, dx));
+    this.targetDistance = Math.hypot(this.bike.x - wx, this.bike.y - wy);
   }
 
   #placeBike() {

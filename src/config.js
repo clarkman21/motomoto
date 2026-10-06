@@ -92,6 +92,7 @@ export const PHYSICS = {
   // Engine braking (petrol, throttle closed): deceleration at the rev limit. It falls with revs squared.
   // It uses no fuel and does not wear the brakes, so a downshift is a free brake.
   engineBrakeMs2: 2.4,
+  pushSpeedKmh: 4, // with no fuel or charge left, you push the bike at walking speed
   // Hard limit on how far one physics step can move, for collision safety.
   maxStepMetres: 0.5,
   // Speed lost when you hit a wall or a building, as a fraction of speed.
@@ -152,4 +153,71 @@ export const COLOURS = {
   ampersandYellow: 0xfcdc04, // Surge Yellow
   ampersandBlack: 0x000000, // Eerie Black
   ebonyGrey: 0x5c5c5e,
+};
+
+// ---------------------------------------------------------------------------
+// Load. A passenger or cargo makes the bike heavier: less pull, less braking, more energy.
+// ---------------------------------------------------------------------------
+export const LOAD = {
+  baseMassKg: 180, // bike and rider — guess
+};
+
+// ---------------------------------------------------------------------------
+// Game day. From the spec: one day is about 6 minutes, from 06:00 to 22:00.
+// ---------------------------------------------------------------------------
+export const DAY = {
+  realSeconds: 360,
+  startHour: 6,
+  endHour: 22,
+};
+
+// ---------------------------------------------------------------------------
+// Money. All values are placeholders in Rwandan francs (RWF).
+// Calibrate them with real fare, fuel and swap data before a playtest.
+// Target: a petrol rider just breaks even on a good day; an electric rider makes a clear profit.
+// ---------------------------------------------------------------------------
+export const MONEY = {
+  startCash: 5000, // spec
+  dailyRent: { petrol: 6000, electric: 6000 }, // spec gives petrol; electric lease is a guess
+  fuelFullTank: 4000, // spec; you pay only for the part of the tank that you fill
+  fuelSeconds: 10, // spec: 10 s plus queue
+  fuelQueueMaxSeconds: 8, // random queue 0..8 s — guess
+  swapFee: 2500, // spec: flat fee, whatever charge is left in the old battery
+  swapSeconds: 15, // spec
+  brakePads: 3000, // new pads — guess
+  replacePadsBelow: 0.5, // the mechanic replaces pads below this level at day end
+  servicePerGameKm: { petrol: 25, electric: 5 }, // oil, chain, engine wear — guess
+  repairs: { pothole: 300, bumpHard: 500, wall: 800 }, // damage — guess
+};
+
+// ---------------------------------------------------------------------------
+// Jobs (passenger and cargo, from the spec prototype scope)
+// ---------------------------------------------------------------------------
+export const JOBS = {
+  // The test map is small, so distance is compressed: 40 m of map = 1 game km.
+  gameKmMetres: 40,
+  maxOffers: 3,
+  offerLifeSeconds: 40, // an offer that nobody takes goes away
+  minTripMetres: 60,
+  arriveRadiusMetres: 6,
+  stopSpeedKmh: 6, // you must slow down below this to pick up or drop off
+  passengerChance: 0.65,
+  passenger: { base: 500, perGameKm: 200, maxTipFraction: 0.3, kg: 65 },
+  cargo: { base: 400, perGameKm: 160, perKg: 12, kgMin: 20, kgMax: 80, fragileChance: 0.4 },
+  // Passenger comfort lost (0..100) and cargo damage (fraction of pay, fragile cargo only).
+  comfortLoss: { pothole: 20, bumpHard: 15, wall: 35, hardBrakePerSecond: 25 },
+  cargoDamage: { pothole: 0.1, bumpHard: 0.1, wall: 0.3 },
+  hardBrakeMs2: 5, // braking harder than this upsets the passenger
+};
+
+// ---------------------------------------------------------------------------
+// Speed limits and speed cameras
+// ---------------------------------------------------------------------------
+export const LAW = {
+  defaultLimitKmh: 60, // outside a zone — guess
+  toleranceKmh: 5, // a camera fines you only above limit + tolerance — guess
+  cameraRadiusMetres: 7, // the camera measures you when you come this close
+  cameraFine: 5000, // guess
+  cameraFineHigh: 10000, // when you are more than highOverKmh over the limit — guess
+  highOverKmh: 15,
 };

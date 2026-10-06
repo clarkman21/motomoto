@@ -4,7 +4,7 @@ Moto Kigali is an isometric open city driving game. You are a moto taxi rider on
 
 This repository holds the web prototype. The game spec is the doc "Moto Kigali: Game Spec v0.1".
 
-## Status: milestone 1, "Ride feel"
+## Status: milestone 1 ("Ride feel") and the core money loop
 
 Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you test the two steering models.
 
@@ -24,7 +24,12 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Camera that looks ahead in the direction of travel | Done |
 | Touch controls (virtual stick, GO and STOP buttons) | Done (basic) |
 | Engine sound and horn (synthesized) | Done (basic) |
-| Jobs, cash, fuel stations, day end screen | Milestone 2 |
+| Passenger and cargo jobs, cash, fares and tips | Done |
+| Fuel station (pay per litre) and Ampersand swap station (flat fee) | Done |
+| Speed limit zones, signs and speed cameras with fines | Done |
+| Damage repairs, servicing, brake pads, daily rent | Done |
+| Day clock (06:00–22:00 in 6 min) and day end summary | Done |
+| Story, other districts, police helmet checks, upgrades | Later milestones |
 
 ## Run the game
 
@@ -51,6 +56,9 @@ npm run build    # makes a static build in dist/
 | Change bike (petrol or electric) | B | B button |
 | Reset the bike, energy and brakes | R | R button |
 | Sound on or off | V | — |
+| Take job 1, 2 or 3 | 1, 2, 3 | Tap the job card |
+| Cancel the job (no pay) | Backspace | — |
+| Fill up or swap the battery (stop at the station) | F | Tap the station prompt |
 
 **Bike relative steering (default, GTA 1 style).** Left and right turn the bike. Up is throttle. Down is brake. Hold down when the bike is stopped to push it backwards.
 
@@ -69,6 +77,28 @@ The petrol moto has a manual 4-speed gearbox. The electric moto has no gearbox.
 
 Milestone 2 will add the cost of new brake pads to the economy.
 
+## Money
+
+The game is about money. You earn from jobs. You spend on energy, fines and the bike.
+
+| You earn | You spend |
+| --- | --- |
+| Passenger fare: 500 RWF + 200 RWF per game km | Fuel: 4,000 RWF for a full tank, you pay for what you fill (petrol) |
+| Tip: up to 30% of the fare, from passenger comfort | Battery swap: 2,500 RWF flat (electric) |
+| Cargo: 400 RWF + 160 RWF per game km + 12 RWF per kg, less damage | Speed camera fine: 5,000 RWF, or 10,000 RWF when more than 15 km/h over |
+| | Damage: pothole 300, hard speed bump 500, crash 800 RWF |
+| | Service at day end: 25 RWF per game km (petrol), 5 RWF (electric) |
+| | Brake pads: 3,000 RWF when the pads are below 50% |
+| | Daily rent: 6,000 RWF |
+
+- **Jobs.** Take a job (1, 2 or 3). Ride to the green marker and stop. Then ride to the white marker and stop. Potholes, hard speed bumps, crashes and hard braking cost passenger comfort (and so the tip) and damage fragile cargo. A passenger or cargo makes the bike heavier.
+- **Speed limits.** Outside a zone the limit is 60 km/h. The market zone is 30 km/h. The city centre, the roundabout and the bottom of the steep east ramp are 40 km/h. Four cameras fine you when you pass more than 5 km/h over the limit. The HUD limit sign flashes when you are too fast.
+- **Empty tank or battery.** Hold throttle to push the bike at walking speed to a station.
+- **Regen.** The electric moto charges its battery when it brakes and when it rolls downhill. The day end summary shows how much regen saved.
+- **Distance.** The test map is small, so 40 m of map counts as 1 game km.
+
+All values are placeholders in `src/config.js` (`MONEY`, `JOBS`, `LAW`, `DAY`).
+
 ## How to tune the game
 
 All the numbers are in [`src/config.js`](src/config.js). The units are metric (metres, seconds, km/h). Change a value, and the dev server reloads the game.
@@ -83,8 +113,13 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `PHYSICS` | Hill force, drag, engine braking, turn rate, grip |
 | `SURFACES` | Grip, speed factor and energy factor for each surface |
 | `HAZARDS` | Pothole and speed bump effects |
+| `LOAD` | Mass of bike and rider (a load changes pull and braking) |
+| `DAY` | Day length and hours |
+| `MONEY` | Start cash, rent, fuel, swaps, repairs, service, brake pads |
+| `JOBS` | Fares, tips, cargo pay, comfort and damage rules, game km scale |
+| `LAW` | Default speed limit, camera tolerance and fines |
 
-To change the map, edit the ASCII grid in [`src/world/map-data.js`](src/world/map-data.js). The legend is at the top of the file. Hills are plateaus with ramps; each hill has a height and a ramp length for each side.
+To change the map, edit the ASCII grid in [`src/world/map-data.js`](src/world/map-data.js). The legend is at the top of the file. Hills are plateaus with ramps; each hill has a height and a ramp length for each side. The same file has the job places, speed limit zones, cameras and signs.
 
 ## Code structure
 
@@ -102,10 +137,14 @@ src/
   sim/
     bike.js              Arcade bike physics and energy (no Phaser)
     controls.js          The two steering models
+    economy.js           Wallet, fuel and swaps, repairs, day end bill
+    jobs.js              Job offers, pickup and drop off, fares and tips
+    law.js               Speed limit zones and speed cameras
   audio/engine-sound.js  Engine and horn with Web Audio
   scenes/
     RideScene.js         World, bike, camera, smoke, occlusion
-    HudScene.js          HUD and touch controls
+    HudScene.js          HUD, jobs, money and touch controls
+    DayEndScene.js       Day end summary
 test/                    Unit tests (Vitest)
 ```
 

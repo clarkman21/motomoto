@@ -1,0 +1,117 @@
+import { MONEY, JOBS } from '../config.js';
+
+// Money: everything the rider earns and spends. No Phaser here.
+// Income: fares, tips, cargo. Costs: fuel, swaps, fines, repairs, service, brake pads, rent.
+
+export const INCOME = { fares: 'Fares', tips: 'Tips', cargo: 'Cargo' };
+export const COSTS = {
+  fuel: 'Fuel',
+  swaps: 'Battery swaps',
+  fines: 'Speed camera fines',
+  repairs: 'Damage repairs',
+  service: 'Service (per km)',
+  pads: 'Brake pads',
+  rent: 'Daily bike rent',
+};
+
+const emptyLedger = () => ({
+  income: Object.fromEntries(Object.keys(INCOME).map((k) => [k, 0])),
+  costs: Object.fromEntries(Object.keys(COSTS).map((k) => [k, 0])),
+});
+
+/** Round to 10 RWF, the smallest amount the game shows. */
+export const round10 = (x) => Math.round(x / 10) * 10;
+
+export function createWallet(cash = MONEY.startCash) {
+  return { cash, day: 1, ledger: emptyLedger() };
+}
+
+export function earn(wallet, category, amount) {
+  wallet.cash += amount;
+  wallet.ledger.income[category] += amount;
+  return amount;
+}
+
+/** Spend money. Fines, repairs and rent can take the cash below zero (debt). */
+export function spend(wallet, category, amount) {
+  wallet.cash -= amount;
+  wallet.ledger.costs[category] += amount;
+  return amount;
+}
+
+/** Cost to fill the petrol tank from its current level. */
+export function fuelFillCost(bike) {
+  return round10((1 - bike.energy) * MONEY.fuelFullTank);
+}
+
+/**
+ * Fill the petrol tank with the cash you have. Returns { ok, cost, reason }.
+ * Call when the fill has finished.
+ */
+export function buyFuel(wallet, bike) {
+  const missing = 1 - bike.energy;
+  if (missing < 0.01) return { ok: false, cost: 0, reason: 'full' };
+  if (wallet.cash < 10) return { ok: false, cost: 0, reason: 'cash' };
+  const fraction = Math.min(missing, wallet.cash / MONEY.fuelFullTank);
+  const cost = Math.min(wallet.cash, round10(fraction * MONEY.fuelFullTank));
+  spend(wallet, 'fuel', cost);
+  bike.energy = Math.min(1, bike.energy + fraction);
+  return { ok: true, cost };
+}
+
+/** Swap the battery for a full one. Flat fee, whatever charge is left. Returns { ok, cost, reason }. */
+export function swapBattery(wallet, bike) {
+  if (bike.energy > 0.97) return { ok: false, cost: 0, reason: 'full' };
+  if (wallet.cash < MONEY.swapFee) return { ok: false, cost: 0, reason: 'cash' };
+  spend(wallet, 'swaps', MONEY.swapFee);
+  bike.energy = 1;
+  return { ok: true, cost: MONEY.swapFee };
+}
+
+/** Repair cost for a damage event, or 0. */
+export function repairCost(event) {
+  if (event.type === 'wall') return event.speed >= 4 ? MONEY.repairs.wall : 0;
+  return MONEY.repairs[event.type] ?? 0;
+}
+
+/**
+ * The mechanic's bill and the rent at the end of the day. It changes the wallet and the bike,
+ * and returns the day summary. Then it starts a new, empty ledger.
+ */
+export function endDay(wallet, bike) {
+  const gameKm = bike.odometer / JOBS.gameKmMetres;
+  spend(wallet, 'service', round10(gameKm * MONEY.servicePerGameKm[bike.type]));
+  let padsReplaced = false;
+  if (bike.brakePads < MONEY.replacePadsBelow) {
+    spend(wallet, 'pads', MONEY.brakePads);
+    bike.brakePads = 1;
+    bike.brakesWarned = false;
+    padsReplaced = true;
+  }
+  spend(wallet, 'rent', MONEY.dailyRent[bike.type]);
+
+  const { income, costs } = wallet.ledger;
+  const totalIncome = Object.values(income).reduce((a, b) => a + b, 0);
+  const totalCosts = Object.values(costs).reduce((a, b) => a + b, 0);
+  const summary = {
+    day: wallet.day,
+    bikeType: bike.type,
+    gameKm,
+    income: { ...income },
+    costs: { ...costs },
+    totalIncome,
+    totalCosts,
+    profit: totalIncome - totalCosts,
+    cash: wallet.cash,
+    brakePads: bike.brakePads,
+    padsReplaced,
+    // Regen: energy put back into the battery. A full battery costs one swap, so this is the money saved.
+    regenFraction: bike.regenToday,
+    regenSaved: bike.type === 'electric' ? round10(bike.regenToday * MONEY.swapFee) : 0,
+  };
+  wallet.ledger = emptyLedger();
+  wallet.day += 1;
+  bike.odometer = 0;
+  bike.regenToday = 0;
+  return summary;
+}
