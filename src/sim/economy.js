@@ -24,7 +24,7 @@ const emptyLedger = () => ({
 export const round10 = (x) => Math.round(x / 10) * 10;
 
 export function createWallet(cash = MONEY.startCash) {
-  return { cash, day: 1, ledger: emptyLedger(), loan: null, loansTaken: 0, totalIncome: 0 };
+  return { cash, day: 1, ledger: emptyLedger(), loan: null, loansTaken: 0, totalIncome: 0, level: 1, perks: {}, milestones: [], streak: 0 };
 }
 
 export function earn(wallet, category, amount) {
@@ -61,21 +61,22 @@ export function spend(wallet, category, amount) {
   return amount;
 }
 
-/** Cost to fill the petrol tank from its current level. */
-export function fuelFillCost(bike) {
-  return round10((1 - bike.energy) * MONEY.fuelFullTank);
+/** Cost to fill the petrol tank from its current level. priceFactor: the petrol price of the level. */
+export function fuelFillCost(bike, priceFactor = 1) {
+  return round10((1 - bike.energy) * MONEY.fuelFullTank * priceFactor);
 }
 
 /**
  * Fill the petrol tank with the cash you have. Returns { ok, cost, reason }.
  * Call when the fill has finished.
  */
-export function buyFuel(wallet, bike) {
+export function buyFuel(wallet, bike, priceFactor = 1) {
   const missing = 1 - bike.energy;
+  const fullTank = MONEY.fuelFullTank * priceFactor;
   if (missing < 0.01) return { ok: false, cost: 0, reason: 'full' };
   if (wallet.cash < 10) return { ok: false, cost: 0, reason: 'cash' };
-  const fraction = Math.min(missing, wallet.cash / MONEY.fuelFullTank);
-  const cost = Math.min(wallet.cash, round10(fraction * MONEY.fuelFullTank));
+  const fraction = Math.min(missing, wallet.cash / fullTank);
+  const cost = Math.min(wallet.cash, round10(fraction * fullTank));
   spend(wallet, 'fuel', cost);
   bike.energy = Math.min(1, bike.energy + fraction);
   return { ok: true, cost };
@@ -115,9 +116,9 @@ export function payGarage(wallet, bike) {
  * The mechanic's bill and the rent at the end of the day. It changes the wallet and the bike,
  * and returns the day summary. Then it starts a new, empty ledger.
  */
-export function endDay(wallet, bike) {
+export function endDay(wallet, bike, rent = MONEY.dailyRent[bike.type]) {
   const gameKm = bike.odometer / JOBS.gameKmMetres;
-  spend(wallet, 'rent', MONEY.dailyRent[bike.type]);
+  spend(wallet, 'rent', rent);
   if (wallet.loan) {
     spend(wallet, 'loan', wallet.loan.payment);
     wallet.loan.daysLeft -= 1;

@@ -7,10 +7,11 @@ import { tripMetres } from './jobs.js';
 
 const T = WORLD.tileMetres;
 
-export function createPeople(world, rng) {
+/** opts.hailEvery: multiplier on the time between street hails (below 1 = more customers). */
+export function createPeople(world, rng, opts = {}) {
   const walkTiles = world.tiles.filter((t) => isWalkTile(world, t));
   const roadsideTiles = walkTiles.filter((t) => t.surface === 'pavement' && nextToRoad(world, t));
-  const people = { walkers: [], hails: [], rng, walkTiles, roadsideTiles, nextId: 1, hailTimer: 2 };
+  const people = { walkers: [], hails: [], rng, walkTiles, roadsideTiles, nextId: 1, hailTimer: 2, hailEvery: opts.hailEvery ?? 1, districts: opts.districts ?? null };
   for (let i = 0; i < PEOPLE.walkers; i++) {
     const t = walkTiles[Math.floor(rng() * walkTiles.length)];
     const p = newPerson(people, (t.tx + 0.2 + rng() * 0.6) * T, (t.ty + 0.2 + rng() * 0.6) * T);
@@ -130,7 +131,7 @@ export function stepPeople(people, world, bike, places, dt) {
   people.hails = people.hails.filter((h) => h.life > 0 && !h.taken);
   people.hailTimer -= dt;
   if (people.hailTimer <= 0 && people.hails.length < PEOPLE.maxHails && people.roadsideTiles.length) {
-    people.hailTimer = PEOPLE.hailEverySeconds * (0.6 + rng() * 0.8);
+    people.hailTimer = PEOPLE.hailEverySeconds * people.hailEvery * (0.6 + rng() * 0.8);
     const h = makeHail(people, places, bike);
     if (h) {
       people.hails.push(h);
@@ -147,7 +148,9 @@ function makeHail(people, places, bike) {
     const x = (t.tx + 0.5) * T, y = (t.ty + 0.5) * T;
     if (Math.hypot(x - bike.x, y - bike.y) < 25) continue; // not right next to you
     const from = { name: 'Street', x: x / T, y: y / T };
-    const dests = places.filter((p) => !p.tags.some((tag) => ['fuel', 'swap', 'garage'].includes(tag)) && tripMetres(from, p) >= JOBS.minTripMetres);
+    const dests = places.filter((p) =>
+      !p.tags.some((tag) => ['fuel', 'swap', 'garage'].includes(tag)) && tripMetres(from, p) >= JOBS.minTripMetres &&
+      (!people.districts || !p.district || people.districts.includes(p.district)));
     if (!dests.length) continue;
     const to = dests[Math.floor(rng() * dests.length)];
     const [lo, hi] = PEOPLE.hailLifeSeconds;

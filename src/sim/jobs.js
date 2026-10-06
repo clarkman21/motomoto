@@ -23,17 +23,24 @@ export function tripMetres(a, b) {
 }
 
 const SERVICE_TAGS = ['fuel', 'swap', 'garage'];
-const jobPlaces = (world) => world.places.filter((p) => !p.tags.some((t) => SERVICE_TAGS.includes(t)));
+// Places for jobs. opts.districts limits them to the districts of the level (places without a district always count).
+const jobPlaces = (world, opts = {}) =>
+  world.places.filter((p) => !p.tags.some((t) => SERVICE_TAGS.includes(t)) && (!opts.districts || !p.district || opts.districts.includes(p.district)));
+export { jobPlaces };
 const pick = (rng, list) => list[Math.floor(rng() * list.length)];
 
 /** How long an app offer stays: rivals take offers, so some go fast. */
-function offerLife(rng) {
-  const [lo, hi] = RIVALS.offerLifeSeconds;
+function offerLife(rng, range = RIVALS.offerLifeSeconds) {
+  const [lo, hi] = range;
   return lo + rng() * (hi - lo);
 }
 
-export function makeOffer(world, rng, id) {
-  const places = jobPlaces(world);
+/**
+ * opts: { fareMultiplier, offerLife: [lo, hi], districts } from the level (all optional).
+ */
+export function makeOffer(world, rng, id, opts = {}) {
+  const places = jobPlaces(world, opts);
+  const fare = opts.fareMultiplier ?? 1;
   const passenger = rng() < JOBS.passengerChance;
   const starts = passenger ? places : places.filter((p) => p.tags.includes('market'));
   const ends = passenger ? places : places.filter((p) => !p.tags.includes('market'));
@@ -47,39 +54,40 @@ export function makeOffer(world, rng, id) {
   const gameKm = distanceMetres / JOBS.gameKmMetres;
   if (passenger) {
     const p = JOBS.passenger;
-    return { id, type: 'passenger', from, to, distanceMetres, gameKm, kg: p.kg, fragile: false, pay: round10(p.base + p.perGameKm * gameKm), age: 0, life: offerLife(rng) };
+    return { id, type: 'passenger', from, to, distanceMetres, gameKm, kg: p.kg, fragile: false, pay: round10((p.base + p.perGameKm * gameKm) * fare), age: 0, life: offerLife(rng, opts.offerLife) };
   }
   const c = JOBS.cargo;
   const kg = Math.round((c.kgMin + rng() * (c.kgMax - c.kgMin)) / 5) * 5;
   const fragile = rng() < c.fragileChance;
-  return { id, type: 'cargo', from, to, distanceMetres, gameKm, kg, fragile, pay: round10(c.base + c.perGameKm * gameKm + c.perKg * kg), age: 0, life: offerLife(rng) };
+  return { id, type: 'cargo', from, to, distanceMetres, gameKm, kg, fragile, pay: round10((c.base + c.perGameKm * gameKm + c.perKg * kg) * fare), age: 0, life: offerLife(rng, opts.offerLife) };
 }
 
 /** A street hail: a passenger who waves at the roadside. It starts at the drop off stage (the customer gets on at once). */
-export function makeHailJob(hail, id) {
+export function makeHailJob(hail, id, fareMultiplier = 1) {
   const distanceMetres = tripMetres(hail.from, hail.to);
   const gameKm = distanceMetres / JOBS.gameKmMetres;
   const p = JOBS.passenger;
-  return { id, type: 'passenger', hail: true, from: hail.from, to: hail.to, distanceMetres, gameKm, kg: p.kg, fragile: false, pay: round10(p.base + p.perGameKm * gameKm), age: 0 };
+  return { id, type: 'passenger', hail: true, from: hail.from, to: hail.to, distanceMetres, gameKm, kg: p.kg, fragile: false, pay: round10((p.base + p.perGameKm * gameKm) * fareMultiplier), age: 0 };
 }
 
 /** Take a street hail: the customer is on the bike, go to the drop off. */
 export function acceptHail(board, hail, bike) {
   if (board.active) return null;
-  board.active = { ...makeHailJob(hail, board.nextId++), stage: 'toDropoff', comfort: 100, damage: 0 };
+  board.active = { ...makeHailJob(hail, board.nextId++, board.opts.fareMultiplier ?? 1), stage: 'toDropoff', comfort: 100, damage: 0, clean: true };
   bike.loadKg = board.active.kg;
   bike.loadType = 'passenger';
   return board.active;
 }
 
-export function createJobBoard(world, seed = 1) {
-  const board = { rng: mulberry32(seed), offers: [], active: null, nextId: 1 };
+/** opts: { fareMultiplier, offerLife, districts, maxOffers } from the level (all optional). */
+export function createJobBoard(world, seed = 1, opts = {}) {
+  const board = { rng: mulberry32(seed), offers: [], active: null, nextId: 1, opts };
   refill(board, world);
   return board;
 }
 
 function refill(board, world) {
-  while (board.offers.length < JOBS.maxOffers) board.offers.push(makeOffer(world, board.rng, board.nextId++));
+  while (board.offers.length < (board.opts.maxOffers ?? JOBS.maxOffers)) board.offers.push(makeOffer(world, board.rng, board.nextId++, board.opts));
 }
 
 /** Age the offers, remove old ones and add new ones. */
@@ -93,7 +101,7 @@ export function updateBoard(board, world, dt) {
 export function acceptOffer(board, index) {
   if (board.active || !board.offers[index]) return null;
   const [offer] = board.offers.splice(index, 1);
-  board.active = { ...offer, stage: 'toPickup', comfort: 100, damage: 0 };
+  board.active = { ...offer, stage: 'toPickup', comfort: 100, damage: 0, clean: true };
   return board.active;
 }
 

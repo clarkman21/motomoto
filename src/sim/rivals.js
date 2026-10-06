@@ -23,8 +23,8 @@ export function sendRival(traffic, v, target, mission) {
 }
 
 /** When you take an app job: maybe a rival races you to the pickup. Returns the rival or null. */
-export function startRace(traffic, bike, pickup, rng) {
-  if (rng() >= RIVALS.raceChance) return null;
+export function startRace(traffic, bike, pickup, rng, chance = RIVALS.raceChance) {
+  if (rng() >= chance) return null;
   const target = { x: pickup.x * T, y: pickup.y * T };
   const yours = Math.hypot(bike.x - target.x, bike.y - target.y);
   const [lo, hi] = RIVALS.raceDistance;

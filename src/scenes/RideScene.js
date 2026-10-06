@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, WORLD, BIKES, DAY, MONEY, MAINTENANCE, PEOPLE } from '../config.js';
+import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK } from '../config.js';
 import { World } from '../world/world.js';
 import { buildKigaliMap } from '../world/maps/kigali.js';
 import { ChunkStreamer } from './chunks.js';
@@ -24,6 +24,8 @@ import { TrafficView, isDiesel } from './TrafficView.js';
 import { createPeople, stepPeople, hailInReach, insidePerson } from '../sim/people.js';
 import { startRace, chaseHail, stepRivals, cancelMission } from '../sim/rivals.js';
 import { PeopleView } from './PeopleView.js';
+import { levelSettings, milestoneReady, buyMilestone, restartLevel, streakMultiplier, updateStreak, savingsTarget } from '../sim/levels.js';
+import { loadGame, saveGame, clearSave } from './save.js';
 
 const FIXED_DT = 1 / 120; // physics step in seconds
 const BARKS = {
@@ -78,17 +80,13 @@ export class RideScene extends Phaser.Scene {
 
     this.#createProps();
 
-    // Traffic on the road network.
+    // Traffic, people and jobs come from the level (see #applyLevel).
     this.roadGraph = buildRoadGraph(this.world.roads);
-    this.traffic = createTraffic(this.world, this.roadGraph, mulberry32(Date.now() & 0xffff));
-    this.trafficView = new TrafficView(this, this.traffic);
     this.nearAgents = [];
     this.nearPeople = [];
-    // People: walkers and customers who wave (street hails).
     this.rng = mulberry32((Date.now() >> 4) & 0xffff);
-    this.people = createPeople(this.world, this.rng);
-    this.peopleView = new PeopleView(this, this.people);
     this.hailOffer = null;
+    this.debug = new URLSearchParams(window.location.search).has('debug');
     this.raceRival = null; // a rival who races you to your pickup
     addCanvasTexture(this, 'pin-rival', drawMarkerPin(0xec5825));
     this.rivalPin = this.add.image(0, 0, 'pin-rival').setOrigin(0.5, 1).setDepth(1e5).setVisible(false);
@@ -96,11 +94,15 @@ export class RideScene extends Phaser.Scene {
     this.world.dynamicSolid = (x, y) =>
       this.nearAgents.find((v) => insideVehicle(v, x, y, 0.1)) ?? this.nearPeople.find((p) => insidePerson(p, x, y)) ?? null;
 
-    this.bike = createBike(this.world, 'petrol');
-    this.wallet = createWallet();
-    this.board = createJobBoard(this.world, Date.now() & 0xffff);
+    // Continue a saved game, or start a new one.
+    const saved = loadGame();
+    this.wallet = saved?.wallet ?? createWallet();
+    this.wallet.ledger = createWallet().ledger;
+    this.bike = createBike(this.world, levelSettings(this.wallet).bikeType);
+    if (saved?.bike) Object.assign(this.bike, saved.bike);
+    this.#applyLevel();
     this.cameraState = createCameraState(this.world);
-    this.dayTime = 0; // real seconds since 06:00 today
+    this.dayTime = 0; // real seconds since the start of the shift
     this.station = null; // the station the bike stands at: 'fuel' or 'swap'
     this.refuel = null; // { kind, timeLeft, total } while you fill up or swap
     this.speedLimit = speedLimitAt(this.world, this.bike.x, this.bike.y);
@@ -142,7 +144,7 @@ export class RideScene extends Phaser.Scene {
         case 'KeyE': case 'KeyX': this.shift(1); break;
         case 'KeyQ': case 'KeyZ': this.shift(-1); break;
         case 'KeyG': this.toggleAutoShift(); break;
-        case 'Digit1': case 'Digit2': case 'Digit3': this.acceptJob(Number(e.code.slice(5)) - 1); break;
+        case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': this.acceptJob(Number(e.code.slice(5)) - 1); break;
         case 'Backspace': this.cancelJob(); break;
         case 'KeyF': this.startRefuel(); break;
       }
@@ -156,6 +158,11 @@ export class RideScene extends Phaser.Scene {
   }
 
   toggleBike() {
+    // Your bike comes from the level (electric after the level 4 milestone). B works only with ?debug in the address.
+    if (!this.debug) {
+      this.events.emit('bark', this.bike.type === 'petrol' ? 'Save for the electric moto: level 4 milestone' : 'You ride electric');
+      return;
+    }
     const b = this.bike;
     b.type = b.type === 'petrol' ? 'electric' : 'petrol';
     const gears = BIKES[b.type].gears;
@@ -192,7 +199,7 @@ export class RideScene extends Phaser.Scene {
     if (index === 0 && this.hailOffer && this.acceptHail()) return; // key 1 takes a street hail in reach first
     const job = acceptOffer(this.board, index);
     if (!job) return;
-    this.raceRival = startRace(this.traffic, this.bike, { ...job.from, jobId: job.id }, this.rng);
+    this.raceRival = startRace(this.traffic, this.bike, { ...job.from, jobId: job.id }, this.rng, this.level.raceChance);
     this.events.emit('bark', this.raceRival ? `Go to ${job.from.name}. A rival rider is racing you!` : `Go to ${job.from.name}`);
   }
 
@@ -201,6 +208,7 @@ export class RideScene extends Phaser.Scene {
     cancelMission(this.raceRival);
     this.raceRival = null;
     cancelJob(this.board, this.bike);
+    updateStreak(this.wallet, false);
     this.events.emit('bark', 'Job cancelled. No pay.');
   }
 
@@ -223,7 +231,7 @@ export class RideScene extends Phaser.Scene {
     if (kind === 'fuel' && type !== 'petrol') return { ok: false, text: 'Fuel station. Your electric moto needs a swap station.' };
     if (kind === 'swap' && type !== 'electric') return { ok: false, text: 'Swap station. Your petrol moto needs a fuel station.' };
     if (kind === 'fuel') {
-      const cost = fuelFillCost(this.bike);
+      const cost = fuelFillCost(this.bike, this.level.petrol);
       if (cost < 40) return { ok: false, text: 'The tank is full.' };
       return { ok: true, text: `F: Fill up (${cost.toLocaleString('en')} RWF, ${MONEY.fuelSeconds} s + queue)` };
     }
@@ -249,7 +257,7 @@ export class RideScene extends Phaser.Scene {
     const kind = this.refuel.kind;
     this.refuel = null;
     const r =
-      kind === 'fuel' ? buyFuel(this.wallet, this.bike) :
+      kind === 'fuel' ? buyFuel(this.wallet, this.bike, this.level.petrol) :
       kind === 'swap' ? swapBattery(this.wallet, this.bike) : payGarage(this.wallet, this.bike);
     const label = kind === 'fuel' ? 'Fuel' : kind === 'swap' ? 'Battery swap' : r.pads ? 'Service and brake pads' : 'Service';
     if (r.ok) this.events.emit('money', -r.cost, label);
@@ -258,6 +266,7 @@ export class RideScene extends Phaser.Scene {
 
   #pay(category, amount, label) {
     if (amount <= 0) return;
+    if ((category === 'fines' || category === 'repairs') && this.board.active) this.board.active.clean = false; // breaks the streak
     spend(this.wallet, category, amount);
     this.events.emit('money', -amount, label);
   }
@@ -279,6 +288,13 @@ export class RideScene extends Phaser.Scene {
       } else {
         earn(this.wallet, e.job.type === 'passenger' ? 'fares' : 'cargo', e.fare);
         this.events.emit('money', e.fare, e.job.type === 'passenger' ? 'Fare' : 'Cargo delivered');
+        // Clean ride streak: a bonus on the fare, then the streak grows (or resets after a bad ride).
+        const bonus = Math.round((e.fare * (streakMultiplier(this.wallet) - 1)) / 10) * 10;
+        if (bonus > 0) {
+          earn(this.wallet, 'tips', bonus);
+          this.time.delayedCall(1300, () => this.events.emit('money', bonus, `Streak bonus ×${streakMultiplier(this.wallet).toFixed(1)}`));
+        }
+        updateStreak(this.wallet, e.job.clean && (e.job.type !== 'passenger' || e.job.comfort >= STREAK.minComfort) && e.job.damage < 0.05);
         if (e.tip > 0) {
           earn(this.wallet, 'tips', e.tip);
           this.time.delayedCall(700, () => this.events.emit('money', e.tip, `Tip (comfort ${Math.round(e.job.comfort)}%)`));
@@ -286,7 +302,8 @@ export class RideScene extends Phaser.Scene {
       }
     }
     const kmh = Math.abs(forwardSpeed(b)) * 3.6;
-    for (const e of checkCameras(this.world, this.cameraState, b, kmh)) {
+    const cameraEvents = this.level.cameras ? checkCameras(this.world, this.cameraState, b, kmh) : [];
+    for (const e of cameraEvents) {
       this.events.emit('camera', e);
       if (e.fine) this.#pay('fines', e.fine, `Speed camera: ${Math.round(e.speedKmh)} km/h in a ${e.limitKmh} zone`);
     }
@@ -304,38 +321,81 @@ export class RideScene extends Phaser.Scene {
     }
   }
 
+  /** The level's settings, traffic, people and job board. Called at the start and at each new day. */
+  #applyLevel() {
+    const L = (this.level = levelSettings(this.wallet));
+    const counts = {};
+    for (const kind of ['car', 'bus', 'truck']) counts[kind] = Math.round(TRAFFIC.counts[kind] * L.traffic);
+    counts.moto = L.rivals;
+    this.trafficView?.destroy();
+    this.peopleView?.destroy();
+    this.traffic = createTraffic(this.world, this.roadGraph, mulberry32(Date.now() & 0xffff), counts);
+    this.trafficView = new TrafficView(this, this.traffic);
+    this.people = createPeople(this.world, this.rng, { hailEvery: L.hailEvery, districts: L.districts });
+    this.peopleView = new PeopleView(this, this.people);
+    this.board = createJobBoard(this.world, Date.now() & 0xffff, { fareMultiplier: L.fare, offerLife: L.offerLife, districts: L.districts, maxOffers: L.maxOffers });
+    this.raceRival = null;
+  }
+
+  #save() {
+    const { energy, brakePads, serviceWear, brokenDown } = this.bike;
+    const { ledger, ...wallet } = this.wallet;
+    saveGame({ wallet, bike: { energy, brakePads, serviceWear, brokenDown } });
+  }
+
   #endDay() {
     if (this.board.active) cancelJob(this.board, this.bike);
     cancelMission(this.raceRival);
     this.raceRival = null;
     this.refuel = null;
-    const summary = endDay(this.wallet, this.bike);
+    const summary = endDay(this.wallet, this.bike, this.level.rent);
+    summary.level = this.level;
+    summary.milestoneReady = !summary.outOfCash && milestoneReady(this.wallet);
+    summary.savingsTarget = savingsTarget(this.wallet);
     this.dayOver = true;
     this.scene.pause();
     this.scene.launch('dayEnd', { summary, onContinue: (choice) => this.#startDay(choice) });
   }
 
-  /** choice: 'next' (next day), 'loan' (take the loan, then the next day) or 'restart' (new game after game over). */
+  /**
+   * choice: 'next' (next day), 'loan' (take the loan, then the next day), 'restart' (game over: restart this level),
+   * 'buy' (buy the milestone, then show the new level), 'newGame' (start again at level 1).
+   */
   #startDay(choice = 'next') {
+    if (choice === 'buy') {
+      const bought = buyMilestone(this.wallet);
+      if (bought) {
+        this.#save();
+        this.scene.launch('dayEnd', { levelUp: { bought, next: levelSettings(this.wallet) }, onContinue: () => this.#startDay('next') });
+        return;
+      }
+    }
     this.dayTime = 0;
     this.dayOver = false;
-    const { type, autoShift, energy, brakePads, brakesWarned } = this.bike;
-    this.bike = createBike(this.world, type);
-    if (choice === 'restart') {
+    const { autoShift, energy, brakePads, brakesWarned, serviceWear, brokenDown } = this.bike;
+    if (choice === 'newGame') {
+      clearSave();
       this.wallet = createWallet();
-      this.bike.autoShift = autoShift;
-    } else {
-      if (choice === 'loan') takeLoan(this.wallet);
-      Object.assign(this.bike, { autoShift, energy, brakePads, brakesWarned });
+    } else if (choice === 'restart') {
+      restartLevel(this.wallet);
+    } else if (choice === 'loan') {
+      takeLoan(this.wallet);
     }
-    this.board = createJobBoard(this.world, Date.now() & 0xffff);
+    const type = levelSettings(this.wallet).bikeType;
+    this.bike = createBike(this.world, type);
+    this.bike.autoShift = autoShift;
+    // The same bike carries over (a new bike after a new game or the switch to electric).
+    if (choice !== 'newGame' && type === this.level.bikeType) Object.assign(this.bike, { energy, brakePads, brakesWarned, serviceWear, brokenDown });
+    this.#applyLevel();
     this.#placeBike();
+    this.#save();
     this.scene.resume();
   }
 
-  /** Game clock as hours (6.0 .. 22.0). */
+  /** Game clock in hours. The shift of the level runs from its start to its end hour in shift.realSeconds. */
   get clockHours() {
-    return DAY.startHour + ((DAY.endHour - DAY.startHour) * this.dayTime) / DAY.realSeconds;
+    const { start, end, realSeconds } = this.level.shift;
+    return start + ((end - start) * Math.min(this.dayTime, realSeconds)) / realSeconds;
   }
 
   /** Debug and tests: move the bike to a tile position and snap the camera there. */
@@ -428,7 +488,7 @@ export class RideScene extends Phaser.Scene {
     this.#updateRivalPin();
     this.engineSound.update(this.bike.type, Math.min(1, this.bike.revs), this.controls.throttle);
     this.dayTime += dt;
-    if (this.dayTime >= DAY.realSeconds) this.#endDay();
+    if (this.dayTime >= this.level.shift.realSeconds) this.#endDay();
   }
 
   #updateTraffic(dt) {
@@ -473,6 +533,7 @@ export class RideScene extends Phaser.Scene {
     if (mission.type === 'job' && job && job.id === mission.id && job.stage === 'toPickup') {
       cancelJob(this.board, this.bike);
       this.raceRival = null;
+      updateStreak(this.wallet, false);
       this.events.emit('bark', 'Too slow! A rival rider took your passenger');
     }
     if (mission.type === 'hail') {

@@ -15,11 +15,12 @@ const PATIENCE_SECONDS = 4; // after this long at a junction, a vehicle goes any
 
 const cornerFor = (a, b) => Math.min(CORNER, a.length / 2 - 0.05, b.length / 2 - 0.05);
 
-export function createTraffic(world, graph, rng) {
+/** counts: how many of each kind (default: TRAFFIC.counts). */
+export function createTraffic(world, graph, rng, counts = TRAFFIC.counts) {
   const vehicles = [];
   let id = 1;
   const roadEdges = graph.edges.filter((e) => e.length > 12);
-  for (const [kind, count] of Object.entries(TRAFFIC.counts)) {
+  for (const [kind, count] of Object.entries(counts)) {
     for (let i = 0; i < count; i++) {
       const edge = roadEdges[Math.floor(rng() * roadEdges.length)];
       const spec = TRAFFIC.kinds[kind];

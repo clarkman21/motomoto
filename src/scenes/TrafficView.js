@@ -49,6 +49,14 @@ export class TrafficView {
     tex.refresh();
   }
 
+  destroy() {
+    for (const { img, shadow } of this.sprites.values()) {
+      img.destroy();
+      shadow.destroy();
+    }
+    this.sprites.clear();
+  }
+
   /** Place all sprites. Only vehicles inside the camera view are shown. */
   update(world, view) {
     const m = 80;

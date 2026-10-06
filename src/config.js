@@ -289,3 +289,58 @@ export const RIVALS = {
   busySeconds: 40, // a rival with a passenger rides for this long, then looks for work again
   offerLifeSeconds: [15, 40], // app offers go away faster: rivals take them
 };
+
+// ---------------------------------------------------------------------------
+// Levels (spec: Levels and progression). Levels 1-4 are built; level 5 is free play until
+// the next build. Each level: a savings goal and a milestone, a shift, and the difficulty.
+// Rent scales with the shift length (night and evening shifts are shorter). All guesses.
+// ---------------------------------------------------------------------------
+export const SAVINGS_FLOAT = 5000; // you need the goal plus this working money to buy a milestone
+
+export const LEVELS = [
+  {
+    n: 1, name: 'Night rider', goal: 15000, milestone: 'School fees for one term', kind: 'life',
+    shift: { start: 19, end: 23, realSeconds: 180 }, rent: 3000,
+    traffic: 0.3, rivals: 2, raceChance: 0.15, offerLife: [30, 60], hailEvery: 0.6,
+    fare: 1.2, petrol: 1.0, cameras: false, districts: ['valley'],
+    news: 'Night shift: quiet streets, few rivals, night fares +20%. The valley only.',
+  },
+  {
+    n: 2, name: 'Evening rider', goal: 25000, milestone: 'A smartphone and a spare passenger helmet', kind: 'asset', effect: 'phone',
+    shift: { start: 16, end: 23, realSeconds: 240 }, rent: 4500,
+    traffic: 0.5, rivals: 4, raceChance: 0.25, offerLife: [25, 50], hailEvery: 0.6,
+    fare: 1.1, petrol: 1.0, cameras: false, districts: ['valley'],
+    news: 'Evening shift: rush home after work. More traffic and more rivals.',
+  },
+  {
+    n: 3, name: 'Day rider', goal: 40000, milestone: 'A year of school: fees, uniforms and books', kind: 'life',
+    shift: { start: 6, end: 22, realSeconds: 360 }, rent: 6000,
+    traffic: 0.8, rivals: 6, raceChance: 0.35, offerLife: [20, 45], hailEvery: 1,
+    fare: 1.0, petrol: 1.1, cameras: true, districts: ['valley'],
+    news: 'Full day shift. Speed cameras are on. Petrol costs 10% more.',
+  },
+  {
+    n: 4, name: 'Rush hour', goal: 60000, milestone: 'Down payment on an Ampersand electric moto', kind: 'asset', effect: 'electric',
+    shift: { start: 6, end: 22, realSeconds: 360 }, rent: 6000,
+    traffic: 1.0, rivals: 10, raceChance: 0.45, offerLife: [15, 40], hailEvery: 1,
+    fare: 1.1, petrol: 1.2, cameras: true, districts: ['valley', 'city'],
+    news: 'The city centre opens: better fares, heavy traffic, 10 rivals. Petrol +20%.',
+  },
+  {
+    n: 5, name: 'Electric rider', goal: 80000, milestone: 'A plot of land', kind: 'life', freePlay: true,
+    shift: { start: 6, end: 22, realSeconds: 360 }, rent: 6000,
+    traffic: 1.0, rivals: 12, raceChance: 0.5, offerLife: [15, 40], hailEvery: 1,
+    fare: 1.2, petrol: 1.3, cameras: true, districts: ['valley', 'city'],
+    news: 'You ride electric now: more torque, lower costs, no petrol price rises. Levels 5 to 10 come in the next build: free play.',
+  },
+];
+
+export const STREAK = { step: 0.1, max: 1.5, minComfort: 80 }; // clean ride streak: fares × (1 + streak)
+
+// Day and night: the light at each hour (0-24). light: 0 = night, 1 = full day.
+export const DAYLIGHT = {
+  nightTint: [0.3, 0.34, 0.52], // colour multiplier at full night (blue)
+  sunsetTint: [1.0, 0.78, 0.6], // warm light at sunset
+  // [hour, light] points; light between them is interpolated.
+  curve: [[0, 0], [5, 0], [6.5, 0.6], [7.5, 1], [17, 1], [18.2, 0.7], [19.3, 0.15], [20, 0], [24, 0]],
+};

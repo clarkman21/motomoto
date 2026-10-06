@@ -32,6 +32,12 @@ export class PeopleView {
     tex.refresh();
   }
 
+  destroy() {
+    for (const img of this.walkerSprites) img.destroy();
+    for (const img of this.hailSprites.values()) img.destroy();
+    this.hailSprites.clear();
+  }
+
   update(world, view, time) {
     const m = 40;
     const inView = (s) => s.x > view.x - m && s.x < view.right + m && s.y > view.y - m && s.y < view.bottom + m;

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BIKES, COLOURS, GEARBOX, BRAKES, LAW, JOBS } from '../config.js';
+import { BIKES, COLOURS, GEARBOX, BRAKES, LAW, JOBS, SAVINGS_FLOAT } from '../config.js';
 import { forwardSpeed } from '../sim/bike.js';
 import { serviceDue } from '../sim/maintenance.js';
 import { STEERING_LABELS } from '../sim/controls.js';
@@ -49,11 +49,14 @@ export class HudScene extends Phaser.Scene {
     this.cashText = this.add.text(0, 0, '', { fontFamily: FONT_LABEL, fontSize: '34px', fontStyle: '600', color: '#ffffff' }).setOrigin(1, 0);
     this.clockText = this.add.text(0, 0, '', { fontFamily: FONT_BODY, fontSize: '14px', color: '#d8d8d8' }).setOrigin(1, 0);
     this.limitSign = this.add.graphics();
+    this.levelText = this.add.text(0, 0, '', { fontFamily: FONT_LABEL, fontSize: '15px', color: '#ffffff' });
+    this.savingsBar = this.add.graphics();
+    this.streakText = this.add.text(0, 0, '', { fontFamily: FONT_LABEL, fontSize: '15px', fontStyle: '600', color: '#44bc9d' }).setOrigin(1, 0);
     this.limitText = this.add.text(0, 0, '', { fontFamily: FONT_LABEL, fontSize: '20px', fontStyle: '600', color: '#111111' }).setOrigin(0.5);
     // Jobs: offers or the active job. Each offer is a card you can tap.
     this.jobPanel = this.add.graphics();
     this.jobTitle = this.add.text(0, 0, '', { fontFamily: FONT_LABEL, fontSize: '16px', color: ALLOY_GREY });
-    this.jobCards = [0, 1, 2].map((i) => {
+    this.jobCards = [0, 1, 2, 3].map((i) => {
       const t = this.add.text(0, 0, '', { fontFamily: FONT_BODY, fontSize: '14px', color: '#ffffff', lineSpacing: 2, wordWrap: { width: 290 } });
       t.setInteractive({ useHandCursor: true }).on('pointerdown', (p) => { p.hitButton = true; this.ride.acceptJob(i); });
       return t;
@@ -116,22 +119,27 @@ export class HudScene extends Phaser.Scene {
     this.helpText.setText(
       this.isTouch
         ? 'Stick: steer · GO: throttle · STOP: brake · + −: shift'
-        : 'W/↑ throttle · S/↓ brake · A D/← → steer · E/Q shift · G auto shift · 1–3 take job · F fuel/swap/garage · H horn · C steering · B bike · R reset · V sound',
+        : 'W/↑ throttle · S/↓ brake · A D/← → steer · E/Q shift · G auto shift · 1–4 take job · F fuel/swap/garage · H horn · C steering · B bike · R reset · V sound',
     );
     this.helpText.setVisible(width > 1000 || this.isTouch);
     this.barkText.setPosition(width / 2, 24 * s);
     // Right side: money panel and jobs
     this.hudScale = s;
     const rw = 320 * s, rx = width - rw - 16 * s;
-    this.moneyPanel.clear().fillStyle(0x000000, 0.62).fillRoundedRect(rx, y, rw, 70 * s, 8 * s);
+    // Money panel: cash, clock, limit sign, then the level and its savings bar.
+    this.moneyPanel.clear().fillStyle(0x000000, 0.62).fillRoundedRect(rx, y, rw, 108 * s, 8 * s);
+    this.levelText.setFontSize(px(15)).setPosition(rx + 12 * s, y + 70 * s);
+    this.streakText.setFontSize(px(15)).setPosition(rx + rw - 12 * s, y + 70 * s);
+    this.savingsPos = { x: rx + 12 * s, y: y + 92 * s, w: rw - 24 * s, h: 7 * s };
     this.cashText.setFontSize(px(34)).setPosition(rx + rw - 72 * s, y + 4 * s);
     this.clockText.setFontSize(px(14)).setPosition(rx + rw - 72 * s, y + 46 * s);
     this.limitPos = { x: rx + rw - 36 * s, y: y + 35 * s, r: 24 * s };
     this.limitText.setFontSize(px(20)).setPosition(this.limitPos.x, this.limitPos.y);
-    this.jobBox = { x: rx, y: y + 78 * s, w: rw };
-    this.jobTitle.setFontSize(px(15)).setPosition(rx + 12 * s, y + 84 * s);
+    this.jobBox = { x: rx, y: y + 116 * s, w: rw };
+    this.jobTitle.setFontSize(px(15)).setPosition(rx + 12 * s, y + 122 * s);
     this.jobCards.forEach((t, i) => {
-      t.setFontSize(px(14)).setWordWrapWidth(rw - 24 * s).setPosition(rx + 12 * s, y + (106 + i * 50) * s);
+      t.setFontSize(px(14)).setWordWrapWidth(rw - 24 * s).setPosition(rx + 12 * s, y + (144 + i * 46) * s);
+      this.cardTop = y + 144 * s;
     });
     this.stationText.setFontSize(px(16)).setPosition(width / 2, height - 52 * s);
     this.flash.setSize(width, height);
@@ -208,7 +216,8 @@ export class HudScene extends Phaser.Scene {
     const mm = String(Math.floor((h % 1) * 60)).padStart(2, '0');
     // During the day end summary, wallet.day already counts the next day.
     const day = ride.dayOver ? ride.wallet.day - 1 : ride.wallet.day;
-    this.clockText.setText(`Day ${day} · ${ride.dayOver ? '22:00' : `${hh}:${mm}`}`);
+    const endHour = `${String(ride.level.shift.end % 24).padStart(2, '0')}:00`;
+    this.clockText.setText(`Day ${day} · ${ride.dayOver ? endHour : `${hh}:${mm}`}`);
     // Speed limit sign. It flashes when you are over the limit by more than the camera tolerance.
     const kmh = Math.abs(forwardSpeed(ride.bike)) * 3.6;
     const limit = ride.speedLimit.limitKmh;
@@ -217,6 +226,15 @@ export class HudScene extends Phaser.Scene {
     const { x, y, r } = this.limitPos;
     this.limitSign.clear().fillStyle(0xd0302a, 1).fillCircle(x, y, r).fillStyle(blink ? 0xec5825 : 0xffffff, 1).fillCircle(x, y, r * 0.74);
     this.limitText.setText(String(limit));
+    // Level and savings toward the milestone.
+    const L = ride.level;
+    const target = L.freePlay ? 0 : L.goal + SAVINGS_FLOAT;
+    this.levelText.setText(L.freePlay ? `Level ${L.n} · ${L.name} · free play` : `Level ${L.n} · ${L.name} · save ${target.toLocaleString('en')}`);
+    const sp = this.savingsPos;
+    const frac = target ? Math.max(0, Math.min(1, cash / target)) : 1;
+    this.savingsBar.clear().fillStyle(0x333333, 1).fillRect(sp.x, sp.y, sp.w, sp.h).fillStyle(frac >= 1 ? 0x44bc9d : 0xf6f5ec, 1).fillRect(sp.x, sp.y, sp.w * frac, sp.h);
+    const streak = ride.wallet.streak ?? 0;
+    this.streakText.setText(streak > 0 ? `STREAK ×${(1 + streak).toFixed(1)}` : '');
   }
 
   #updateJobs() {
@@ -236,17 +254,23 @@ export class HudScene extends Phaser.Scene {
         job.type === 'passenger' ? `Comfort ${Math.round(job.comfort)}% (tip up to ${Math.round(JOBS.passenger.maxTipFraction * 100)}%)` :
         job.fragile ? `Damage ${Math.round(job.damage * 100)}%` : 'Stop at the white marker.';
       this.jobCards[0].setText(`${what(job)} · ${job.from.name} → ${job.to.name}\n${money(job.pay)} · ${dist} m to go\n${quality}`);
+      this.jobCards[0].setY(this.cardTop);
       this.jobCards[1].setText('');
-      this.jobCards[2].setText(this.isTouch ? '' : 'Backspace: cancel job (no pay)');
+      this.jobCards[2].setText(this.isTouch ? '' : 'Backspace: cancel job (no pay)').setY(this.cardTop + this.jobCards[0].height + 8 * s);
+      this.jobCards[3].setText('');
       this.jobPanel.clear().fillStyle(0x000000, 0.62).fillRoundedRect(box.x, box.y, box.w, 152 * s, 8 * s);
       return;
     }
-    this.jobTitle.setText(this.isTouch ? 'JOBS · tap to accept' : 'JOBS · press 1, 2 or 3');
+    const n = ride.board.offers.length;
+    this.jobTitle.setText(this.isTouch ? 'JOBS · tap to accept' : `JOBS · press 1 to ${n}`);
+    // Stack the cards by their real height, so a card that wraps to three lines does not overlap the next one.
+    let cy = this.cardTop;
     this.jobCards.forEach((t, i) => {
       const o = ride.board.offers[i];
-      t.setText(o ? `${i + 1}  ${what(o)} · ${money(o.pay)}\n    ${o.from.name} → ${o.to.name} · ${km(o)}` : '');
+      t.setText(o ? `${i + 1}  ${what(o)} · ${money(o.pay)}\n    ${o.from.name} → ${o.to.name} · ${km(o)}` : '').setY(cy);
+      if (o) cy += t.height + 6 * s;
     });
-    this.jobPanel.clear().fillStyle(0x000000, 0.62).fillRoundedRect(box.x, box.y, box.w, 182 * s, 8 * s);
+    this.jobPanel.clear().fillStyle(0x000000, 0.62).fillRoundedRect(box.x, box.y, box.w, cy - box.y + 4 * s, 8 * s);
   }
 
   #updateStation() {
