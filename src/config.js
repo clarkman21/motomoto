@@ -75,13 +75,13 @@ export const BIKES = {
 // ---------------------------------------------------------------------------
 export const PHYSICS = {
   gravity: 9.81,
-  // Arcade factor on the slope force. At 1.0 a 37% ramp nearly stops the petrol bike.
-  hillFactor: 0.5,
+  // Arcade factor on the slope force (1.0 = real gravity). At 0.8, a 19% ramp needs 2nd gear
+  // on the petrol moto and a 37% ramp needs 1st gear.
+  hillFactor: 0.8,
   // A grade at or above this value counts as "fully uphill" for the energy factor.
   fullUphillGrade: 0.2,
-  rollingDragMs2: 0.25,
   airDragPerMs: 0.004, // extra deceleration per m/s of speed
-  coastDragMs2: 0.6, // extra drag when you do not press throttle (engine braking)
+  coastDragMs2: 0.6, // electric: extra drag when you do not press throttle (light motor drag)
   // Steering
   maxTurnRateRad: 3.4, // rad/s at low speed
   turnRateAtTopSpeed: 0.45, // fraction of maxTurnRate left at top speed
@@ -103,11 +103,13 @@ export const PHYSICS = {
 // energyFactor implements the spec note: dirt road parts are slower and use more fuel.
 // ---------------------------------------------------------------------------
 export const SURFACES = {
-  tarmac: { name: 'Tarmac', grip: 1.0, speedFactor: 1.0, energyFactor: 1.0 },
-  cobble: { name: 'Cobblestone', grip: 0.85, speedFactor: 0.9, energyFactor: 1.1 },
-  murram: { name: 'Murram, dry', grip: 0.7, speedFactor: 0.75, energyFactor: 1.25 },
-  murramWet: { name: 'Murram, wet', grip: 0.45, speedFactor: 0.6, energyFactor: 1.4 },
-  grass: { name: 'Grass verge', grip: 0.6, speedFactor: 0.45, energyFactor: 1.5 }, // guess, not in spec
+  // rollingMs2: rolling resistance (deceleration) that always works against motion. It makes the
+  // engine work harder, so you need a lower gear (petrol) or more energy (electric). Arcade guesses.
+  tarmac: { name: 'Tarmac', grip: 1.0, speedFactor: 1.0, energyFactor: 1.0, rollingMs2: 0.25 },
+  cobble: { name: 'Cobblestone', grip: 0.85, speedFactor: 0.9, energyFactor: 1.1, rollingMs2: 0.45 },
+  murram: { name: 'Murram, dry', grip: 0.7, speedFactor: 0.75, energyFactor: 1.25, rollingMs2: 0.9 },
+  murramWet: { name: 'Murram, wet', grip: 0.45, speedFactor: 0.6, energyFactor: 1.4, rollingMs2: 1.3 },
+  grass: { name: 'Grass verge', grip: 0.6, speedFactor: 0.45, energyFactor: 1.5, rollingMs2: 1.6 }, // guess, not in spec
 };
 
 // ---------------------------------------------------------------------------
@@ -118,6 +120,7 @@ export const GEARBOX = {
   // Below this fraction of the gear's top speed, the engine lugs (pulls weakly). First gear does not lug (clutch slip).
   lugRevs: 0.3,
   lugPull: 0.35, // pull at zero revs in gears 2 and up
+  lugWarnSeconds: 0.8, // show "Shift down!" after the engine struggles for this long
   // Above this fraction of the gear's top speed, pull falls to zero at the rev limit.
   peakRevsEnd: 0.85,
   // Fuel use rises with revs: factor = fuelAtIdle + fuelPerRev × revs (1.0 at mid revs).

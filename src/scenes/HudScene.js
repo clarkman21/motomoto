@@ -99,7 +99,11 @@ export class HudScene extends Phaser.Scene {
 
     const electric = bike.type === 'electric';
     const pct = Math.round(bike.energy * 100);
-    this.energyLabel.setText(`${electric ? 'BATTERY' : 'FUEL'}  ${pct}%`);
+    // Live energy use, compared with full throttle on flat tarmac (smoothed, so it is readable).
+    const ratio = (bike.energyRate ?? 0) * spec.energySeconds;
+    this.useSmooth = (this.useSmooth ?? 0) + (ratio - (this.useSmooth ?? 0)) * Math.min(1, deltaMs / 250);
+    const use = this.useSmooth < -0.02 ? 'CHARGING' : `USE ${Math.max(0, this.useSmooth).toFixed(1)}×`;
+    this.energyLabel.setText(`${electric ? 'BATTERY' : 'FUEL'}  ${pct}%   ·   ${use}`);
     const b = this.energyBarPos;
     this.energyBar.clear().fillStyle(0x333333, 1).fillRect(b.x, b.y, b.w, b.h);
     this.energyBar.fillStyle(electric ? COLOURS.ampersandYellow : PETROL_RED, 1).fillRect(b.x, b.y, b.w * bike.energy, b.h);

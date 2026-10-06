@@ -250,3 +250,50 @@ describe('brakes', () => {
     expect(1 - e.brakePads).toBeLessThan((1 - p.brakePads) * 0.8);
   });
 });
+
+describe('hills and dirt make the engine work harder', () => {
+  // A long climb along +x. run = tiles per level: 2 = 19% grade, 1.5 = 25%.
+  const climb = (ch, run) =>
+    new World({ name: 'climb', start: { x: 1.5, y: 1.5, headingDeg: 0 }, rows: [ch.repeat(400), ch.repeat(400), ch.repeat(400)],
+      hills: [{ x0: 2000, y0: -10, x1: 3000, y1: 20, level: 2000 / run, run: { west: run, east: 1, north: 1, south: 1 } }] });
+  const holdThrottle = (world, type, gear, seconds = 20) => {
+    const bike = createBike(world, type);
+    bike.gear = gear;
+    bike.vx = 25 / 3.6;
+    const events = run(bike, world, { throttle: 1 }, seconds);
+    return { bike, events };
+  };
+
+  it('on a 19% tarmac climb, 4th gear cannot hold speed but 2nd gear can', () => {
+    expect(kmh(holdThrottle(climb('#', 2), 'petrol', 3).bike)).toBeLessThan(5);
+    expect(kmh(holdThrottle(climb('#', 2), 'petrol', 1).bike)).toBeGreaterThan(30);
+  });
+
+  it('on a 25% murram climb, only 1st gear climbs', () => {
+    expect(kmh(holdThrottle(climb('m', 1.5), 'petrol', 1).bike)).toBeLessThan(5);
+    expect(kmh(holdThrottle(climb('m', 1.5), 'petrol', 0).bike)).toBeGreaterThan(15);
+  });
+
+  it('warns the rider to shift down when the engine struggles', () => {
+    const { events } = holdThrottle(climb('#', 2), 'petrol', 3, 5);
+    expect(events.some((e) => e.type === 'lugging')).toBe(true);
+  });
+
+  it('murram slows a coasting bike faster than tarmac', () => {
+    const coast = (ch) => {
+      const world = straight(ch);
+      const bike = createBike(world, 'electric');
+      bike.vx = 40 / 3.6;
+      run(bike, world, {}, 3);
+      return kmh(bike);
+    };
+    expect(coast('m')).toBeLessThan(coast('#') - 5);
+  });
+
+  it('the electric moto climbs without gears but uses more energy on a dirt hill', () => {
+    const flat = holdThrottle(straight('#'), 'electric', 0);
+    const hill = holdThrottle(climb('m', 2), 'electric', 0);
+    expect(kmh(hill.bike)).toBeGreaterThan(35);
+    expect(1 - hill.bike.energy).toBeGreaterThan((1 - flat.bike.energy) * 1.6);
+  });
+});

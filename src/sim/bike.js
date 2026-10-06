@@ -61,8 +61,9 @@ export function revsFor(spec, gear, v) {
 }
 
 /** How hard the engine pulls (m/s²) at full throttle, before the throttle factor. */
-export function enginePull(spec, bike, v, vmax) {
-  if (!spec.gears) return spec.accelMs2 * clamp(1 - v / (vmax * 1.1), 0, 1);
+export function enginePull(spec, bike, v) {
+  // A slow surface does not cut the engine pull directly. Its rolling resistance does the work.
+  if (!spec.gears) return spec.accelMs2 * clamp(1 - v / (spec.topSpeedKmh * KMH * 1.1), 0, 1);
   if (bike.shiftTimer > 0) return 0;
   const g = spec.gears[bike.gear];
   const r = Math.max(0, v) / (g.topKmh * KMH);
@@ -70,9 +71,7 @@ export function enginePull(spec, bike, v, vmax) {
   if (r >= 1) curve = 0;
   else if (r > GEARBOX.peakRevsEnd) curve = (1 - r) / (1 - GEARBOX.peakRevsEnd);
   else if (r < GEARBOX.lugRevs && bike.gear > 0) curve = GEARBOX.lugPull + (1 - GEARBOX.lugPull) * (r / GEARBOX.lugRevs);
-  // A slow surface also limits the pull near its speed limit.
-  const surfaceLimit = vmax < spec.topSpeedKmh * KMH ? clamp((vmax * 1.1 - v) / (vmax * 0.3), 0, 1) : 1;
-  return spec.accelMs2 * g.pull * curve * surfaceLimit;
+  return spec.accelMs2 * g.pull * curve;
 }
 
 /** Stopping power of the friction brakes for a pad level 0..1. */
@@ -119,6 +118,7 @@ export function stepBike(bike, input, world, dt) {
   const slopeAccel = -PHYSICS.gravity * Math.sin(Math.atan(grade)) * PHYSICS.hillFactor;
 
   // Gearbox.
+  const vStart = v;
   const vmax = topSpeed * surface.speedFactor;
   const hasEnergy = bike.energy > 0;
   const throttle = hasEnergy ? clamp(input.throttle, 0, 1) : 0;
@@ -133,7 +133,7 @@ export function stepBike(bike, input, world, dt) {
 
   // Engine.
   let accel = slopeAccel;
-  if (throttle > 0) accel += throttle * enginePull(spec, bike, v, vmax);
+  if (throttle > 0) accel += throttle * enginePull(spec, bike, v);
   if (v > vmax) accel -= (v - vmax) * 1.5; // never faster than top speed; a slow surface pulls you down to its limit
 
   // Brakes. Electric: regen brakes first and charges the battery. Friction brakes do the rest and wear.
@@ -154,7 +154,7 @@ export function stepBike(bike, input, world, dt) {
   v += accel * dt;
 
   // Drag always works against motion and never flips its direction.
-  let drag = PHYSICS.rollingDragMs2 + PHYSICS.airDragPerMs * Math.abs(v);
+  let drag = surface.rollingMs2 + PHYSICS.airDragPerMs * Math.abs(v);
   if (throttle === 0) {
     // Petrol: engine braking grows with revs, so a downshift slows you without the brakes.
     if (spec.gears && bike.shiftTimer === 0 && v > 0.5) drag += PHYSICS.engineBrakeMs2 * Math.min(1.2, bike.revs) ** 2;
@@ -174,6 +174,19 @@ export function stepBike(bike, input, world, dt) {
       bike.brakesWarned = true;
       events.push({ type: 'brakesWorn' });
     }
+  }
+
+  // Petrol: warn when the engine struggles in a gear that is too high (lugs, or loses speed at full throttle).
+  if (spec.gears) {
+    const netAccel = (v - vStart) / dt;
+    const struggling = throttle > 0.5 && bike.gear > 0 && bike.shiftTimer === 0 &&
+      (bike.revs < GEARBOX.lugRevs || (netAccel < -0.2 && bike.revs < 0.7));
+    bike.lugTime = struggling ? (bike.lugTime ?? 0) + dt : 0;
+    if (bike.lugTime > GEARBOX.lugWarnSeconds && !bike.lugWarned) {
+      bike.lugWarned = true;
+      events.push({ type: 'lugging' });
+    }
+    if (bike.lugTime === 0) bike.lugWarned = false;
   }
 
   // Grip removes sideways speed. Low grip lets the bike slide.
@@ -207,6 +220,7 @@ export function stepBike(bike, input, world, dt) {
   const fuelRevs = spec.gears ? GEARBOX.fuelAtIdle + GEARBOX.fuelPerRev * Math.min(1, bike.revs) : 1;
   let use = energyUse(spec, surface, grade, throttle, v, topSpeed) * (throttle > 0 ? fuelRevs : 1);
   if (regenBrake > 0) use -= (spec.regenBrakeFraction * regenBrake * Math.abs(v)) / barInKinetic(spec);
+  bike.energyRate = use; // fraction of a full bar per second (negative = charging)
   bike.energy = clamp(bike.energy - use * dt, 0, 1);
   if (hasEnergy && bike.energy === 0) events.push({ type: 'empty' });
   return events;

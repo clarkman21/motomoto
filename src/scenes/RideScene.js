@@ -18,6 +18,7 @@ const BARKS = {
   overRev: 'Too fast to shift down',
   noGears: 'Electric moto: no gears',
   brakesWorn: 'Brakes worn! Downshift or use regen',
+  lugging: 'Shift down!',
 };
 
 export class RideScene extends Phaser.Scene {
