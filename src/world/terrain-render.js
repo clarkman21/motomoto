@@ -33,6 +33,7 @@ const PALETTE = {
   pavement: [0xb3ada2, 0xa59f94, 0xbfb9ae],
   pavementJoint: 0x8f897f,
   water: [0x3b6e86, 0x356379, 0x4a7f96],
+  sand: [0xe2cf98, 0xd4c089, 0xeedcaa],
   waterShine: 0x9cc3d3,
 };
 
@@ -89,16 +90,45 @@ export function renderTerrain(world, area = { tx0: 0, ty0: 0, tx1: world.width, 
   return canvas;
 }
 
+// Slopes get stronger light and shade than real light would give, so you can read the hills.
+const SLOPE_CONTRAST = 2.2;
+// High ground is a little lighter and drier, valleys a little darker and greener.
+const HEIGHT_TINT_PER_LEVEL = 0.03;
+// A thin darker line on the grass at each height level, so you can see where the ground climbs.
+const CONTOUR_SHADE = 0.86;
+
 function drawGroundTri(canvas, world, tile, [a, au, av], [b, bu, bv], [c, cu, cv]) {
   const n = triNormal(a, b, c);
-  const light = clamp(quantise(dot(n, LIGHT) / FLAT_LIGHT, 12), 0.62, 1.2);
+  const raw = dot(n, LIGHT) / FLAT_LIGHT;
+  const level = (a.wz + b.wz + c.wz) / 3 / WORLD.levelMetres;
+  const height = 1 + (level - 2) * HEIGHT_TINT_PER_LEVEL;
+  const light = clamp(quantise((1 + (raw - 1) * SLOPE_CONTRAST) * height, 16), 0.5, 1.25);
   const ctx = tileContext(world, tile);
   canvas.fillTri(
     { x: a.sx, y: a.sy, u: au, v: av },
     { x: b.sx, y: b.sy, u: bu, v: bv },
     { x: c.sx, y: c.sy, u: cu, v: cv },
-    (u, v, px, py) => shadeColour(surfaceColour(ctx, u, v, px + canvas.ox, py + canvas.oy), light),
+    (u, v, px, py) => {
+      let col = shadeColour(surfaceColour(ctx, u, v, px + canvas.ox, py + canvas.oy), light);
+      if (tile.surface === 'grass' && onContour(a, b, c, au, av, bu, bv, cu, cv, u, v)) col = shadeColour(col, CONTOUR_SHADE);
+      return col;
+    },
   );
+}
+
+// True if the ground at (u, v) in this triangle is within a thin band of a whole height level.
+function onContour(a, b, c, au, av, bu, bv, cu, cv, u, v) {
+  const L = WORLD.levelMetres;
+  const za = a.wz / L, zb = b.wz / L, zc = c.wz / L;
+  if (Math.max(za, zb, zc) - Math.min(za, zb, zc) < 0.05) return false; // flat
+  // Barycentric weights of (u, v) from the triangle's (u, v) corners.
+  const det = (bv - cv) * (au - cu) + (cu - bu) * (av - cv);
+  const w0 = ((bv - cv) * (u - cu) + (cu - bu) * (v - cv)) / det;
+  const w1 = ((cv - av) * (u - cu) + (au - cu) * (v - cv)) / det;
+  const z = w0 * za + w1 * zb + (1 - w0 - w1) * zc;
+  const steep = Math.hypot(zb - za, zc - za) || 1; // levels per tile: steeper ground needs a thinner band
+  const f = z - Math.round(z);
+  return z > 0.3 && Math.abs(f) < 0.06 * Math.min(2, steep);
 }
 
 function drawSkirt(canvas, topA, topB, botB, botA, light) {
@@ -160,6 +190,7 @@ function surfaceColour(ctx, u, v, sx, sy) {
       if (fu < 0.06 || fv < 0.06) return PALETTE.pavementJoint;
       return pick(PALETTE.pavement, r, 0.1, 0.9);
     }
+    case 'sand': return pick(PALETTE.sand, r, 0.15, 0.9);
     case 'water': {
       const w = valueNoise(wu * 1.5, wv * 3, 21);
       if (w > 0.7 && r > 0.6) return PALETTE.waterShine;

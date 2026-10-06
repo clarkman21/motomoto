@@ -7,12 +7,17 @@ import { tripMetres } from './jobs.js';
 
 const T = WORLD.tileMetres;
 
-/** opts.hailEvery: multiplier on the time between street hails (below 1 = more customers). */
+/**
+ * opts.hailEvery: multiplier on the time between street hails (below 1 = more customers).
+ * opts.districts: people only in these districts. opts.walkers: how many walkers (default PEOPLE.walkers).
+ */
 export function createPeople(world, rng, opts = {}) {
-  const walkTiles = world.tiles.filter((t) => isWalkTile(world, t));
+  const open = (t) => !opts.districts || !t.district || opts.districts.includes(t.district);
+  const walkTiles = world.tiles.filter((t) => open(t) && isWalkTile(world, t));
   const roadsideTiles = walkTiles.filter((t) => t.surface === 'pavement' && nextToRoad(world, t));
   const people = { walkers: [], hails: [], rng, walkTiles, roadsideTiles, nextId: 1, hailTimer: 2, hailEvery: opts.hailEvery ?? 1, districts: opts.districts ?? null };
-  for (let i = 0; i < PEOPLE.walkers; i++) {
+  const count = walkTiles.length ? opts.walkers ?? PEOPLE.walkers : 0;
+  for (let i = 0; i < count; i++) {
     const t = walkTiles[Math.floor(rng() * walkTiles.length)];
     const p = newPerson(people, (t.tx + 0.2 + rng() * 0.6) * T, (t.ty + 0.2 + rng() * 0.6) * T);
     pickTarget(people, world, p);
@@ -34,8 +39,8 @@ function newPerson(people, x, y) {
 function isWalkTile(world, t) {
   if (t.block || t.solid) return false;
   if (t.surface === 'pavement') return true;
-  // The market and the bus park: people walk everywhere there.
-  return t.tx >= 4 && t.tx <= 38 && t.ty >= 7 && t.ty <= 18 && (t.surface === 'murram' || t.surface === 'tarmac');
+  // Markets and the bus park (the map's crowd areas): people walk everywhere there.
+  return (world.crowdAreas ?? []).some((a) => t.tx >= a.x0 && t.tx < a.x1 && t.ty >= a.y0 && t.ty < a.y1);
 }
 
 function nextToRoad(world, t) {
@@ -141,12 +146,31 @@ export function stepPeople(people, world, bike, places, dt) {
   return events;
 }
 
-function makeHail(people, places, bike) {
+/**
+ * Customers from a bus that arrives (at the bus park): count hails close to (x, y) in metres.
+ * They come on top of the normal street hails. Returns the new hails.
+ */
+export function busArrivalHails(people, world, places, x, y, count) {
+  const near = people.walkTiles.filter((t) => Math.hypot((t.tx + 0.5) * T - x, (t.ty + 0.5) * T - y) < 16);
+  const made = [];
+  for (let i = 0; i < count && near.length; i++) {
+    const h = makeHail(people, places, null, near);
+    if (h) {
+      h.fromBus = true;
+      h.from.name = 'Bus park';
+      people.hails.push(h);
+      made.push(h);
+    }
+  }
+  return made;
+}
+
+function makeHail(people, places, bike, tiles = people.roadsideTiles) {
   const rng = people.rng;
   for (let tries = 0; tries < 20; tries++) {
-    const t = people.roadsideTiles[Math.floor(rng() * people.roadsideTiles.length)];
+    const t = tiles[Math.floor(rng() * tiles.length)];
     const x = (t.tx + 0.5) * T, y = (t.ty + 0.5) * T;
-    if (Math.hypot(x - bike.x, y - bike.y) < 25) continue; // not right next to you
+    if (bike && Math.hypot(x - bike.x, y - bike.y) < 25) continue; // not right next to you
     const from = { name: 'Street', x: x / T, y: y / T };
     const dests = places.filter((p) =>
       !p.tags.some((tag) => ['fuel', 'swap', 'garage'].includes(tag)) && tripMetres(from, p) >= JOBS.minTripMetres &&

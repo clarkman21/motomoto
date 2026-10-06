@@ -36,7 +36,7 @@ export const BIKES = {
     accelMs2: 3.4, // peak acceleration at 0 km/h — guess ("medium")
     brakeMs2: 7.5,
     reverseSpeedKmh: 4, // walking the bike backwards to get unstuck
-    energySeconds: 6 * 60, // full bar at full throttle on flat tarmac — spec "about 6 min"
+    energySeconds: 4 * 60, // full bar at full throttle on flat tarmac (spec said 6 min; 4 min makes fuel part of each shift)
     uphillEnergyFactor: 2.0, // spec
     downhillEnergyFactor: 0.5, // spec
     regenFraction: 0, // no regen on petrol
@@ -57,7 +57,7 @@ export const BIKES = {
     accelMs2: 5.0, // spec "high, instant torque" — guess
     brakeMs2: 7.5,
     reverseSpeedKmh: 4,
-    energySeconds: 8 * 60, // spec "about 8 min, plus regen"
+    energySeconds: 5.5 * 60, // spec said 8 min plus regen; shorter so swaps are part of each shift
     uphillEnergyFactor: 1.6, // spec
     downhillEnergyFactor: 0, // no cost when you roll downhill
     regenFraction: 0.2, // spec: regen gives back 20% of climb cost
@@ -114,6 +114,7 @@ export const SURFACES = {
   murramWet: { name: 'Murram, wet', grip: 0.45, speedFactor: 0.6, energyFactor: 1.4, rollingMs2: 1.3, wearFactor: 1.8 },
   grass: { name: 'Off road', grip: 0.6, speedFactor: 0.45, energyFactor: 1.5, rollingMs2: 1.6, wearFactor: 4.0, offRoad: true }, // guess, not in spec
   pavement: { name: 'Pavement', grip: 0.95, speedFactor: 0.5, energyFactor: 1.0, rollingMs2: 0.3, wearFactor: 1.2 }, // for people; slow for bikes
+  sand: { name: 'Sand', grip: 0.5, speedFactor: 0.4, energyFactor: 1.6, rollingMs2: 2.0, wearFactor: 2.5, offRoad: true }, // golf bunkers — guess
   water: { name: 'River', grip: 0, speedFactor: 0, energyFactor: 1, rollingMs2: 9, wearFactor: 1 }, // solid: you cannot ride here
 };
 
@@ -209,8 +210,8 @@ export const JOBS = {
   passenger: { base: 500, perGameKm: 200, maxTipFraction: 0.3, kg: 65 },
   cargo: { base: 400, perGameKm: 160, perKg: 12, kgMin: 20, kgMax: 80, fragileChance: 0.4 },
   // Passenger comfort lost (0..100) and cargo damage (fraction of pay, fragile cargo only).
-  comfortLoss: { pothole: 20, bumpHard: 15, wall: 35, hardBrakePerSecond: 25, offRoadPerSecond: 10 },
-  cargoDamage: { pothole: 0.1, bumpHard: 0.1, wall: 0.3, offRoadPerSecond: 0.03 },
+  comfortLoss: { pothole: 20, bumpHard: 15, wall: 35, crash: 50, hardBrakePerSecond: 25, offRoadPerSecond: 10 },
+  cargoDamage: { pothole: 0.1, bumpHard: 0.1, wall: 0.3, crash: 0.4, offRoadPerSecond: 0.03 },
   hardBrakeMs2: 5, // braking harder than this upsets the passenger
 };
 
@@ -234,7 +235,7 @@ export const MAINTENANCE = {
   intervalKm: { petrol: 150, electric: 600 }, // game km of tarmac riding between services
   // Each km counts × the surface wearFactor (SURFACES) × this factor when the petrol engine is in the red zone.
   redlineWearFactor: 3,
-  hazardWearKm: { pothole: 2, bumpHard: 1.5, wall: 4 }, // extra km on the service meter for each hit
+  hazardWearKm: { pothole: 2, bumpHard: 1.5, wall: 4, crash: 8 }, // extra km on the service meter for each hit
   warnAt: 0.8, // "Service soon"
   breakdownAt: 1.5, // the engine stops; push the bike to the garage
   // Between 100% and the breakdown, the bike loses power and uses more energy (up to these values).
@@ -250,7 +251,9 @@ export const MAINTENANCE = {
 // Traffic (milestone 3). Counts are for the district map. All guesses.
 // ---------------------------------------------------------------------------
 export const TRAFFIC = {
-  counts: { car: 18, bus: 6, truck: 6, moto: 10 },
+  counts: { car: 18, bus: 6, truck: 6, moto: 10 }, // default (tests); the game uses perDistrict
+  // Vehicles for each open district (× the level's traffic factor). The map grows, so traffic grows with it.
+  perDistrict: { car: 8, bus: 3, truck: 2 },
   kinds: {
     // limitFactor: how they treat the speed limit (motos ride a little over it).
     car: { length: 4.2, width: 1.8, maxKmh: 50, accel: 2.5, brake: 6, limitFactor: 1.0, hillSlowdown: 1.0, minHillFactor: 0.5, exhaust: 0.5, variants: 4 },
@@ -266,7 +269,8 @@ export const TRAFFIC = {
 // People, street hails and rival riders (milestone 3). All guesses.
 // ---------------------------------------------------------------------------
 export const PEOPLE = {
-  walkers: 40,
+  walkers: 40, // default (tests); the game uses walkersPerDistrict
+  walkersPerDistrict: 20,
   walkSpeed: [1.1, 1.6], // m/s
   radius: 0.35, // metres, for collisions
   dodgeDistance: 3.5, // a person steps aside when a fast bike comes this close
@@ -293,6 +297,7 @@ export const RIVALS = {
 // ---------------------------------------------------------------------------
 // Levels (spec: Levels and progression). Levels 1-4 are built; level 5 is free play until
 // the next build. Each level: a savings goal and a milestone, a shift, and the difficulty.
+// The open districts come from DISTRICTS (unlockLevel): the map grows with the levels.
 // Rent scales with the shift length (night and evening shifts are shorter). All guesses.
 // ---------------------------------------------------------------------------
 export const SAVINGS_FLOAT = 5000; // you need the goal plus this working money to buy a milestone
@@ -302,36 +307,36 @@ export const LEVELS = [
     n: 1, name: 'Night rider', goal: 15000, milestone: 'School fees for one term', kind: 'life',
     shift: { start: 19, end: 23, realSeconds: 180 }, rent: 3000,
     traffic: 0.3, rivals: 2, raceChance: 0.15, offerLife: [30, 60], hailEvery: 0.6,
-    fare: 1.2, petrol: 1.0, cameras: false, districts: ['valley'],
-    news: 'Night shift: quiet streets, few rivals, night fares +20%. The valley only.',
+    fare: 1.2, petrol: 1.0, cameras: false,
+    news: 'Night shift in Nyabugogo: quiet streets, few rivals, night fares +20%. Buses arrive at the bus park all night.',
   },
   {
     n: 2, name: 'Evening rider', goal: 25000, milestone: 'A smartphone and a spare passenger helmet', kind: 'asset', effect: 'phone',
     shift: { start: 16, end: 23, realSeconds: 240 }, rent: 4500,
     traffic: 0.5, rivals: 4, raceChance: 0.25, offerLife: [25, 50], hailEvery: 0.6,
-    fare: 1.1, petrol: 1.0, cameras: false, districts: ['valley'],
-    news: 'Evening shift: rush home after work. More traffic and more rivals.',
+    fare: 1.1, petrol: 1.0, cameras: false,
+    news: 'Kigali town opens: the city on the ridge above Nyabugogo. Evening rush, more traffic and more rivals.',
   },
   {
     n: 3, name: 'Day rider', goal: 40000, milestone: 'A year of school: fees, uniforms and books', kind: 'life',
     shift: { start: 6, end: 22, realSeconds: 360 }, rent: 6000,
     traffic: 0.8, rivals: 6, raceChance: 0.35, offerLife: [20, 45], hailEvery: 1,
-    fare: 1.0, petrol: 1.1, cameras: true, districts: ['valley'],
-    news: 'Full day shift. Speed cameras are on. Petrol costs 10% more.',
+    fare: 1.0, petrol: 1.1, cameras: true,
+    news: 'Kacyiru and Kimihurura open: offices, the hospital and the Convention Centre. Full day shift, speed cameras on, petrol +10%.',
   },
   {
     n: 4, name: 'Rush hour', goal: 60000, milestone: 'Down payment on an Ampersand electric moto', kind: 'asset', effect: 'electric',
     shift: { start: 6, end: 22, realSeconds: 360 }, rent: 6000,
     traffic: 1.0, rivals: 10, raceChance: 0.45, offerLife: [15, 40], hailEvery: 1,
-    fare: 1.1, petrol: 1.2, cameras: true, districts: ['valley', 'city'],
-    news: 'The city centre opens: better fares, heavy traffic, 10 rivals. Petrol +20%.',
+    fare: 1.1, petrol: 1.2, cameras: true,
+    news: 'Kicukiro opens: busy junctions, workshops and trucks. Heavy traffic, 10 rivals. Petrol +20%.',
   },
   {
     n: 5, name: 'Electric rider', goal: 80000, milestone: 'A plot of land', kind: 'life', freePlay: true,
     shift: { start: 6, end: 22, realSeconds: 360 }, rent: 6000,
     traffic: 1.0, rivals: 12, raceChance: 0.5, offerLife: [15, 40], hailEvery: 1,
-    fare: 1.2, petrol: 1.3, cameras: true, districts: ['valley', 'city'],
-    news: 'You ride electric now: more torque, lower costs, no petrol price rises. Levels 5 to 10 come in the next build: free play.',
+    fare: 1.2, petrol: 1.3, cameras: true,
+    news: 'You ride electric now, and Nyarutarama opens: villas, the golf course, the best tips. Levels 5 to 10 come in the next build: free play.',
   },
 ];
 
@@ -363,4 +368,48 @@ export const LIGHTS = {
   headDotColour: 0xfff6d8,
   tailDotColour: 0xff2a1a,
   lampHeadColour: 0xffb45a,
+};
+
+// ---------------------------------------------------------------------------
+// Districts (spec: Districts and the growing map). The map is 6 districts of 64 × 64 tiles
+// (256 m × 256 m each). A district opens at its unlock level; before that, barriers close its roads.
+// fuelPrice multiplies the fuel price at its stations. fares multiplies the fares that start there.
+// The geometry (hills, roads, landmarks) is in src/world/maps/kigali.js. All values are guesses.
+// ---------------------------------------------------------------------------
+export const DISTRICTS = {
+  nyabugogo: { name: 'Nyabugogo', unlockLevel: 1, fuelPrice: 0.95, fares: 1.0 },
+  town: { name: 'Kigali town', unlockLevel: 2, fuelPrice: 1.0, fares: 1.1 },
+  kacyiru: { name: 'Kacyiru', unlockLevel: 3, fuelPrice: 1.0, fares: 1.15 },
+  kimihurura: { name: 'Kimihurura', unlockLevel: 3, fuelPrice: 1.05, fares: 1.2 },
+  kicukiro: { name: 'Kicukiro', unlockLevel: 4, fuelPrice: 0.95, fares: 1.0 },
+  nyarutarama: { name: 'Nyarutarama', unlockLevel: 5, fuelPrice: 1.15, fares: 1.35 },
+};
+
+// Intercity buses arrive at the Nyabugogo bus park and their passengers want rides.
+export const BUS_PARK = {
+  arrivalEverySeconds: [18, 30], // a bus comes to the bus park this often (real seconds)
+  passengers: [2, 4], // customers who wave for a moto when a bus unloads
+  dwellSeconds: 12, // the bus waits at the park
+};
+
+// Fuel and charge. Fuel must be part of each shift: you start with a part full tank,
+// the engine uses fuel when it runs at idle, and the HUD points to the nearest station when you are low.
+export const FUEL = {
+  startLevel: 0.45, // tank or battery at the start of a new game
+  idleUse: 0.08, // fraction of the full throttle use while the engine runs with no throttle (petrol only)
+  lowAt: 0.25, // "Fuel low": the HUD arrow points to the nearest station
+  reserveAt: 0.1, // "Reserve!"
+};
+
+// Collisions: the bike and other things push each other by mass. A hard hit throws you off the bike.
+export const COLLISION = {
+  bikeRadius: 0.45, // metres
+  restitution: 0.25, // bounce (0 = no bounce, 1 = full bounce)
+  massKg: { car: 1200, bus: 4500, truck: 9000, moto: 200, person: 70, wall: Infinity, pole: Infinity },
+  poleRadius: 0.15, // street lamps, signs, cameras
+  crashSpeedKmh: 18, // an impact speed above this throws the rider off
+  crashSeconds: 2.5, // time on the ground before you ride again
+  slideMs2: 6, // the fallen bike slides to a stop
+  repairPerKmh: 60, // RWF of crash repairs for each km/h of impact speed (above 5 km/h)
+  personHurtKmh: 9, // an impact above this hurts a person (police fine)
 };

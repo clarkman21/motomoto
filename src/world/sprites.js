@@ -164,6 +164,7 @@ export function drawBlock(block, world) {
   else if (block.kind === 'fuel' || block.kind === 'swap') drawStation(c, block, pt, world, glow);
   else if (block.kind === 'garage') drawGarage(c, block, pt, world);
   else if (block.kind === 'tree') drawTree(c, block, pt, world);
+  else if (block.kind === 'dome') drawDome(c, block, pt, world, glow);
   else drawMonument(c, block, pt, world);
   const lit = glow.data.some((v, i) => (i & 3) === 3 && v > 0);
   return { canvas: c, depth: tx + ty + 1, glow: lit ? glow : null };
@@ -199,9 +200,17 @@ function drawBuilding(c, block, pt, world, glow) {
   const wall = BUILDING_WALLS[groupId % BUILDING_WALLS.length];
   const roof = BUILDING_ROOFS[groupId % BUILDING_ROOFS.length];
   const corrugated = roof === BUILDING_ROOFS[0];
+  const floor = block.floorLevel ?? baseLevel;
   const wallShade = (k) => (along, z, px, py) => {
-    const zl = z - baseLevel;
+    const zl = z - floor;
     let col = wall;
+    if (zl < 0) {
+      // Stone foundation on a slope (Kigali houses stand on stone walls on the hillsides).
+      const course = Math.floor(z * 4);
+      const brick = Math.floor(along * 6 + (course & 1) * 0.5);
+      col = (z * 4) % 1 < 0.18 || (along * 6 + (course & 1) * 0.5) % 1 < 0.1 ? 0x5e574d : hash2(brick, course, 9) > 0.5 ? 0x948a7a : 0x857b6c;
+      return shadeColour(col, k);
+    }
     if (zl < 0.18) col = shadeColour(wall, 0.7); // dirty plinth
     else if (topLevel - z < 0.2) col = shadeColour(wall, 1.1); // parapet
     else {
@@ -248,6 +257,21 @@ function drawTree(c, block, pt, world) {
     }
   }
   c.outline(0x1f3a1a);
+}
+
+// The Convention Centre dome: white steps with ribs. At night it shines in many colours.
+const DOME_NIGHT = [0xff4fa0, 0x4fb0ff, 0x7cff6a, 0xffa040, 0xb070ff];
+function drawDome(c, block, pt, world, glow) {
+  const { tx, ty, baseLevel, topLevel } = block;
+  const night = DOME_NIGHT[Math.round(topLevel) % DOME_NIGHT.length];
+  const wallShade = (k) => (along, z, px, py) => {
+    const rib = (along * 4) % 1 < 0.12;
+    const col = rib ? 0xc9cdd2 : 0xeef0f2;
+    if (glow && z - baseLevel > 0.5) glow.setPixel(px, py, shadeColour(night, 0.75 + 0.25 * k), rib ? 160 : 230);
+    return shadeColour(col, k);
+  };
+  const roofShade = (u, v, px, py) => (hash2(px + c.ox, py + c.oy, 4) > 0.93 ? 0xd8dce0 : 0xf6f7f8);
+  drawBox(c, tx, ty, tx + 1, ty + 1, baseLevel, topLevel, pt, roofShade, wallShade(0.72), wallShade(0.88), visibleFaces(block, world));
 }
 
 function drawMonument(c, block, pt, world) {
@@ -437,4 +461,34 @@ function drawGarage(c, block, pt, world) {
   };
   const roofShade = (u, v, px, py) => (Math.floor((tx + u) * 10) & 1 ? 0x8f8f8a : 0x7f7f7a);
   drawBox(c, tx, ty, tx + 1, ty + 1, baseLevel, topLevel, pt, roofShade, wallShade(0.72), wallShade(0.88), visibleFaces(block, world));
+}
+
+// Barriers at the edge of a closed district. axis 'x': the closed side is in the x direction, so the
+// barrier runs along y. road: a red and white road barrier; else a low wooden fence.
+// The canvas origin (0, 0) is the north corner of the tile at ground level.
+export function drawBarrier(axis, road) {
+  const T = WORLD.tileMetres;
+  const P = (x, y, z) => {
+    const s = toScreen(x * T, y * T, z);
+    return { x: s.x, y: s.y };
+  };
+  const c = new PixelCanvas(68, 50, -34, -16);
+  const [a, b] = axis === 'x' ? [[0.5, 0.04], [0.5, 0.96]] : [[0.04, 0.5], [0.96, 0.5]];
+  const lo = road ? 0.55 : 0.35, hi = road ? 1.0 : 0.75; // metres above the ground
+  const legs = road ? [0.12, 0.88] : [0.05, 0.37, 0.68, 0.95];
+  for (const t of legs) {
+    const x = a[0] + (b[0] - a[0]) * t, y = a[1] + (b[1] - a[1]) * t;
+    const top = P(x, y, hi + 0.08), foot = P(x, y, 0);
+    c.line(top.x, top.y, foot.x, foot.y, 1, road ? 0x3a3a3a : 0x5a4126);
+  }
+  const quad = (z0, z1, shade) => c.fillQuad(
+    { ...P(a[0], a[1], z1), u: 0, v: 0 }, { ...P(b[0], b[1], z1), u: 1, v: 0 },
+    { ...P(b[0], b[1], z0), u: 1, v: 1 }, { ...P(a[0], a[1], z0), u: 0, v: 1 }, shade,
+  );
+  if (road) quad(lo, hi, (u) => (Math.floor(u * 6) & 1 ? 0xf2f2f2 : 0xd0302a));
+  else {
+    quad(hi - 0.1, hi, () => 0x8a6a3e);
+    quad(lo, lo + 0.1, () => 0x7a5c34);
+  }
+  return c;
 }

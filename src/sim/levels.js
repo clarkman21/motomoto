@@ -1,4 +1,4 @@
-import { LEVELS, SAVINGS_FLOAT, MONEY, JOBS, STREAK } from '../config.js';
+import { LEVELS, SAVINGS_FLOAT, MONEY, JOBS, STREAK, DISTRICTS } from '../config.js';
 
 // Levels: savings goals, milestones and the difficulty of each level. No Phaser here.
 
@@ -6,11 +6,17 @@ export function levelDef(n) {
   return LEVELS[Math.min(n, LEVELS.length) - 1];
 }
 
+/** The districts open at a level: the map grows as you go up the levels. */
+export function districtsForLevel(n) {
+  return Object.entries(DISTRICTS).filter(([, d]) => d.unlockLevel <= n).map(([id]) => id);
+}
+
 /** The settings for the wallet's current level, with the effects of milestones you bought. */
 export function levelSettings(wallet) {
   const def = levelDef(wallet.level);
   return {
     ...def,
+    districts: districtsForLevel(def.n),
     bikeType: wallet.perks.electric ? 'electric' : 'petrol',
     maxOffers: JOBS.maxOffers + (wallet.perks.phone ? 1 : 0),
   };

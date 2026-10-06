@@ -85,7 +85,8 @@ describe('money', () => {
 
   it('only a crash costs money at once', () => {
     expect(repairCost({ type: 'wall', speed: 2 })).toBe(0);
-    expect(repairCost({ type: 'wall', speed: 10 })).toBe(MONEY.repairs.wall);
+    expect(repairCost({ type: 'wall', speed: 4.5 })).toBe(MONEY.repairs.wall);
+    expect(repairCost({ type: 'wall', speed: 10 })).toBeGreaterThan(repairCost({ type: 'wall', speed: 6 })); // harder hits cost more
     expect(repairCost({ type: 'pothole' })).toBe(0);
     expect(repairCost({ type: 'bumpHard' })).toBe(0);
   });

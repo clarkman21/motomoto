@@ -1,8 +1,7 @@
 import Phaser from 'phaser';
-import { BIKES, COLOURS, GEARBOX, BRAKES, LAW, JOBS, SAVINGS_FLOAT } from '../config.js';
+import { BIKES, COLOURS, GEARBOX, BRAKES, LAW, JOBS, SAVINGS_FLOAT, DISTRICTS } from '../config.js';
 import { forwardSpeed } from '../sim/bike.js';
 import { serviceDue } from '../sim/maintenance.js';
-import { STEERING_LABELS } from '../sim/controls.js';
 
 // The HUD runs as its own scene at zoom 1, so text stays sharp at any size.
 // It reads the ride scene state each frame and writes the touch controls back.
@@ -188,7 +187,10 @@ export class HudScene extends Phaser.Scene {
     const grade = Math.round(bike.grade * 100);
     const gradeText = grade === 0 ? 'Flat' : `${grade > 0 ? 'Uphill' : 'Downhill'} ${Math.abs(grade)}%`;
     const surface = bike.surface.offRoad ? 'OFF ROAD: 4× wear' : bike.surface.name;
-    this.infoText.setText(`${gradeText} · ${surface}\n${spec.name} [B] · ${STEERING_LABELS[ride.steeringMode]} [C]`);
+    // Where you are: the district and the height above the Nyabugogo valley floor.
+    const t = ride.world.tileAt(bike.x, bike.y);
+    const district = DISTRICTS[t?.district]?.name ?? '';
+    this.infoText.setText(`${gradeText} · ${surface}\n${district} · ${Math.round(bike.z)} m above the valley`);
     this.infoText.setColor(bike.surface.offRoad ? '#ec5825' : '#ffffff');
 
     this.#updateMoney();

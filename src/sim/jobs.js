@@ -1,4 +1,4 @@
-import { JOBS, WORLD, RIVALS } from '../config.js';
+import { JOBS, WORLD, RIVALS, DISTRICTS } from '../config.js';
 import { forwardSpeed } from './bike.js';
 import { round10 } from './economy.js';
 
@@ -28,6 +28,15 @@ const jobPlaces = (world, opts = {}) =>
   world.places.filter((p) => !p.tags.some((t) => SERVICE_TAGS.includes(t)) && (!opts.districts || !p.district || opts.districts.includes(p.district)));
 export { jobPlaces };
 const pick = (rng, list) => list[Math.floor(rng() * list.length)];
+// Pick by weight: busy places (the bus park, markets) start more jobs.
+function pickWeighted(rng, list) {
+  const total = list.reduce((a, p) => a + (p.weight ?? 1), 0);
+  let r = rng() * total;
+  for (const p of list) if ((r -= p.weight ?? 1) <= 0) return p;
+  return list[list.length - 1];
+}
+/** Fare factor of the district where a job starts (rich districts pay more). */
+const districtFares = (place) => DISTRICTS[place?.district]?.fares ?? 1;
 
 /** How long an app offer stays: rivals take offers, so some go fast. */
 function offerLife(rng, range = RIVALS.offerLifeSeconds) {
@@ -40,18 +49,18 @@ function offerLife(rng, range = RIVALS.offerLifeSeconds) {
  */
 export function makeOffer(world, rng, id, opts = {}) {
   const places = jobPlaces(world, opts);
-  const fare = opts.fareMultiplier ?? 1;
   const passenger = rng() < JOBS.passengerChance;
   const starts = passenger ? places : places.filter((p) => p.tags.includes('market'));
   const ends = passenger ? places : places.filter((p) => !p.tags.includes('market'));
   let from, to;
   for (let i = 0; i < 30; i++) {
-    from = pick(rng, starts);
+    from = pickWeighted(rng, starts);
     to = pick(rng, ends);
     if (from !== to && tripMetres(from, to) >= JOBS.minTripMetres) break;
   }
   const distanceMetres = tripMetres(from, to);
   const gameKm = distanceMetres / JOBS.gameKmMetres;
+  const fare = (opts.fareMultiplier ?? 1) * districtFares(from);
   if (passenger) {
     const p = JOBS.passenger;
     return { id, type: 'passenger', from, to, distanceMetres, gameKm, kg: p.kg, fragile: false, pay: round10((p.base + p.perGameKm * gameKm) * fare), age: 0, life: offerLife(rng, opts.offerLife) };

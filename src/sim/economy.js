@@ -1,4 +1,4 @@
-import { MONEY, JOBS } from '../config.js';
+import { MONEY, JOBS, COLLISION } from '../config.js';
 import { garageQuote, serviceBike, serviceDue } from './maintenance.js';
 
 // Money: everything the rider earns and spends. No Phaser here.
@@ -94,8 +94,9 @@ export function swapBattery(wallet, bike) {
 /** Repair cost for a damage event, or 0. Only a crash costs money at once; other hits add wear. */
 export function repairCost(event) {
   if (event.type === 'wall' && event.hit?.kind === 'person') return 0; // hitting a person: a police fine instead (see PEOPLE)
-  if (event.type === 'wall') return event.speed >= 4 ? MONEY.repairs.wall : 0;
-  return 0;
+  if (event.type !== 'wall' || event.speed < 4 || event.barrier) return 0; // a touch below 14 km/h (impact speed) costs nothing
+  // A harder hit costs more: at least the minimum repair, then more for each km/h of impact speed.
+  return Math.max(MONEY.repairs.wall, round10(COLLISION.repairPerKmh * (event.speed * 3.6 - 5)));
 }
 
 /**

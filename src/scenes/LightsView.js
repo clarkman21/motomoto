@@ -148,7 +148,9 @@ export class LightsView {
     this.night = light.night;
     const count = this.scene.children.list.length;
     // New sprites (chunks, puffs) come in all the time, so apply the tint again when the list changes.
-    if (light.tint !== this.tint || count !== this.tintCount || --this.tintTimer <= 0) {
+    // In full daylight nothing is tinted, and new sprites start untinted: no pass is needed.
+    const allDay = light.tint === 0xffffff && this.tint === 0xffffff;
+    if (!allDay && (light.tint !== this.tint || count !== this.tintCount || --this.tintTimer <= 0)) {
       this.tint = light.tint;
       this.tintCount = count;
       this.tintTimer = 30;

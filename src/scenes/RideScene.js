@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK } from '../config.js';
+import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL } from '../config.js';
 import { World } from '../world/world.js';
 import { buildKigaliMap } from '../world/maps/kigali.js';
 import { ChunkStreamer } from './chunks.js';
@@ -11,22 +11,23 @@ import {
   BIKE_LOADS, drawWaitingPassenger, drawCargoPile,
 } from '../world/sprites.js';
 import { createBike, stepBike, forwardSpeed, shiftGear, bestGear } from '../sim/bike.js';
-import { readControls, STEERING_MODES } from '../sim/controls.js';
+import { readControls, STEERING_MODES, STEERING_LABELS } from '../sim/controls.js';
 import { EngineSound } from '../audio/engine-sound.js';
 import { createWallet, earn, spend, buyFuel, swapBattery, fuelFillCost, repairCost, endDay, takeLoan, payGarage } from '../sim/economy.js';
 import { garageQuote, serviceDue } from '../sim/maintenance.js';
 import { createJobBoard, updateBoard, acceptOffer, cancelJob, updateJob, jobTarget, acceptHail } from '../sim/jobs.js';
 import { createCameraState, checkCameras, speedLimitAt } from '../sim/law.js';
-import { buildRoadGraph } from '../sim/roads.js';
-import { createTraffic, stepTraffic, insideVehicle } from '../sim/traffic.js';
+import { buildRoadGraph, openRoads } from '../sim/roads.js';
+import { createTraffic, stepTraffic, insideVehicle, sendBusToPark } from '../sim/traffic.js';
 import { mulberry32 } from '../sim/jobs.js';
 import { TrafficView, isDiesel } from './TrafficView.js';
-import { createPeople, stepPeople, hailInReach, insidePerson } from '../sim/people.js';
+import { createPeople, stepPeople, hailInReach, insidePerson, busArrivalHails } from '../sim/people.js';
 import { startRace, chaseHail, stepRivals, cancelMission } from '../sim/rivals.js';
 import { PeopleView } from './PeopleView.js';
 import { levelSettings, milestoneReady, buyMilestone, restartLevel, streakMultiplier, updateStreak, savingsTarget } from '../sim/levels.js';
 import { loadGame, saveGame, clearSave } from './save.js';
 import { LightsView } from './LightsView.js';
+import { BarrierView } from './BarrierView.js';
 import { daylight } from '../sim/daylight.js';
 
 const FIXED_DT = 1 / 120; // physics step in seconds
@@ -86,8 +87,8 @@ export class RideScene extends Phaser.Scene {
     // These stay bright at night: they are not tinted.
     for (const obj of [this.ghost, this.glow, this.markerRing, this.markerPin, this.arrow]) obj.noAmbient = true;
 
-    // Traffic, people and jobs come from the level (see #applyLevel).
-    this.roadGraph = buildRoadGraph(this.world.roads);
+    // Traffic, people, jobs and the open districts come from the level (see #applyLevel).
+    this.barriers = new BarrierView(this, this.world);
     this.nearAgents = [];
     this.nearPeople = [];
     this.rng = mulberry32((Date.now() >> 4) & 0xffff);
@@ -97,9 +98,8 @@ export class RideScene extends Phaser.Scene {
     addCanvasTexture(this, 'pin-rival', drawMarkerPin(0xec5825));
     this.rivalPin = this.add.image(0, 0, 'pin-rival').setOrigin(0.5, 1).setDepth(1e5).setVisible(false);
     this.rivalPin.noAmbient = true;
-    // The bike collides with vehicles and people near it.
-    this.world.dynamicSolid = (x, y) =>
-      this.nearAgents.find((v) => insideVehicle(v, x, y, 0.1)) ?? this.nearPeople.find((p) => insidePerson(p, x, y)) ?? null;
+    // The bike collides with vehicles, people and poles near it (see sim/collide.js).
+    this.world.dynamicAgents = [];
 
     // Continue a saved game, or start a new one.
     const saved = loadGame();
@@ -107,6 +107,7 @@ export class RideScene extends Phaser.Scene {
     this.wallet.ledger = createWallet().ledger;
     this.bike = createBike(this.world, levelSettings(this.wallet).bikeType);
     if (saved?.bike) Object.assign(this.bike, saved.bike);
+    else this.bike.energy = FUEL.startLevel; // a new game starts with a part full tank: plan your first fill up
     this.#applyLevel();
     this.cameraState = createCameraState(this.world);
     this.dayTime = 0; // real seconds since the start of the shift
@@ -162,6 +163,7 @@ export class RideScene extends Phaser.Scene {
   toggleSteering() {
     const i = STEERING_MODES.indexOf(this.steeringMode);
     this.steeringMode = STEERING_MODES[(i + 1) % STEERING_MODES.length];
+    this.events.emit('bark', STEERING_LABELS[this.steeringMode]);
   }
 
   toggleBike() {
@@ -238,7 +240,7 @@ export class RideScene extends Phaser.Scene {
     if (kind === 'fuel' && type !== 'petrol') return { ok: false, text: 'Fuel station. Your electric moto needs a swap station.' };
     if (kind === 'swap' && type !== 'electric') return { ok: false, text: 'Swap station. Your petrol moto needs a fuel station.' };
     if (kind === 'fuel') {
-      const cost = fuelFillCost(this.bike, this.level.petrol);
+      const cost = fuelFillCost(this.bike, this.fuelPrice);
       if (cost < 40) return { ok: false, text: 'The tank is full.' };
       return { ok: true, text: `F: Fill up (${cost.toLocaleString('en')} RWF, ${MONEY.fuelSeconds} s + queue)` };
     }
@@ -264,7 +266,7 @@ export class RideScene extends Phaser.Scene {
     const kind = this.refuel.kind;
     this.refuel = null;
     const r =
-      kind === 'fuel' ? buyFuel(this.wallet, this.bike, this.level.petrol) :
+      kind === 'fuel' ? buyFuel(this.wallet, this.bike, this.fuelPrice) :
       kind === 'swap' ? swapBattery(this.wallet, this.bike) : payGarage(this.wallet, this.bike);
     const label = kind === 'fuel' ? 'Fuel' : kind === 'swap' ? 'Battery swap' : r.pads ? 'Service and brake pads' : 'Service';
     if (r.ok) this.events.emit('money', -r.cost, label);
@@ -316,6 +318,11 @@ export class RideScene extends Phaser.Scene {
     }
   }
 
+  /** Fuel price factor here: the level's petrol price × the district's price (cheaper in the valley). */
+  get fuelPrice() {
+    return this.level.petrol * (DISTRICTS[this.stationPlace?.district]?.fuelPrice ?? 1);
+  }
+
   #updateStation() {
     const b = this.bike;
     const slow = Math.abs(forwardSpeed(b)) * 3.6 < 3;
@@ -323,7 +330,10 @@ export class RideScene extends Phaser.Scene {
     if (!slow) return;
     for (const kind of ['fuel', 'swap', 'garage']) {
       for (const p of this.world.placesWithTag(kind)) {
-        if (Math.hypot(b.x - p.x * WORLD.tileMetres, b.y - p.y * WORLD.tileMetres) < STATION_RANGE_METRES) this.station = kind;
+        if (Math.hypot(b.x - p.x * WORLD.tileMetres, b.y - p.y * WORLD.tileMetres) < STATION_RANGE_METRES) {
+          this.station = kind;
+          this.stationPlace = p;
+        }
       }
     }
   }
@@ -331,15 +341,23 @@ export class RideScene extends Phaser.Scene {
   /** The level's settings, traffic, people and job board. Called at the start and at each new day. */
   #applyLevel() {
     const L = (this.level = levelSettings(this.wallet));
+    // The map grows with the levels: only the open districts have roads, traffic, people and jobs.
+    this.world.setOpenDistricts(L.districts);
+    this.barriers.update();
+    this.roadGraph = buildRoadGraph(openRoads(this.world.roads, this.world.districts, L.districts));
+    const stop = this.world.busStops.find((s) => s.park);
+    this.parkStop = stop && L.districts.includes(this.world.districtAt(stop.x, stop.y)) ? stop : null;
+    this.parkEdge = this.parkStop ? this.#edgeThrough(this.parkStop) : null;
+    this.busTimer = 4;
     const counts = {};
-    for (const kind of ['car', 'bus', 'truck']) counts[kind] = Math.round(TRAFFIC.counts[kind] * L.traffic);
+    for (const kind of ['car', 'bus', 'truck']) counts[kind] = Math.round(TRAFFIC.perDistrict[kind] * L.districts.length * L.traffic);
     counts.moto = L.rivals;
     this.trafficView?.destroy();
     this.peopleView?.destroy();
     this.traffic = createTraffic(this.world, this.roadGraph, mulberry32(Date.now() & 0xffff), counts);
     this.trafficView = new TrafficView(this, this.traffic);
     this.lights.setTraffic(this.traffic);
-    this.people = createPeople(this.world, this.rng, { hailEvery: L.hailEvery, districts: L.districts });
+    this.people = createPeople(this.world, this.rng, { hailEvery: L.hailEvery, districts: L.districts, walkers: PEOPLE.walkersPerDistrict * L.districts.length });
     this.peopleView = new PeopleView(this, this.people);
     this.board = createJobBoard(this.world, Date.now() & 0xffff, { fareMultiplier: L.fare, offerLife: L.offerLife, districts: L.districts, maxOffers: L.maxOffers });
     this.raceRival = null;
@@ -392,6 +410,7 @@ export class RideScene extends Phaser.Scene {
     const type = levelSettings(this.wallet).bikeType;
     this.bike = createBike(this.world, type);
     this.bike.autoShift = autoShift;
+    if (choice === 'newGame') this.bike.energy = FUEL.startLevel;
     // The same bike carries over (a new bike after a new game or the switch to electric).
     if (choice !== 'newGame' && type === this.level.bikeType) Object.assign(this.bike, { energy, brakePads, brakesWarned, serviceWear, brokenDown });
     this.#applyLevel();
@@ -404,6 +423,12 @@ export class RideScene extends Phaser.Scene {
   get clockHours() {
     const { start, end, realSeconds } = this.level.shift;
     return start + ((end - start) * Math.min(this.dayTime, realSeconds)) / realSeconds;
+  }
+
+  /** Debug and tests: go to a level (opens its districts). */
+  debugLevel(n) {
+    this.wallet.level = n;
+    this.#applyLevel();
   }
 
   /** Debug and tests: move the bike to a tile position and snap the camera there. */
@@ -460,7 +485,18 @@ export class RideScene extends Phaser.Scene {
       // While you fill up or swap, the bike stands still.
       this.controls = this.refuel ? { throttle: 0, brake: 1, steer: 0 } : readControls(this.steeringMode, raw, this.bike);
       const events = stepBike(this.bike, this.controls, this.world, FIXED_DT);
+      const crashed = events.some((e) => e.type === 'crash');
       for (const e of events) {
+        if (e.type === 'crash') {
+          this.#crash(e);
+          continue;
+        }
+        if (e.type === 'wall' && !e.hit && this.#closedAhead()) {
+          e.barrier = true; // a road barrier: no repair bill
+          continue;
+        }
+        if (e.type === 'wall' && crashed && e.hit?.kind !== 'person') continue; // the crash message says it all
+        if (e.type === 'wall' && e.speed > 3) this.cameras.main.shake(120, 0.002);
         if (e.type === 'wall' && e.speed < 4) continue; // no bark when you only touch a wall
         if (e.type === 'wall' && e.hit?.kind === 'person') {
           if (e.speed >= PEOPLE.hitSpeed) {
@@ -485,6 +521,7 @@ export class RideScene extends Phaser.Scene {
     updateBoard(this.board, this.world, dt);
     this.speedLimit = speedLimitAt(this.world, this.bike.x, this.bike.y);
     this.#updateMarker();
+    this.#updateFuelGuide();
     this.chunks.update(this.bike.x, this.bike.y);
     this.#placeBike();
     this.#updateSmoke(dt);
@@ -502,10 +539,68 @@ export class RideScene extends Phaser.Scene {
     if (this.dayTime >= this.level.shift.realSeconds) this.#endDay();
   }
 
+  /** The road graph edge that passes a bus stop. */
+  #edgeThrough(stop) {
+    const x = (stop.x + 0.5) * WORLD.tileMetres, y = (stop.y + 0.5) * WORLD.tileMetres;
+    return this.roadGraph.edges.find((e) => {
+      const t = (x - e.from.x) * e.dx + (y - e.from.y) * e.dy;
+      const side = Math.abs(-(x - e.from.x) * e.dy + (y - e.from.y) * e.dx);
+      return t > 0 && t < e.length && side < 4;
+    }) ?? null;
+  }
+
+  // Intercity buses come to the Nyabugogo bus park, and their passengers want motos.
+  #updateBusPark(dt) {
+    if (!this.parkEdge || (this.busTimer -= dt) > 0) return;
+    const [lo, hi] = BUS_PARK.arrivalEverySeconds;
+    this.busTimer = lo + this.rng() * (hi - lo);
+    const buses = this.traffic.vehicles.filter((v) => v.kind === 'bus' && !v.route.length && v.stopTimer <= 0);
+    if (buses.length) sendBusToPark(this.traffic, buses[Math.floor(this.rng() * buses.length)], this.parkEdge);
+  }
+
+  #busArrived(e) {
+    if (!e.stop.park) return;
+    const [lo, hi] = BUS_PARK.passengers;
+    const n = lo + Math.floor(this.rng() * (hi - lo + 1));
+    const T = WORLD.tileMetres;
+    const made = busArrivalHails(this.people, this.world, this.world.places, (e.stop.x + 0.5) * T, (e.stop.y + 0.5) * T, n);
+    for (const h of made) chaseHail(this.traffic, h, this.rng);
+    const b = this.bike;
+    if (made.length && Math.hypot(b.x - e.vehicle.x, b.y - e.vehicle.y) < 220) {
+      this.events.emit('bark', `A bus arrives at the bus park: ${made.length} customers!`);
+    }
+  }
+
+  // A hard hit: the rider falls off. The passenger is upset, fragile cargo breaks (see jobs), repairs cost money.
+  #crash(e) {
+    const kmh = Math.round(e.speed * 3.6);
+    const what = !e.hit ? 'a wall' : e.hit.kind === 'pole' ? 'a pole' : e.hit.kind === 'person' ? 'a person' : e.hit.kind === 'bus' ? 'a minibus' : `a ${e.hit.kind}`;
+    this.cameras.main.shake(300, 0.008);
+    this.events.emit('bark', `Crash! You hit ${what} at ${kmh} km/h and fell off`);
+    for (let i = 0; i < 4; i++) this.#spawnPuff(this.bike.x + (this.rng() - 0.5) * 1.5, this.bike.y + (this.rng() - 0.5) * 1.5, 0.1);
+  }
+
+  /** At the edge of a closed district: tell the rider when it opens. Returns true if the bike is there. */
+  #closedAhead() {
+    const b = this.bike;
+    const id = this.barriers.closedDistrictAt(b.x + Math.cos(b.heading) * 1.5, b.y + Math.sin(b.heading) * 1.5);
+    if (!id) return false;
+    if ((this.closedBarkTime ?? -1e9) < this.time.now - 4000) {
+      this.closedBarkTime = this.time.now;
+      this.events.emit('bark', `Road closed: ${DISTRICTS[id].name} opens at level ${DISTRICTS[id].unlockLevel}`);
+    }
+    return true;
+  }
+
   #updateTraffic(dt) {
     const b = this.bike;
+    this.#updateBusPark(dt);
     const bikeObstacle = { x: b.x, y: b.y, length: 2, width: 0.9, speed: Math.abs(forwardSpeed(b)) };
     for (const e of stepTraffic(this.traffic, this.world, [bikeObstacle, ...(this.trafficPeople ?? [])], dt)) {
+      if (e.type === 'busArrived') {
+        this.#busArrived(e);
+        continue;
+      }
       const v = e.vehicle;
       // Exhaust only near the bike (you cannot see the rest).
       if (Math.abs(v.x - b.x) + Math.abs(v.y - b.y) > 90) continue;
@@ -525,6 +620,7 @@ export class RideScene extends Phaser.Scene {
     for (const e of stepRivals(this.traffic, dt)) this.#rivalArrived(e);
     const near = (p) => Math.abs(p.x - b.x) < 12 && Math.abs(p.y - b.y) < 12;
     this.nearPeople = this.people.walkers.filter(near).concat(this.people.hails.filter(near));
+    this.world.dynamicAgents = [...this.nearAgents, ...this.nearPeople, ...this.world.poles.filter(near)];
     // A customer within reach of a stopped bike (only when you have no job).
     this.hailOffer = this.board.active ? null : hailInReach(this.people, b, Math.abs(forwardSpeed(b)));
     // People on the road are obstacles for traffic.
@@ -619,6 +715,53 @@ export class RideScene extends Phaser.Scene {
     this.markerRing = this.add.image(0, 0, 'ring-pickup').setVisible(false);
     this.markerPin = this.add.image(0, 0, 'pin-pickup').setOrigin(0.5, 1).setDepth(1e5).setVisible(false);
     this.arrow = this.add.image(0, 0, 'arrow').setDepth(1e6).setVisible(false);
+    // Low fuel or charge: an arrow to the nearest station (orange for fuel, yellow for a swap).
+    this.fuelArrow = this.add.image(0, 0, 'arrow').setDepth(1e6).setVisible(false);
+    this.fuelArrow.noAmbient = true;
+    this.fuelWarned = 1;
+  }
+
+  /** The nearest station for your bike (fuel or swap) in the open districts, or null. */
+  nearestStation() {
+    const tag = this.bike.type === 'electric' ? 'swap' : 'fuel';
+    const b = this.bike, T = WORLD.tileMetres;
+    let best = null, bestD = Infinity;
+    for (const p of this.world.placesWithTag(tag)) {
+      if (!this.level.districts.includes(p.district)) continue;
+      const d = Math.hypot(p.x * T - b.x, p.y * T - b.y);
+      if (d < bestD) {
+        bestD = d;
+        best = { place: p, metres: d };
+      }
+    }
+    return best;
+  }
+
+  // Low fuel: warn once at each level, and point to the nearest station.
+  #updateFuelGuide() {
+    const e = this.bike.energy;
+    const electric = this.bike.type === 'electric';
+    const low = e < FUEL.lowAt && !this.refuel;
+    if (e > FUEL.lowAt + 0.05) this.fuelWarned = 1;
+    const station = low ? this.nearestStation() : null;
+    if (low && this.fuelWarned > FUEL.lowAt && station) {
+      this.fuelWarned = FUEL.lowAt;
+      const what = electric ? 'Battery low' : 'Fuel low';
+      this.events.emit('bark', `${what}: ${Math.round(e * 100)}%. Follow the ${electric ? 'yellow' : 'orange'} arrow: ${station.place.name}, ${Math.round(station.metres)} m`);
+    } else if (e < FUEL.reserveAt && this.fuelWarned > FUEL.reserveAt && station) {
+      this.fuelWarned = FUEL.reserveAt;
+      this.events.emit('bark', electric ? 'Battery reserve! Swap now' : 'Reserve! Fill up now or push the bike');
+    }
+    this.fuelArrow.setVisible(!!station);
+    if (!station) return;
+    const T = WORLD.tileMetres;
+    const p = station.place;
+    const s = toScreen(p.x * T, p.y * T, this.world.heightAt(p.x * T, p.y * T));
+    const dx = s.x - this.bikeScreen.x, dy = s.y - this.bikeScreen.y;
+    const d = Math.hypot(dx, dy) || 1;
+    const pulse = e < FUEL.reserveAt ? 1 + 0.25 * Math.sin(this.time.now / 90) : 1;
+    this.fuelArrow.setTint(electric ? 0xfcdc04 : 0xff7a2a).setScale(pulse).setVisible(d > 30)
+      .setPosition(this.bikeScreen.x + (dx / d) * 34, this.bikeScreen.y - 10 + (dy / d) * 22).setRotation(Math.atan2(dy, dx));
   }
 
   // Show where to go: a ring and a pin on the target place, and an arrow beside the bike.
@@ -655,8 +798,10 @@ export class RideScene extends Phaser.Scene {
     const key = `bike-${b.type}-${b.loadType ?? 'none'}-${bikeFrameForHeading(b.heading)}`;
     this.bikeScreen = s;
     this.bikeDepth = depth;
-    this.bikeSprite.setTexture(key).setPosition(s.x, s.y - bounce).setDepth(depth);
-    this.ghost.setTexture(key).setPosition(s.x, s.y - bounce);
+    // After a crash the bike and the rider lie on the ground.
+    const angle = b.crashed > 0 ? (Math.cos(b.heading - Math.PI / 4) >= 0 ? 80 : -80) : 0;
+    this.bikeSprite.setTexture(key).setPosition(s.x, s.y - bounce).setDepth(depth).setAngle(angle);
+    this.ghost.setTexture(key).setPosition(s.x, s.y - bounce).setAngle(angle);
     this.shadow.setPosition(s.x, s.y).setDepth(depth - 0.002);
     const electric = b.type === 'electric';
     this.glow.setVisible(electric).setPosition(s.x, s.y).setDepth(depth - 0.003);

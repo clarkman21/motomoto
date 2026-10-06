@@ -1,4 +1,4 @@
-import { WORLD, SURFACES } from '../config.js';
+import { WORLD, SURFACES, COLLISION } from '../config.js';
 
 // The world is a grid of 4 m tiles. Ground height is stored at the tile
 // corners (vertices) and is smooth inside a tile, so hills and ramps have no
@@ -19,10 +19,12 @@ const CHAR_INFO = {
   G: { surface: 'tarmac', block: 'garage', blockLevels: 3 },
   p: { surface: 'pavement' },
   r: { surface: 'water', solid: true },
+  s: { surface: 'sand' },
+  K: { surface: 'tarmac', block: 'dome', blockLevels: 1 },
 };
 
 // Blocks that join with neighbours of the same kind into one building (one colour, no inner walls).
-const GROUPED = ['building', 'fuel', 'swap', 'garage'];
+const GROUPED = ['building', 'fuel', 'swap', 'garage', 'dome'];
 
 // Trees are round and smaller than a tile. Other blocks fill the whole tile.
 const TREE_RADIUS_TILES = 0.28;
@@ -46,10 +48,19 @@ export class World {
     this.roads = mapData.roads ?? [];
     this.busStops = mapData.busStops ?? [];
     this.lamps = mapData.lamps ?? []; // street lamps { x, y (tiles), side }
+    // Poles you can hit: street lamps, speed signs and cameras (circles, positions in metres).
+    this.poles = [...this.lamps, ...this.signs, ...this.cameras].map((p) => ({
+      kind: 'pole', x: p.x * WORLD.tileMetres, y: p.y * WORLD.tileMetres, radius: COLLISION.poleRadius,
+    }));
+    this.crowdAreas = mapData.crowdAreas ?? []; // open areas where many people walk { x0, y0, x1, y1 }
+    // Districts: rectangles of tiles { id, name, x0, y0, x1, y1 } (x1, y1 exclusive). A closed district is solid.
+    this.districts = mapData.districts ?? [];
+    this.closed = new Set();
     // Moving things that the bike can hit (traffic, people). Set by the game: (x, y) => agent or null.
     this.dynamicSolid = null;
     this.lastHit = null;
     this.tiles = this.#parseTiles();
+    for (const p of this.places) if (!p.district) p.district = this.districtAt(Math.floor(p.x), Math.floor(p.y));
     this.vertexLevels = this.#buildHeights(mapData.hills ?? []);
     this.blocks = this.#buildBlocks();
   }
@@ -72,7 +83,7 @@ export class World {
           info = { surface: 'tarmac', block: 'building', blockLevels: Number(ch) };
         }
         if (!info) throw new Error(`Unknown map character '${ch}' at ${tx},${ty}`);
-        tiles.push({ tx, ty, ch, surface: info.surface, hazard: info.hazard ?? null, block: info.block ?? null, blockLevels: info.blockLevels ?? 0, solid: !!info.solid });
+        tiles.push({ tx, ty, ch, district: this.districtAt(tx, ty), surface: info.surface, hazard: info.hazard ?? null, block: info.block ?? null, blockLevels: info.blockLevels ?? 0, solid: !!info.solid });
       }
     }
     return tiles;
@@ -113,6 +124,15 @@ export class World {
       }
       nextId++;
     }
+    // The Convention Centre dome: each tile is a step of a round dome (high in the middle).
+    const domeHeight = new Map();
+    const domeTiles = this.tiles.filter((t) => t.block === 'dome');
+    for (const id of new Set(domeTiles.map((t) => ids.get(t)))) {
+      const group = domeTiles.filter((t) => ids.get(t) === id);
+      const cx = group.reduce((a, t) => a + t.tx, 0) / group.length, cy = group.reduce((a, t) => a + t.ty, 0) / group.length;
+      const r = Math.max(...group.map((t) => Math.hypot(t.tx - cx, t.ty - cy))) + 0.8;
+      for (const t of group) domeHeight.set(t, 2 + Math.round(7 * Math.sqrt(Math.max(0, 1 - (Math.hypot(t.tx - cx, t.ty - cy) / r) ** 2))));
+    }
     const blocks = [];
     for (const t of this.tiles) {
       if (!t.block) continue;
@@ -122,16 +142,34 @@ export class World {
       let levels = t.blockLevels;
       if (t.block === 'tree') levels = 5;
       if (t.block === 'monument') levels = 8;
+      if (t.block === 'dome') levels = domeHeight.get(t);
       blocks.push({
         tx: t.tx,
         ty: t.ty,
         kind: t.block,
         groupId: ids.get(t) ?? -1,
         baseLevel,
+        floorLevel: topOfGround, // on a slope, the building stands on a foundation from baseLevel up to here
         topLevel: topOfGround + levels,
       });
     }
     return blocks;
+  }
+
+  /** The district id of a tile, or null. */
+  districtAt(tx, ty) {
+    for (const d of this.districts) if (tx >= d.x0 && tx < d.x1 && ty >= d.y0 && ty < d.y1) return d.id;
+    return null;
+  }
+
+  /** Open only these districts (ids). The others are solid: barriers close their roads. */
+  setOpenDistricts(ids) {
+    this.closed = new Set(this.districts.map((d) => d.id).filter((id) => !ids.includes(id)));
+  }
+
+  /** True if the tile is in a closed district. */
+  isClosedTile(t) {
+    return !!t && this.closed.size > 0 && this.closed.has(t.district);
   }
 
   /** A place by id (see map data). */
@@ -219,7 +257,7 @@ export class World {
   isSolidAt(x, y, withDynamic = true) {
     const t = this.tileAt(x, y);
     if (!t) return true;
-    if (t.solid) return true;
+    if (t.solid || this.isClosedTile(t)) return true;
     if (withDynamic && this.dynamicSolid) {
       const hit = this.dynamicSolid(x, y);
       if (hit) {

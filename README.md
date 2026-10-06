@@ -30,7 +30,12 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Garage, service meter, breakdowns, crash repairs, daily rent | Done |
 | Shift clock for each level (for example 19:00–23:00 in 3 min) and day end summary | Done |
 | Out of cash: one loan, then game over | Done |
-| District map: Nyabugogo valley to the city centre (96 × 80 tiles), streamed in chunks | Done |
+| Kigali map: 6 districts (Nyabugogo, Kigali town, Kacyiru, Kimihurura, Nyarutarama, Kicukiro), 192 × 128 tiles, streamed in chunks | Done |
+| Topography: valley, ridges, hills and saddles; foundations on slopes, slope shading and contour lines | Done |
+| The map grows with the levels: barriers close the districts that are not open yet | Done |
+| Nyabugogo bus park: buses arrive and their passengers wave for motos | Done |
+| Fuel in each shift: part full tank at the start, idle use, prices by district, low fuel arrow | Done |
+| Collisions by mass with vehicles, people and poles; hard hits throw you off the bike | Done |
 | Traffic: cars, minibuses (bus stops), trucks (slow on hills), other motos; exhaust | Done |
 | People on pavements and in the market; customers who wave (street hails) | Done |
 | Rival riders who race you to pickups and take street hails | Done |
@@ -139,10 +144,14 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `PEOPLE` | Number of walkers, street hails, police fine for hitting a person |
 | `RIVALS` | Chance a rival races you or takes a street hail, offer lifetimes |
 | `LEVELS`, `SAVINGS_FLOAT`, `STREAK` | Goals, shifts, rent, traffic and rivals for each level; the clean ride bonus |
+| `DISTRICTS` | Name, unlock level, fuel price and fare factor of each district |
+| `BUS_PARK` | How often buses arrive at Nyabugogo and how many customers they bring |
+| `FUEL` | Start tank, idle use, low fuel and reserve warnings |
+| `COLLISION` | Bike radius, bounce, masses, crash speed and time, repair cost per km/h |
 | `DAYLIGHT` | Light at each hour, night colour, sunset colour |
 | `LIGHTS` | Street lamp spacing, light pools, lit windows, headlights and tail lights |
 
-To change the map, edit the ASCII grid in [`src/world/map-data.js`](src/world/map-data.js). The legend is at the top of the file. Hills are plateaus with ramps; each hill has a height and a ramp length for each side. The same file has the job places, speed limit zones, cameras and signs.
+The game map is built in code in [`src/world/maps/kigali.js`](src/world/maps/kigali.js): district rectangles, hills, roads, landmarks, stations and places. The small test map for the unit tests is an ASCII grid in [`src/world/map-data.js`](src/world/map-data.js). The legend is at the top of the file. Hills are plateaus with ramps; each hill has a height and a ramp length for each side. The same file has the job places, speed limit zones, cameras and signs.
 
 ## Code structure
 
@@ -153,7 +162,7 @@ src/
   world/
     iso.js               Isometric projection (world metres ↔ screen pixels)
     map-data.js          Small test map (ASCII), used by the tests
-    maps/kigali.js       District map (Nyabugogo to city centre), built in code
+    maps/kigali.js       Kigali map: 6 districts, hills, roads, landmarks, built in code
     vehicle-sprites.js   Cars, minibuses, trucks, rival motos, people
     world.js             Heights, slopes, surfaces, solid blocks
     pixel-canvas.js      Small software rasterizer for pixel art
@@ -170,6 +179,7 @@ src/
     traffic.js           Vehicles: lane following, gaps, junctions, bus stops, hills
     people.js            Walkers, dodging, street hail customers
     rivals.js            Rival riders who race you to customers
+    collide.js           Collisions of the bike with vehicles, people and poles (by mass)
     maintenance.js       Service meter, wear, breakdown, garage quote
     levels.js            Levels, savings goals, milestones, streak bonus
     daylight.js          Light and colour at each hour of the day
@@ -182,6 +192,7 @@ src/
     TrafficView.js       Draws traffic
     PeopleView.js        Draws people and waving customers
     LightsView.js        Night colour, street lamps, headlights and tail lights
+    BarrierView.js       Barriers at the edge of closed districts
     save.js              Saves the game in the browser (localStorage)
 test/                    Unit tests (Vitest)
 ```

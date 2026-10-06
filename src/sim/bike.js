@@ -1,6 +1,7 @@
-import { BIKES, PHYSICS, HAZARDS, WORLD, GEARBOX, BRAKES, LOAD } from '../config.js';
+import { BIKES, PHYSICS, HAZARDS, WORLD, GEARBOX, BRAKES, LOAD, FUEL, COLLISION } from '../config.js';
 import { wrapAngle } from '../world/iso.js';
 import { addWear, rideWearKm, hitWearKm, powerFactor, energyFactor } from './maintenance.js';
+import { collideBike } from './collide.js';
 
 // Arcade bike physics. No Phaser here, so the tests can run it.
 // Position is in metres, speed in m/s, heading in radians (0 = +x).
@@ -101,6 +102,12 @@ export function forwardSpeed(bike) {
 export function stepBike(bike, input, world, dt) {
   const spec = BIKES[bike.type];
   const events = [];
+  // After a crash the rider is on the ground: no control, and the bike slides to a stop.
+  const crashed = bike.crashed > 0;
+  if (crashed) {
+    bike.crashed = Math.max(0, bike.crashed - dt);
+    input = { throttle: 0, brake: 0, steer: 0 };
+  }
   const topSpeed = spec.topSpeedKmh * KMH;
   const surface = world.surfaceAt(bike.x, bike.y);
   bike.surface = surface;
@@ -175,6 +182,7 @@ export function stepBike(bike, input, world, dt) {
     else drag += PHYSICS.coastDragMs2;
   }
   if (brake > 0 && v < 0 && !reversing) drag += spec.brakeMs2 * brake;
+  if (crashed) drag += COLLISION.slideMs2;
   // On a slope the bike stays still if drag can hold it. This stops a slow creep down gentle ramps.
   const dv = drag * dt;
   if (Math.abs(v) <= dv) v = 0;
@@ -212,18 +220,26 @@ export function stepBike(bike, input, world, dt) {
   bike.vx = fwdX * v + rightX * lateral;
   bike.vy = fwdY * v + rightY * lateral;
 
-  // Move in small steps and stop at walls.
-  const speedBefore = Math.hypot(bike.vx, bike.vy);
-  const dist = speedBefore * dt;
+  // Move in small steps and stop at walls (buildings, trees, water, closed districts).
+  const dist = Math.hypot(bike.vx, bike.vy) * dt;
   const steps = Math.max(1, Math.ceil(dist / PHYSICS.maxStepMetres));
   const x0 = bike.x, y0 = bike.y;
-  // If a car or a person moved into the bike, let the bike move out (ignore moving things this step).
-  const withDynamic = !world.dynamicSolid || !blocked(world, bike.x, bike.y, true);
-  world.lastHit = null;
+  const hits = [];
   for (let i = 0; i < steps; i++) {
-    if (moveWithCollision(bike, world, (bike.vx * dt) / steps, (bike.vy * dt) / steps, withDynamic)) {
-      events.push({ type: 'wall', speed: speedBefore, hit: world.lastHit });
+    const impact = moveWithCollision(bike, world, (bike.vx * dt) / steps, (bike.vy * dt) / steps);
+    if (impact > 0) {
+      hits.push({ type: 'wall', speed: impact, hit: null });
       break;
+    }
+  }
+  // Moving things and poles near the bike (set by the game): vehicles, rival motos, people, lamps.
+  hits.push(...collideBike(bike, world.dynamicAgents ?? []));
+  for (const h of hits) {
+    events.push(h);
+    // A hard hit throws the rider off the bike.
+    if (h.speed * 3.6 > COLLISION.crashSpeedKmh && !(bike.crashed > 0)) {
+      bike.crashed = COLLISION.crashSeconds;
+      events.push({ type: 'crash', speed: h.speed, hit: h.hit });
     }
   }
   const moved = Math.hypot(bike.x - x0, bike.y - y0);
@@ -254,6 +270,8 @@ export function stepBike(bike, input, world, dt) {
   const fuelRevs = spec.gears ? GEARBOX.fuelAtIdle + GEARBOX.fuelPerRev * Math.min(1, bike.revs) : 1;
   let use = energyUse(spec, surface, grade, throttle, v, topSpeed) * (throttle > 0 ? fuelRevs * massFactor * energyFactor(bike) : 1);
   if (regenBrake > 0) use -= (spec.regenBrakeFraction * regenBrake * Math.abs(v)) / barInKinetic(spec);
+  // A petrol engine uses fuel at idle too: when you coast, wait for a customer or stand in a queue.
+  if (spec.gears && throttle === 0 && engineRuns) use += FUEL.idleUse / spec.energySeconds;
   bike.energyRate = use; // fraction of a full bar per second (negative = charging)
   const before = bike.energy;
   bike.energy = clamp(bike.energy - use * dt, 0, 1);
@@ -308,35 +326,41 @@ function scaleSpeed(bike, k) {
   bike.vy *= k;
 }
 
-function blocked(world, x, y, withDynamic = true) {
-  if (world.isSolidAt(x, y, withDynamic)) return true;
+function blocked(world, x, y) {
+  if (world.isSolidAt(x, y, false)) return true;
   for (let i = 0; i < PROBES; i++) {
     const a = (i / PROBES) * Math.PI * 2;
-    if (world.isSolidAt(x + Math.cos(a) * COLLISION_RADIUS, y + Math.sin(a) * COLLISION_RADIUS, withDynamic)) return true;
+    if (world.isSolidAt(x + Math.cos(a) * COLLISION_RADIUS, y + Math.sin(a) * COLLISION_RADIUS, false)) return true;
   }
   return false;
 }
 
-/** Move by (dx, dy). Slide along walls. Returns true when the bike hit a wall. */
-function moveWithCollision(bike, world, dx, dy, withDynamic = true) {
-  const blocked_ = (x, y) => blocked(world, x, y, withDynamic);
-  if (!blocked_(bike.x + dx, bike.y + dy)) {
+/**
+ * Move by (dx, dy). Slide along walls: the speed into the wall bounces back a little.
+ * Returns the impact speed (m/s into the wall), or 0 when the bike did not hit anything.
+ */
+function moveWithCollision(bike, world, dx, dy) {
+  if (!blocked(world, bike.x + dx, bike.y + dy)) {
     bike.x += dx;
     bike.y += dy;
-    return false;
+    return 0;
   }
   const k = PHYSICS.wallBounce;
-  if (!blocked_(bike.x + dx, bike.y)) {
+  let impact;
+  if (!blocked(world, bike.x + dx, bike.y)) {
     bike.x += dx;
+    impact = Math.abs(bike.vy);
     bike.vy *= -k;
-  } else if (!blocked_(bike.x, bike.y + dy)) {
+  } else if (!blocked(world, bike.x, bike.y + dy)) {
     bike.y += dy;
+    impact = Math.abs(bike.vx);
     bike.vx *= -k;
   } else {
+    impact = Math.hypot(bike.vx, bike.vy);
     bike.vx *= -k;
     bike.vy *= -k;
   }
-  return true;
+  return Math.max(impact, 1e-3);
 }
 
 function clamp(x, lo, hi) {

@@ -42,13 +42,14 @@ describe('bike on flat tarmac', () => {
     expect(Math.abs(kmh(bike))).toBeLessThan(5);
   });
 
-  it('uses about one sixth of a petrol tank per minute at full throttle (more at high revs)', () => {
+  it('uses about a quarter of a petrol tank per minute at full throttle (more at high revs)', () => {
     const world = straight();
     const bike = createBike(world, 'petrol');
     bike.autoShift = true;
     run(bike, world, { throttle: 1 }, 60);
-    expect(1 - bike.energy).toBeGreaterThan(1 / 6);
-    expect(1 - bike.energy).toBeLessThan(1 / 6 * 1.35);
+    const perMinute = 60 / BIKES.petrol.energySeconds;
+    expect(1 - bike.energy).toBeGreaterThan(perMinute);
+    expect(1 - bike.energy).toBeLessThan(perMinute * 1.35);
   });
 });
 

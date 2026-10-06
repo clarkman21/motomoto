@@ -38,7 +38,7 @@ describe('night lights', () => {
     expect(map.lamps.length).toBeGreaterThan(60);
     for (const l of map.lamps) {
       const c = map.rows[Math.floor(l.y)][Math.floor(l.x)];
-      expect(['.', 'p', '#', 'o', '=']).toContain(c);
+      expect(['.', 'p', '#', 'o', '=', 'm']).toContain(c);
     }
     expect(world.lamps).toBe(map.lamps);
   });

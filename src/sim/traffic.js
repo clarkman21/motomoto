@@ -1,5 +1,5 @@
-import { TRAFFIC, WORLD } from '../config.js';
-import { lanePoint, LANE_OFFSET } from './roads.js';
+import { TRAFFIC, WORLD, BUS_PARK } from '../config.js';
+import { lanePoint, LANE_OFFSET, shortestPath } from './roads.js';
 import { speedLimitAt } from './law.js';
 
 // Traffic: cars, minibuses, trucks and other motos that drive on the road network.
@@ -159,7 +159,9 @@ export function stepTraffic(traffic, world, obstacles, dt) {
         const sx = (stop.x + 0.5) * WORLD.tileMetres, sy = (stop.y + 0.5) * WORLD.tileMetres;
         if (v.lastStop !== stop && Math.hypot(v.x - sx, v.y - sy) < 5) {
           v.lastStop = stop;
-          v.stopTimer = TRAFFIC.busStopSeconds;
+          v.stopTimer = stop.park ? BUS_PARK.dwellSeconds : TRAFFIC.busStopSeconds;
+          // At the bus park, the passengers get off and look for motos.
+          if (stop.park) events.push({ type: 'busArrived', vehicle: v, stop });
         }
       }
     }
@@ -223,6 +225,25 @@ export function stepTraffic(traffic, world, obstacles, dt) {
     }
   }
   return events;
+}
+
+/**
+ * Send a bus to the bus park: the shortest way to one end of the bus park lane, then along it.
+ * parkEdge: the lane edge that passes the bus park stop. Returns true if a route was found.
+ */
+export function sendBusToPark(traffic, v, parkEdge) {
+  if (!v.next) return false;
+  let best = null;
+  for (const e of [parkEdge, parkEdge.reverse].filter(Boolean)) {
+    const path = v.next.to === e.from ? [] : shortestPath(traffic.graph, v.next.to, e.from);
+    if (!path) continue;
+    const len = path.reduce((a, p) => a + p.length, 0);
+    if (!best || len < best.len) best = { len, route: [...path, e] };
+  }
+  if (!best) return false;
+  v.route = best.route;
+  v.lastStop = null;
+  return true;
 }
 
 /** True if a point is inside a vehicle's footprint (a rectangle turned to its heading). */

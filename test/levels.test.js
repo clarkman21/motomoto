@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { World } from '../src/world/world.js';
 import { buildKigaliMap } from '../src/world/maps/kigali.js';
 import { createWallet, endDay, fuelFillCost } from '../src/sim/economy.js';
-import { levelDef, levelSettings, milestoneReady, buyMilestone, restartLevel, savingsTarget, streakMultiplier, updateStreak } from '../src/sim/levels.js';
+import { levelDef, levelSettings, milestoneReady, buyMilestone, restartLevel, savingsTarget, streakMultiplier, updateStreak, districtsForLevel } from '../src/sim/levels.js';
 import { createJobBoard, makeOffer, mulberry32 } from '../src/sim/jobs.js';
 import { createBike } from '../src/sim/bike.js';
 import { LEVELS, SAVINGS_FLOAT, MONEY, STREAK } from '../src/config.js';
@@ -78,25 +78,37 @@ describe('levels', () => {
 });
 
 describe('level settings in the game rules', () => {
-  it('levels 1 to 3 offer valley jobs only; level 4 adds the city', () => {
+  it('level 1 offers Nyabugogo jobs only; the map grows with the levels', () => {
+    expect(districtsForLevel(1)).toEqual(['nyabugogo']);
+    expect(districtsForLevel(2)).toEqual(['nyabugogo', 'town']);
+    expect(districtsForLevel(3)).toHaveLength(4);
+    expect(districtsForLevel(4)).toContain('kicukiro');
+    expect(districtsForLevel(5)).toHaveLength(6);
     const rng = mulberry32(3);
-    const valley = Array.from({ length: 40 }, (_, i) => makeOffer(world, rng, i, { districts: ['valley'] }));
+    const valley = Array.from({ length: 40 }, (_, i) => makeOffer(world, rng, i, { districts: districtsForLevel(1) }));
     for (const o of valley) {
-      expect(o.from.district).toBe('valley');
-      expect(o.to.district).toBe('valley');
+      expect(o.from.district).toBe('nyabugogo');
+      expect(o.to.district).toBe('nyabugogo');
     }
-    const withCity = Array.from({ length: 80 }, (_, i) => makeOffer(world, rng, i, { districts: ['valley', 'city'] }));
-    expect(withCity.some((o) => o.to.district === 'city' || o.from.district === 'city')).toBe(true);
+    const withTown = Array.from({ length: 80 }, (_, i) => makeOffer(world, rng, i, { districts: districtsForLevel(2) }));
+    expect(withTown.some((o) => o.to.district === 'town' || o.from.district === 'town')).toBe(true);
+  });
+
+  it('the bus park starts the most jobs', () => {
+    const rng = mulberry32(5);
+    const offers = Array.from({ length: 300 }, (_, i) => makeOffer(world, rng, i, { districts: ['nyabugogo'] }));
+    const count = (id) => offers.filter((o) => o.from.id === id).length;
+    expect(count('busPark')).toBeGreaterThan(count('riverRoad') * 2);
   });
 
   it('the fare multiplier raises the pay', () => {
-    const a = makeOffer(world, mulberry32(9), 1, { districts: ['valley'] });
-    const b = makeOffer(world, mulberry32(9), 1, { districts: ['valley'], fareMultiplier: 1.2 });
+    const a = makeOffer(world, mulberry32(9), 1, { districts: ['nyabugogo'] });
+    const b = makeOffer(world, mulberry32(9), 1, { districts: ['nyabugogo'], fareMultiplier: 1.2 });
     expect(b.pay).toBeGreaterThan(a.pay * 1.15);
   });
 
   it('the board uses the number of job cards from the level', () => {
-    expect(createJobBoard(world, 1, { maxOffers: 4, districts: ['valley'] }).offers).toHaveLength(4);
+    expect(createJobBoard(world, 1, { maxOffers: 4, districts: ['nyabugogo'] }).offers).toHaveLength(4);
   });
 
   it('the petrol price and the rent follow the level', () => {

@@ -104,3 +104,35 @@ export function shortestPath(graph, a, b) {
   for (let n = b; n !== a; n = prev.get(n.id).from) path.unshift(prev.get(n.id));
   return path;
 }
+
+/**
+ * The part of the road list inside the open districts (for traffic). A road that goes into a
+ * closed district stops at the district edge. districts: [{ id, x0, y0, x1, y1 }], open: [ids].
+ */
+export function openRoads(roads, districts, open) {
+  if (!districts?.length) return roads;
+  const rects = districts.filter((d) => open.includes(d.id));
+  const out = [];
+  for (const r of roads) {
+    const horiz = r.y !== undefined;
+    const c = horiz ? r.y : r.x; // first row (or column) of the road
+    const [a, b] = horiz ? [r.x0, r.x1] : [r.y0, r.y1];
+    // Open intervals along the road (tiles, inclusive), merged.
+    const spans = rects
+      .filter((d) => (horiz ? c >= d.y0 && c + 1 < d.y1 : c >= d.x0 && c + 1 < d.x1))
+      .map((d) => (horiz ? [d.x0, d.x1 - 1] : [d.y0, d.y1 - 1]))
+      .sort((p, q) => p[0] - q[0]);
+    const merged = [];
+    for (const s of spans) {
+      const last = merged[merged.length - 1];
+      if (last && s[0] <= last[1] + 1) last[1] = Math.max(last[1], s[1]);
+      else merged.push([...s]);
+    }
+    for (const [lo, hi] of merged) {
+      const s0 = Math.max(a, lo), s1 = Math.min(b, hi);
+      if (s1 - s0 < 2) continue;
+      out.push(horiz ? { ...r, x0: s0, x1: s1 } : { ...r, y0: s0, y1: s1 });
+    }
+  }
+  return out;
+}

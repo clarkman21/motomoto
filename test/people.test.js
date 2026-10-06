@@ -62,7 +62,7 @@ describe('rival riders', () => {
   it('a racing rival drives to the pickup and arrives', () => {
     const graph = buildRoadGraph(data.roads);
     const traffic = createTraffic(world, graph, mulberry32(2));
-    const pickup = world.place('cityHall');
+    const pickup = world.place('townRoundabout');
     const bike = { x: 12 * 4, y: 21 * 4 };
     const rival = startRace(traffic, bike, { ...pickup, jobId: 1 }, () => 0);
     expect(rival).not.toBeNull();

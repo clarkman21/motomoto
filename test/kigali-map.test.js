@@ -9,44 +9,98 @@ const T = WORLD.tileMetres;
 const data = buildKigaliMap();
 const world = new World(data);
 
-describe('district map (Nyabugogo to city centre)', () => {
-  it('is 96 × 80 tiles and the same for the same seed', () => {
+describe('Kigali map (6 districts)', () => {
+  it('is 192 × 128 tiles and the same for the same seed', () => {
     expect(world.width).toBe(KIGALI_W);
     expect(world.height).toBe(KIGALI_H);
     expect(buildKigaliMap().rows).toEqual(data.rows);
   });
 
-  it('has every place on a tile you can ride on', () => {
-    for (const p of world.places) expect(world.isSolidAt(p.x * T, p.y * T), p.name).toBe(false);
+  it('has the 6 districts, and every tile is in one', () => {
+    expect(world.districts.map((d) => d.id).sort()).toEqual(['kacyiru', 'kicukiro', 'kimihurura', 'nyabugogo', 'nyarutarama', 'town']);
+    expect(world.tiles.every((t) => t.district)).toBe(true);
+    expect(world.districtAt(30, 12)).toBe('nyabugogo');
+    expect(world.districtAt(30, 100)).toBe('town');
   });
 
-  it('has the services: fuel, two swap stations, a garage', () => {
-    expect(world.placesWithTag('fuel')).toHaveLength(1);
-    expect(world.placesWithTag('swap')).toHaveLength(2);
-    expect(world.placesWithTag('garage')).toHaveLength(1);
-    for (const kind of ['fuel', 'swap', 'garage']) expect(world.blocks.some((b) => b.kind === kind)).toBe(true);
+  it('has every place on a tile you can ride on, with a district', () => {
+    for (const p of world.places) {
+      expect(world.isSolidAt(p.x * T, p.y * T), p.name).toBe(false);
+      expect(p.district, p.name).toBeTruthy();
+    }
   });
 
-  it('starts the bike on the main road in the valley', () => {
+  it('has services in every district: fuel or swap in each, two garages', () => {
+    for (const d of world.districts) {
+      const services = world.places.filter((p) => p.district === d.id && (p.tags.includes('fuel') || p.tags.includes('swap')));
+      expect(services.length, d.id).toBeGreaterThan(0);
+    }
+    expect(world.placesWithTag('fuel').length).toBeGreaterThanOrEqual(6);
+    expect(world.placesWithTag('swap').length).toBeGreaterThanOrEqual(4);
+    expect(world.placesWithTag('garage')).toHaveLength(2);
+    for (const kind of ['fuel', 'swap', 'garage', 'dome', 'monument']) expect(world.blocks.some((b) => b.kind === kind), kind).toBe(true);
+  });
+
+  it('starts the bike on the northern road in the Nyabugogo valley', () => {
     const s = data.start;
     expect(world.tileAt(s.x * T, s.y * T).surface).toBe('tarmac');
     expect(world.heightAt(s.x * T, s.y * T)).toBe(0);
   });
 
-  it('puts the city on a plateau and the river is solid', () => {
-    expect(world.heightAt(70 * T, 25 * T)).toBeGreaterThan(5 * WORLD.levelMetres);
-    expect(world.isSolidAt(10 * T, 1 * T)).toBe(true);
+  it('has the topography: a low valley, high ridges and hills, and climbs between them', () => {
+    const level = (x, y) => world.heightAt(x * T, y * T) / WORLD.levelMetres;
+    expect(level(30, 12)).toBe(0); // Nyabugogo bus park, valley floor
+    expect(level(30, 100)).toBe(7); // Kigali town on the ridge
+    expect(level(100, 30)).toBe(6); // Kacyiru hill
+    expect(level(100, 110)).toBe(6); // Kimihurura hill
+    expect(level(160, 100)).toBe(4); // Kicukiro plateau
+    expect(level(150, 32)).toBeLessThan(level(150, 15) - 4); // Nyarutarama golf valley between two ridges
+    expect(level(2, 40)).toBe(5); // Kimisagara hillside, in level 1
+    // The road from Nyabugogo to Kacyiru climbs about 19%.
+    const slope = world.slopeAt(70 * T, 21 * T);
+    expect(slope.dx).toBeGreaterThan(0.15);
+    expect(world.isSolidAt(10 * T, 1 * T)).toBe(true); // the river
+  });
+
+  it('has murram and cobblestone roads as well as tarmac', () => {
+    const count = (s) => world.tiles.filter((t) => t.surface === s).length;
+    expect(count('murram')).toBeGreaterThan(400);
+    expect(count('cobble')).toBeGreaterThan(400);
+  });
+
+  it('closes districts: a closed district is solid', () => {
+    const w = new World(buildKigaliMap());
+    w.setOpenDistricts(['nyabugogo']);
+    expect(w.isSolidAt(30 * T, 21 * T)).toBe(false);
+    expect(w.isSolidAt(80 * T, 21 * T)).toBe(true);
+    w.setOpenDistricts(['nyabugogo', 'kacyiru']);
+    expect(w.isSolidAt(80 * T, 21 * T)).toBe(false);
   });
 
   it('has speed limit zones', () => {
     expect(speedLimitAt(world, 30 * T, 10 * T).limitKmh).toBe(30);
-    expect(speedLimitAt(world, 70 * T, 21 * T).limitKmh).toBe(40);
+    expect(speedLimitAt(world, 30 * T, 105 * T).limitKmh).toBe(40);
+    expect(speedLimitAt(world, 100 * T, 20 * T).limitKmh).toBe(50);
   });
 
   it('draws one chunk of ground small enough for phone GPUs', () => {
-    const c = renderTerrain(world, { tx0: 24, ty0: 24, tx1: 48, ty1: 48 });
+    const c = renderTerrain(world, { tx0: 24, ty0: 72, tx1: 48, ty1: 96 });
     expect(c.width).toBeLessThanOrEqual(2048);
     expect(c.height).toBeLessThanOrEqual(2048);
+  });
+});
+
+import { openRoads, buildRoadGraph } from '../src/sim/roads.js';
+describe('roads in the open districts', () => {
+  it('cuts roads at the edge of closed districts', () => {
+    const roads = openRoads(world.roads, world.districts, ['nyabugogo']);
+    for (const r of roads) {
+      if (r.y !== undefined) expect(r.x1, r.name).toBeLessThan(64);
+      else expect(r.y1, r.name).toBeLessThan(64);
+    }
+    const graph = buildRoadGraph(roads);
+    expect(graph.nodes.every((n) => n.x <= 64 * T && n.y <= 64 * T)).toBe(true);
+    expect(openRoads(world.roads, world.districts, world.districts.map((d) => d.id)).length).toBeGreaterThanOrEqual(world.roads.length);
   });
 });
 

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { World } from '../src/world/world.js';
 import { buildKigaliMap } from '../src/world/maps/kigali.js';
 import { buildRoadGraph, lanePoint, nearestNode, shortestPath } from '../src/sim/roads.js';
-import { createTraffic, stepTraffic, insideVehicle } from '../src/sim/traffic.js';
+import { createTraffic, stepTraffic, insideVehicle, sendBusToPark } from '../src/sim/traffic.js';
 import { mulberry32 } from '../src/sim/jobs.js';
 import { TRAFFIC } from '../src/config.js';
 
@@ -81,10 +81,10 @@ describe('traffic', () => {
   });
 
   it('a truck is much slower uphill', () => {
-    // East side of the main road climbs from x = 42 to 51 (tiles).
+    // The northern road climbs from the Kinamba valley (x = 64) to Kacyiru hill (x = 76): 19%.
     const t = createTraffic(world, graph, mulberry32(9));
     const truck = t.vehicles.find((v) => v.kind === 'truck');
-    const climb = graph.edges.find((e) => e.road.name === 'Main road' && e.dx > 0 && e.from.x <= 42 * 4 && e.to.x >= 48 * 4);
+    const climb = graph.edges.find((e) => e.road.name.startsWith('Northern road') && e.dx > 0 && e.from.x <= 64 * 4 && e.to.x >= 74 * 4);
     t.vehicles.length = 0;
     t.vehicles.push(truck);
     Object.assign(truck, { edge: climb, s: 4 * 4, speed: 0, next: climb.to.out[0], prev: null, route: [] });
@@ -99,5 +99,33 @@ describe('traffic', () => {
     const v = { x: 0, y: 0, heading: 0, length: 4, width: 2 };
     expect(insideVehicle(v, 1.9, 0)).toBe(true);
     expect(insideVehicle(v, 0, 1.2)).toBe(false);
+  });
+});
+
+import { openRoads } from '../src/sim/roads.js';
+import { createPeople, busArrivalHails } from '../src/sim/people.js';
+describe('Nyabugogo bus park', () => {
+  it('a bus sent to the bus park arrives there, and its passengers want motos', () => {
+    const w = new World(buildKigaliMap());
+    w.setOpenDistricts(['nyabugogo']);
+    const g = buildRoadGraph(openRoads(w.roads, w.districts, ['nyabugogo']));
+    const stop = w.busStops.find((s) => s.park);
+    const sx = (stop.x + 0.5) * 4, sy = (stop.y + 0.5) * 4;
+    const parkEdge = g.edges.find((e) => {
+      const t = (sx - e.from.x) * e.dx + (sy - e.from.y) * e.dy;
+      return t > 0 && t < e.length && Math.abs(-(sx - e.from.x) * e.dy + (sy - e.from.y) * e.dx) < 4;
+    });
+    expect(parkEdge).toBeTruthy();
+    const t = createTraffic(w, g, mulberry32(4), { bus: 1 });
+    const bus = t.vehicles[0];
+    expect(sendBusToPark(t, bus, parkEdge)).toBe(true);
+    let arrived = null;
+    for (let i = 0; i < 30 * 240 && !arrived; i++) arrived = stepTraffic(t, w, [], 1 / 30).find((e) => e.type === 'busArrived');
+    expect(arrived).toBeTruthy();
+    expect(arrived.stop.park).toBe(true);
+    const people = createPeople(w, mulberry32(1), { districts: ['nyabugogo'], walkers: 5 });
+    const hails = busArrivalHails(people, w, w.places, sx, sy, 3);
+    expect(hails).toHaveLength(3);
+    for (const h of hails) expect(Math.hypot(h.x - sx, h.y - sy)).toBeLessThan(18);
   });
 });
