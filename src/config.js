@@ -245,3 +245,19 @@ export const MAINTENANCE = {
   padsBelow: 0.7, // the mechanic also replaces brake pads below this level (MONEY.brakePads)
   minServiceFraction: 0.05, // below this, and with good pads, the mechanic has nothing to do
 };
+
+// ---------------------------------------------------------------------------
+// Traffic (milestone 3). Counts are for the district map. All guesses.
+// ---------------------------------------------------------------------------
+export const TRAFFIC = {
+  counts: { car: 18, bus: 6, truck: 6, moto: 10 },
+  kinds: {
+    // limitFactor: how they treat the speed limit (motos ride a little over it).
+    car: { length: 4.2, width: 1.8, maxKmh: 50, accel: 2.5, brake: 6, limitFactor: 1.0, hillSlowdown: 1.0, minHillFactor: 0.5, exhaust: 0.5, variants: 4 },
+    bus: { length: 5.0, width: 1.9, maxKmh: 45, accel: 1.8, brake: 5, limitFactor: 1.0, hillSlowdown: 1.6, minHillFactor: 0.35, exhaust: 1.0, variants: 2 },
+    truck: { length: 7.0, width: 2.4, maxKmh: 35, accel: 1.0, brake: 4, limitFactor: 0.9, hillSlowdown: 2.4, minHillFactor: 0.18, exhaust: 2.0, variants: 2 },
+    moto: { length: 2.0, width: 0.8, maxKmh: 55, accel: 3.5, brake: 7, limitFactor: 1.1, hillSlowdown: 0.8, minHillFactor: 0.5, exhaust: 0.6, variants: 1 },
+  },
+  turnKmh: 18,
+  busStopSeconds: 5,
+};

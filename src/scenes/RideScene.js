@@ -17,6 +17,10 @@ import { createWallet, earn, spend, buyFuel, swapBattery, fuelFillCost, repairCo
 import { garageQuote, serviceDue } from '../sim/maintenance.js';
 import { createJobBoard, updateBoard, acceptOffer, cancelJob, updateJob, jobTarget } from '../sim/jobs.js';
 import { createCameraState, checkCameras, speedLimitAt } from '../sim/law.js';
+import { buildRoadGraph } from '../sim/roads.js';
+import { createTraffic, stepTraffic, insideVehicle } from '../sim/traffic.js';
+import { mulberry32 } from '../sim/jobs.js';
+import { TrafficView, isDiesel } from './TrafficView.js';
 
 const FIXED_DT = 1 / 120; // physics step in seconds
 const BARKS = {
@@ -58,6 +62,7 @@ export class RideScene extends Phaser.Scene {
     addCanvasTexture(this, 'shadow', drawShadow());
     addCanvasTexture(this, 'glow', drawGlow());
     addCanvasTexture(this, 'puff', drawPuff());
+    addCanvasTexture(this, 'puff-dark', drawPuff(true));
     const ox = BIKE_CANVAS.groundX / BIKE_CANVAS.width;
     const oy = BIKE_CANVAS.groundY / BIKE_CANVAS.height;
     this.shadow = this.add.image(0, 0, 'shadow');
@@ -69,6 +74,14 @@ export class RideScene extends Phaser.Scene {
     this.puffTimer = 0;
 
     this.#createProps();
+
+    // Traffic on the road network.
+    this.roadGraph = buildRoadGraph(this.world.roads);
+    this.traffic = createTraffic(this.world, this.roadGraph, mulberry32(Date.now() & 0xffff));
+    this.trafficView = new TrafficView(this, this.traffic);
+    this.nearAgents = [];
+    // The bike collides with vehicles near it.
+    this.world.dynamicSolid = (x, y) => this.nearAgents.find((v) => insideVehicle(v, x, y, 0.1)) ?? null;
 
     this.bike = createBike(this.world, 'petrol');
     this.wallet = createWallet();
@@ -350,12 +363,18 @@ export class RideScene extends Phaser.Scene {
     const dt = Math.min(0.1, deltaMs / 1000);
     this.accumulator += dt;
     const raw = this.#rawInput();
+    this.#updateTraffic(dt);
     while (this.accumulator >= FIXED_DT) {
       // While you fill up or swap, the bike stands still.
       this.controls = this.refuel ? { throttle: 0, brake: 1, steer: 0 } : readControls(this.steeringMode, raw, this.bike);
       const events = stepBike(this.bike, this.controls, this.world, FIXED_DT);
       for (const e of events) {
         if (e.type === 'wall' && e.speed < 4) continue; // no bark when you only touch a wall
+        if (e.type === 'wall' && e.hit?.kind) {
+          this.events.emit('bark', `Crash! You hit a ${e.hit.kind === 'moto' ? 'moto' : e.hit.kind === 'bus' ? 'minibus' : e.hit.kind}`);
+          e.hit.stopTimer = 2; // the other driver stops
+          continue;
+        }
         if (BARKS[e.type]) this.events.emit('bark', BARKS[e.type]);
       }
       this.#economyStep(events);
@@ -372,9 +391,37 @@ export class RideScene extends Phaser.Scene {
     this.#updateOcclusion();
     this.#updateCamera(dt);
     this.chunks.cull(this.cameras.main.worldView);
+    this.trafficView.update(this.world, this.cameras.main.worldView);
     this.engineSound.update(this.bike.type, Math.min(1, this.bike.revs), this.controls.throttle);
     this.dayTime += dt;
     if (this.dayTime >= DAY.realSeconds) this.#endDay();
+  }
+
+  #updateTraffic(dt) {
+    const b = this.bike;
+    const bikeObstacle = { x: b.x, y: b.y, length: 2, width: 0.9, speed: Math.abs(forwardSpeed(b)) };
+    for (const e of stepTraffic(this.traffic, this.world, [bikeObstacle], dt)) {
+      const v = e.vehicle;
+      // Exhaust only near the bike (you cannot see the rest).
+      if (Math.abs(v.x - b.x) + Math.abs(v.y - b.y) > 90) continue;
+      const back = v.length / 2;
+      this.#spawnPuff(v.x - Math.cos(v.heading) * back, v.y - Math.sin(v.heading) * back, 0.4, isDiesel(v));
+    }
+    this.nearAgents = this.traffic.vehicles.filter((v) => Math.abs(v.x - b.x) < 12 && Math.abs(v.y - b.y) < 12);
+  }
+
+  /** An exhaust puff at a world point (metres). */
+  #spawnPuff(px, py, z, dark = false) {
+    const s = toScreen(px, py, this.world.heightAt(px, py) + z);
+    let puff = this.puffs.find((p) => !p.img.visible);
+    if (!puff) {
+      if (this.puffs.length > 160) return;
+      puff = { img: this.add.image(0, 0, 'puff') };
+      this.puffs.push(puff);
+    }
+    puff.img.setTexture(dark ? 'puff-dark' : 'puff').setVisible(true).setPosition(s.x, s.y).setDepth((px + py) / WORLD.tileMetres);
+    puff.life = puff.maxLife = dark ? 1.3 : 0.9;
+    puff.drift = (Math.random() - 0.5) * 6;
   }
 
   // Cameras and signs stand beside the road. They sort by depth like the blocks.
@@ -453,17 +500,7 @@ export class RideScene extends Phaser.Scene {
       const throttle = this.controls.throttle;
       this.puffTimer = throttle > 0 ? 0.06 : 0.3;
       const back = 1.0; // metres behind the bike centre
-      const px = b.x - Math.cos(b.heading) * back;
-      const py = b.y - Math.sin(b.heading) * back;
-      const s = toScreen(px, py, b.z + 0.45);
-      let puff = this.puffs.find((p) => !p.img.visible);
-      if (!puff) {
-        puff = { img: this.add.image(0, 0, 'puff') };
-        this.puffs.push(puff);
-      }
-      puff.img.setVisible(true).setPosition(s.x, s.y).setDepth((px + py) / WORLD.tileMetres);
-      puff.life = puff.maxLife = throttle > 0 ? 0.9 : 0.6;
-      puff.drift = (Math.random() - 0.5) * 6;
+      this.#spawnPuff(b.x - Math.cos(b.heading) * back, b.y - Math.sin(b.heading) * back, 0.45);
     }
     for (const p of this.puffs) {
       if (!p.img.visible) continue;

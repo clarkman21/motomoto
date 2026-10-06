@@ -9,9 +9,10 @@ export const BIKE_DIRECTIONS = 16;
 const BIKE_SCALE = 1.25; // draw the bike and rider a little larger than real size, so they read well
 export const BIKE_CANVAS = { width: 44, height: 44, groundX: 22, groundY: 34 };
 
-const BIKE_LOOKS = {
+export const BIKE_LOOKS = {
   petrol: { body: 0x8c2b23, seat: 0x222222, vest: 0x3f8f4a, helmet: 0xc0392b, trousers: 0x2a3550 },
   electric: { body: COLOURS.ampersandYellow, seat: 0x111111, vest: 0x1a1a1a, helmet: 0x111111, trousers: 0x2a3550 },
+  rival: { body: 0x2b2f36, seat: 0x111111, vest: 0x2a62b8, helmet: 0xe8e8e8, trousers: 0x3a3a3a }, // other moto taxi riders
 };
 const SKIN = 0x6b4226;
 
@@ -121,11 +122,11 @@ export function drawGlow() {
   return c;
 }
 
-/** Small exhaust puff. */
-export function drawPuff() {
+/** Small exhaust puff. dark = diesel smoke from trucks and minibuses. */
+export function drawPuff(dark = false) {
   const c = new PixelCanvas(6, 6);
-  c.fillDisc(3, 3, 2.6, 0x8d8d8d);
-  c.fillDisc(2.4, 2.4, 1.3, 0xb4b4b4);
+  c.fillDisc(3, 3, 2.6, dark ? 0x3a3a3a : 0x8d8d8d);
+  c.fillDisc(2.4, 2.4, 1.3, dark ? 0x5a5a5a : 0xb4b4b4);
   return c;
 }
 
