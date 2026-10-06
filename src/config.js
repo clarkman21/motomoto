@@ -261,3 +261,31 @@ export const TRAFFIC = {
   turnKmh: 18,
   busStopSeconds: 5,
 };
+
+// ---------------------------------------------------------------------------
+// People, street hails and rival riders (milestone 3). All guesses.
+// ---------------------------------------------------------------------------
+export const PEOPLE = {
+  walkers: 40,
+  walkSpeed: [1.1, 1.6], // m/s
+  radius: 0.35, // metres, for collisions
+  dodgeDistance: 3.5, // a person steps aside when a fast bike comes this close
+  // Street hails: customers who wave at the roadside.
+  maxHails: 4,
+  hailEverySeconds: 12,
+  hailLifeSeconds: [60, 120],
+  hailRange: 6, // metres: stop this close to a customer to take the ride
+  hitFine: 5000, // police fine for hitting a person
+  hitSpeed: 2.5, // m/s: below this a touch is not a hit
+};
+
+export const RIVALS = {
+  raceChance: 0.45, // when you take an app job, a rival may race you to the pickup
+  // The racing rival starts between these multiples of your own distance to the pickup, so you have a fair chance.
+  raceDistance: [0.8, 2.5],
+  hailChance: 0.5, // a rival goes for a new street hail
+  hailRange: 120, // metres
+  arriveMetres: 9,
+  busySeconds: 40, // a rival with a passenger rides for this long, then looks for work again
+  offerLifeSeconds: [15, 40], // app offers go away faster: rivals take them
+};

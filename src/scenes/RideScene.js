@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, WORLD, BIKES, DAY, MONEY, MAINTENANCE } from '../config.js';
+import { VIEW, WORLD, BIKES, DAY, MONEY, MAINTENANCE, PEOPLE } from '../config.js';
 import { World } from '../world/world.js';
 import { buildKigaliMap } from '../world/maps/kigali.js';
 import { ChunkStreamer } from './chunks.js';
@@ -15,12 +15,15 @@ import { readControls, STEERING_MODES } from '../sim/controls.js';
 import { EngineSound } from '../audio/engine-sound.js';
 import { createWallet, earn, spend, buyFuel, swapBattery, fuelFillCost, repairCost, endDay, takeLoan, payGarage } from '../sim/economy.js';
 import { garageQuote, serviceDue } from '../sim/maintenance.js';
-import { createJobBoard, updateBoard, acceptOffer, cancelJob, updateJob, jobTarget } from '../sim/jobs.js';
+import { createJobBoard, updateBoard, acceptOffer, cancelJob, updateJob, jobTarget, acceptHail } from '../sim/jobs.js';
 import { createCameraState, checkCameras, speedLimitAt } from '../sim/law.js';
 import { buildRoadGraph } from '../sim/roads.js';
 import { createTraffic, stepTraffic, insideVehicle } from '../sim/traffic.js';
 import { mulberry32 } from '../sim/jobs.js';
 import { TrafficView, isDiesel } from './TrafficView.js';
+import { createPeople, stepPeople, hailInReach, insidePerson } from '../sim/people.js';
+import { startRace, chaseHail, stepRivals, cancelMission } from '../sim/rivals.js';
+import { PeopleView } from './PeopleView.js';
 
 const FIXED_DT = 1 / 120; // physics step in seconds
 const BARKS = {
@@ -80,8 +83,18 @@ export class RideScene extends Phaser.Scene {
     this.traffic = createTraffic(this.world, this.roadGraph, mulberry32(Date.now() & 0xffff));
     this.trafficView = new TrafficView(this, this.traffic);
     this.nearAgents = [];
-    // The bike collides with vehicles near it.
-    this.world.dynamicSolid = (x, y) => this.nearAgents.find((v) => insideVehicle(v, x, y, 0.1)) ?? null;
+    this.nearPeople = [];
+    // People: walkers and customers who wave (street hails).
+    this.rng = mulberry32((Date.now() >> 4) & 0xffff);
+    this.people = createPeople(this.world, this.rng);
+    this.peopleView = new PeopleView(this, this.people);
+    this.hailOffer = null;
+    this.raceRival = null; // a rival who races you to your pickup
+    addCanvasTexture(this, 'pin-rival', drawMarkerPin(0xec5825));
+    this.rivalPin = this.add.image(0, 0, 'pin-rival').setOrigin(0.5, 1).setDepth(1e5).setVisible(false);
+    // The bike collides with vehicles and people near it.
+    this.world.dynamicSolid = (x, y) =>
+      this.nearAgents.find((v) => insideVehicle(v, x, y, 0.1)) ?? this.nearPeople.find((p) => insidePerson(p, x, y)) ?? null;
 
     this.bike = createBike(this.world, 'petrol');
     this.wallet = createWallet();
@@ -176,12 +189,17 @@ export class RideScene extends Phaser.Scene {
       this.events.emit('bark', 'Finish your job first (Backspace cancels it)');
       return;
     }
+    if (index === 0 && this.hailOffer && this.acceptHail()) return; // key 1 takes a street hail in reach first
     const job = acceptOffer(this.board, index);
-    if (job) this.events.emit('bark', `Go to ${job.from.name}`);
+    if (!job) return;
+    this.raceRival = startRace(this.traffic, this.bike, { ...job.from, jobId: job.id }, this.rng);
+    this.events.emit('bark', this.raceRival ? `Go to ${job.from.name}. A rival rider is racing you!` : `Go to ${job.from.name}`);
   }
 
   cancelJob() {
     if (!this.board.active) return;
+    cancelMission(this.raceRival);
+    this.raceRival = null;
     cancelJob(this.board, this.bike);
     this.events.emit('bark', 'Job cancelled. No pay.');
   }
@@ -253,6 +271,10 @@ export class RideScene extends Phaser.Scene {
     }
     for (const e of updateJob(this.board, b, bikeEvents, FIXED_DT)) {
       if (e.type === 'pickup') {
+        if (this.raceRival) {
+          cancelMission(this.raceRival);
+          this.raceRival = null;
+        }
         this.events.emit('bark', e.job.type === 'passenger' ? `Passenger on board. Go to ${e.job.to.name}` : `${e.job.kg} kg cargo loaded. Go to ${e.job.to.name}`);
       } else {
         earn(this.wallet, e.job.type === 'passenger' ? 'fares' : 'cargo', e.fare);
@@ -284,6 +306,8 @@ export class RideScene extends Phaser.Scene {
 
   #endDay() {
     if (this.board.active) cancelJob(this.board, this.bike);
+    cancelMission(this.raceRival);
+    this.raceRival = null;
     this.refuel = null;
     const summary = endDay(this.wallet, this.bike);
     this.dayOver = true;
@@ -370,6 +394,14 @@ export class RideScene extends Phaser.Scene {
       const events = stepBike(this.bike, this.controls, this.world, FIXED_DT);
       for (const e of events) {
         if (e.type === 'wall' && e.speed < 4) continue; // no bark when you only touch a wall
+        if (e.type === 'wall' && e.hit?.kind === 'person') {
+          if (e.speed >= PEOPLE.hitSpeed) {
+            e.hit.hurt = 3;
+            this.#pay('fines', PEOPLE.hitFine, 'Police: you hit a person');
+            this.events.emit('bark', 'You hit a person! Slow down near people');
+          }
+          continue;
+        }
         if (e.type === 'wall' && e.hit?.kind) {
           this.events.emit('bark', `Crash! You hit a ${e.hit.kind === 'moto' ? 'moto' : e.hit.kind === 'bus' ? 'minibus' : e.hit.kind}`);
           e.hit.stopTimer = 2; // the other driver stops
@@ -392,6 +424,8 @@ export class RideScene extends Phaser.Scene {
     this.#updateCamera(dt);
     this.chunks.cull(this.cameras.main.worldView);
     this.trafficView.update(this.world, this.cameras.main.worldView);
+    this.peopleView.update(this.world, this.cameras.main.worldView, this.time.now);
+    this.#updateRivalPin();
     this.engineSound.update(this.bike.type, Math.min(1, this.bike.revs), this.controls.throttle);
     this.dayTime += dt;
     if (this.dayTime >= DAY.realSeconds) this.#endDay();
@@ -400,7 +434,7 @@ export class RideScene extends Phaser.Scene {
   #updateTraffic(dt) {
     const b = this.bike;
     const bikeObstacle = { x: b.x, y: b.y, length: 2, width: 0.9, speed: Math.abs(forwardSpeed(b)) };
-    for (const e of stepTraffic(this.traffic, this.world, [bikeObstacle], dt)) {
+    for (const e of stepTraffic(this.traffic, this.world, [bikeObstacle, ...(this.trafficPeople ?? [])], dt)) {
       const v = e.vehicle;
       // Exhaust only near the bike (you cannot see the rest).
       if (Math.abs(v.x - b.x) + Math.abs(v.y - b.y) > 90) continue;
@@ -408,6 +442,60 @@ export class RideScene extends Phaser.Scene {
       this.#spawnPuff(v.x - Math.cos(v.heading) * back, v.y - Math.sin(v.heading) * back, 0.4, isDiesel(v));
     }
     this.nearAgents = this.traffic.vehicles.filter((v) => Math.abs(v.x - b.x) < 12 && Math.abs(v.y - b.y) < 12);
+    this.#updatePeople(dt);
+  }
+
+  #updatePeople(dt) {
+    const b = this.bike;
+    for (const e of stepPeople(this.people, this.world, b, this.world.places, dt)) {
+      if (e.type === 'hailNew') chaseHail(this.traffic, e.hail, this.rng);
+      if (e.type === 'hailGone') this.#cancelRivalsFor('hail', e.hail.id);
+    }
+    for (const e of stepRivals(this.traffic, dt)) this.#rivalArrived(e);
+    const near = (p) => Math.abs(p.x - b.x) < 12 && Math.abs(p.y - b.y) < 12;
+    this.nearPeople = this.people.walkers.filter(near).concat(this.people.hails.filter(near));
+    // A customer within reach of a stopped bike (only when you have no job).
+    this.hailOffer = this.board.active ? null : hailInReach(this.people, b, Math.abs(forwardSpeed(b)));
+    // People on the road are obstacles for traffic.
+    this.trafficPeople = this.people.walkers.filter((p) => {
+      const t = this.world.tileAt(p.x, p.y);
+      return t && t.surface !== 'pavement' && t.surface !== 'grass';
+    });
+  }
+
+  #cancelRivalsFor(type, id) {
+    for (const v of this.traffic.vehicles) if (v.mission?.type === type && v.mission.id === id) cancelMission(v);
+  }
+
+  #rivalArrived(e) {
+    const { mission } = e;
+    const job = this.board.active;
+    if (mission.type === 'job' && job && job.id === mission.id && job.stage === 'toPickup') {
+      cancelJob(this.board, this.bike);
+      this.raceRival = null;
+      this.events.emit('bark', 'Too slow! A rival rider took your passenger');
+    }
+    if (mission.type === 'hail') {
+      const h = this.people.hails.find((x) => x.id === mission.id);
+      if (h) {
+        h.taken = true;
+        h.life = 0;
+        if (Math.hypot(h.x - this.bike.x, h.y - this.bike.y) < 50) this.events.emit('bark', 'A rival rider took that customer');
+      }
+    }
+  }
+
+  /** Take the street hail in reach. */
+  acceptHail() {
+    const h = this.hailOffer;
+    if (!h || this.board.active) return false;
+    acceptHail(this.board, h, this.bike);
+    h.taken = true;
+    h.life = 0;
+    this.#cancelRivalsFor('hail', h.id);
+    this.hailOffer = null;
+    this.events.emit('bark', `Street hail! Go to ${h.to.name}`);
+    return true;
   }
 
   /** An exhaust puff at a world point (metres). */
@@ -422,6 +510,16 @@ export class RideScene extends Phaser.Scene {
     puff.img.setTexture(dark ? 'puff-dark' : 'puff').setVisible(true).setPosition(s.x, s.y).setDepth((px + py) / WORLD.tileMetres);
     puff.life = puff.maxLife = dark ? 1.3 : 0.9;
     puff.drift = (Math.random() - 0.5) * 6;
+  }
+
+  // A red pin over the rival who races you to your pickup.
+  #updateRivalPin() {
+    const v = this.raceRival;
+    const show = !!v && !!v.mission;
+    this.rivalPin.setVisible(show);
+    if (!show) return;
+    const s = toScreen(v.x, v.y, this.world.heightAt(v.x, v.y));
+    this.rivalPin.setPosition(s.x, s.y - 30 - 3 * Math.sin(this.time.now / 200));
   }
 
   // Cameras and signs stand beside the road. They sort by depth like the blocks.

@@ -141,3 +141,17 @@ export function drawPerson(look, facing, step) {
   c.outline(0x161616);
   return c;
 }
+
+/** A customer who waves for a moto, with one arm up. */
+export function drawWaver(look) {
+  const c = new PixelCanvas(PERSON_CANVAS.width, PERSON_CANVAS.height);
+  const gx = PERSON_CANVAS.groundX, gy = PERSON_CANVAS.groundY;
+  c.line(gx - 1, gy - 1, gx - 1, gy - 8, 2.2, look.legs);
+  c.line(gx + 1, gy - 1, gx + 1, gy - 8, 2.2, look.legs);
+  c.line(gx, gy - 9, gx, gy - 15, 4.6, look.shirt);
+  c.line(gx + 2.5, gy - 14, gx + 4.5, gy - 21, 1.6, look.skin); // arm up
+  c.line(gx - 2.5, gy - 14, gx - 3, gy - 9, 1.6, look.skin);
+  c.fillDisc(gx + 0.5, gy - 18.5, 2.5, look.skin);
+  c.outline(0x161616);
+  return c;
+}

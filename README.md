@@ -4,7 +4,7 @@ Moto Kigali is an isometric open city driving game. You are a moto taxi rider on
 
 This repository holds the web prototype. The game spec is the doc "Moto Kigali: Game Spec v0.1".
 
-## Status: milestone 1 ("Ride feel") and the core money loop
+## Status: milestones 1 and 2 done, milestone 3 (district slice) playable
 
 Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you test the two steering models.
 
@@ -30,7 +30,11 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Garage, service meter, breakdowns, crash repairs, daily rent | Done |
 | Day clock (06:00–22:00 in 6 min) and day end summary | Done |
 | Out of cash: one loan, then game over | Done |
-| Story, other districts, police helmet checks, upgrades | Later milestones |
+| District map: Nyabugogo valley to the city centre (96 × 80 tiles), streamed in chunks | Done |
+| Traffic: cars, minibuses (bus stops), trucks (slow on hills), other motos; exhaust | Done |
+| People on pavements and in the market; customers who wave (street hails) | Done |
+| Rival riders who race you to pickups and take street hails | Done |
+| Story, police helmet checks, upgrades, traffic lights | Later milestones |
 
 ## Run the game
 
@@ -58,6 +62,7 @@ npm run build    # makes a static build in dist/
 | Reset the bike, energy and brakes | R | R button |
 | Sound on or off | V | — |
 | Take job 1, 2 or 3 | 1, 2, 3 | Tap the job card |
+| Take the street hail next to you (stop close to a waving customer) | 1 | Tap the prompt |
 | Cancel the job (no pay) | Backspace | — |
 | Fill up or swap the battery (stop at the station) | F | Tap the station prompt |
 
@@ -97,6 +102,9 @@ The game is about money. You earn from jobs. You spend on energy, fines and the 
 - **Speed limits.** Outside a zone the limit is 60 km/h. The market zone is 30 km/h. The city centre, the roundabout and the bottom of the steep east ramp are 40 km/h. Four cameras fine you when you pass more than 5 km/h over the limit. The HUD limit sign flashes when you are too fast.
 - **Off road.** Grass is off road. Each metre there counts 4 times on the service meter (cobblestone 1.3×, dry murram 1.5×, wet murram 1.8×). Off road riding also costs passenger comfort and damages fragile cargo. The HUD shows "OFF ROAD: 4× wear".
 - **Service meter and garage.** The SERVICE meter on the HUD fills as you ride. One game km on tarmac adds 1 km; bad roads add more (see above), the petrol red zone adds 3×, and each pothole (2 km), hard speed bump (1.5 km) and crash (4 km) adds more. A service is due every 150 km (petrol) or 600 km (electric). At 80% the HUD warns you. From 100%, the bike loses up to 30% power and uses up to 30% more energy. At 150%, it breaks down: push it to the garage (south road) and press F. A service takes 20 s. After a breakdown, the mechanic repairs on credit if you have too little cash.
+- **Traffic.** Cars, minibuses, trucks and other motos drive on the right, keep a gap, stop for you and for people, and give way at junctions. Minibuses stop at bus stops; trucks crawl up hills. A crash with a vehicle costs 800 RWF. Petrol engines leave exhaust smoke.
+- **People and street hails.** People walk on the pavements and in the market and step aside from a fast bike. Hitting a person costs a 5,000 RWF police fine. Customers wave at the roadside: stop next to one (below 6 km/h) and press 1 for a quick ride that starts at once.
+- **Rival riders.** When you take an app job, a rival (blue vest) may race you to the pickup; a red pin shows the rival. If the rival gets there first, you lose the job. Rivals also take street hails, and app offers go away faster (15–40 s).
 - **Passengers and cargo show on the bike.** A passenger with a helmet rides behind you; cargo sacks ride on the rear rack. A person waves at a passenger pickup; sacks wait at a cargo pickup.
 - **Empty tank or battery.** Hold throttle to push the bike at walking speed to a station.
 - **Out of cash.** The game checks your cash at the end of each day, after the rent. Below zero, you can take one loan of 20,000 RWF (you pay back 2,400 RWF each day for 10 days). If you already had the loan, or your debt is larger than the loan, the game is over.
@@ -125,6 +133,9 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `MAINTENANCE` | Service interval, wear from red zone and hits, overdue penalties, breakdown, garage price |
 | `JOBS` | Fares, tips, cargo pay, comfort and damage rules, game km scale |
 | `LAW` | Default speed limit, camera tolerance and fines |
+| `TRAFFIC` | Number of each vehicle type, speeds, hill slowdown, exhaust, bus stop time |
+| `PEOPLE` | Number of walkers, street hails, police fine for hitting a person |
+| `RIVALS` | Chance a rival races you or takes a street hail, offer lifetimes |
 
 To change the map, edit the ASCII grid in [`src/world/map-data.js`](src/world/map-data.js). The legend is at the top of the file. Hills are plateaus with ramps; each hill has a height and a ramp length for each side. The same file has the job places, speed limit zones, cameras and signs.
 
@@ -136,7 +147,9 @@ src/
   main.js                Starts Phaser
   world/
     iso.js               Isometric projection (world metres ↔ screen pixels)
-    map-data.js          Test map (ASCII) and hills
+    map-data.js          Small test map (ASCII), used by the tests
+    maps/kigali.js       District map (Nyabugogo to city centre), built in code
+    vehicle-sprites.js   Cars, minibuses, trucks, rival motos, people
     world.js             Heights, slopes, surfaces, solid blocks
     pixel-canvas.js      Small software rasterizer for pixel art
     terrain-render.js    Draws the ground into one image
@@ -147,12 +160,19 @@ src/
     economy.js           Wallet, fuel and swaps, repairs, day end bill
     jobs.js              Job offers, pickup and drop off, fares and tips
     law.js               Speed limit zones and speed cameras
+    roads.js             Road graph from the map's road list, lanes, shortest path
+    traffic.js           Vehicles: lane following, gaps, junctions, bus stops, hills
+    people.js            Walkers, dodging, street hail customers
+    rivals.js            Rival riders who race you to customers
     maintenance.js       Service meter, wear, breakdown, garage quote
   audio/engine-sound.js  Engine and horn with Web Audio
   scenes/
     RideScene.js         World, bike, camera, smoke, occlusion
     HudScene.js          HUD, jobs, money and touch controls
     DayEndScene.js       Day end summary
+    chunks.js            Streams ground and buildings in chunks; texture atlas packing
+    TrafficView.js       Draws traffic
+    PeopleView.js        Draws people and waving customers
 test/                    Unit tests (Vitest)
 ```
 
@@ -162,6 +182,6 @@ All art is made in code at 1× scale. The camera zoom is a whole number (×4 at 
 
 ## Known limits
 
-- The terrain is one image. A map that is much larger than 40 × 40 tiles needs chunks (the spec asks for chunks of 32 × 32 tiles).
+- No traffic lights yet. Vehicles can overlap for a moment in a junction.
 - All prices, energy values and the scale (4 m per tile, 1.5 m per level) are first guesses.
 - In a browser without a GPU, the game runs slower than real time. Phaser slows the game clock when the frame rate is low.

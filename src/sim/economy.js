@@ -92,6 +92,7 @@ export function swapBattery(wallet, bike) {
 
 /** Repair cost for a damage event, or 0. Only a crash costs money at once; other hits add wear. */
 export function repairCost(event) {
+  if (event.type === 'wall' && event.hit?.kind === 'person') return 0; // hitting a person: a police fine instead (see PEOPLE)
   if (event.type === 'wall') return event.speed >= 4 ? MONEY.repairs.wall : 0;
   return 0;
 }

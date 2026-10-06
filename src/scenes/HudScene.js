@@ -63,7 +63,7 @@ export class HudScene extends Phaser.Scene {
       .text(0, 0, '', { fontFamily: FONT_BODY, fontSize: '16px', color: '#ffffff', backgroundColor: 'rgba(0,0,0,0.7)', padding: { x: 12, y: 8 }, align: 'center' })
       .setOrigin(0.5, 1)
       .setInteractive({ useHandCursor: true })
-      .on('pointerdown', (p) => { p.hitButton = true; this.ride.startRefuel(); });
+      .on('pointerdown', (p) => { p.hitButton = true; if (!this.ride.acceptHail()) this.ride.startRefuel(); });
     // Money pop ups and the camera flash
     this.popups = [];
     this.ride.events.on('money', (amount, label) => this.#popup(amount, label));
@@ -230,8 +230,9 @@ export class HudScene extends Phaser.Scene {
     if (job) {
       const dist = Math.round(ride.targetDistance ?? 0);
       this.jobTitle.setText(job.stage === 'toPickup' ? 'GO TO PICKUP' : 'GO TO DROP OFF');
+      const racing = ride.raceRival && ride.raceRival.mission ? ' A RIVAL IS RACING YOU (red pin)!' : '';
       const quality =
-        job.stage !== 'toDropoff' ? 'Stop at the green marker.' :
+        job.stage !== 'toDropoff' ? `Stop at the green marker.${racing}` :
         job.type === 'passenger' ? `Comfort ${Math.round(job.comfort)}% (tip up to ${Math.round(JOBS.passenger.maxTipFraction * 100)}%)` :
         job.fragile ? `Damage ${Math.round(job.damage * 100)}%` : 'Stop at the white marker.';
       this.jobCards[0].setText(`${what(job)} · ${job.from.name} → ${job.to.name}\n${money(job.pay)} · ${dist} m to go\n${quality}`);
@@ -255,6 +256,12 @@ export class HudScene extends Phaser.Scene {
       const done = Math.round((1 - r.timeLeft / r.total) * 100);
       const what = r.kind === 'fuel' ? 'Filling up' : r.kind === 'swap' ? 'Swapping battery' : 'The mechanic is working';
       this.stationText.setText(`${what} · ${done}% · ${Math.ceil(r.timeLeft)} s left`).setVisible(true);
+      return;
+    }
+    // A street hail in reach comes first.
+    const h = ride.hailOffer;
+    if (h) {
+      this.stationText.setText(`${this.isTouch ? 'Tap' : '1'}: Street hail to ${h.to.name}`).setVisible(true);
       return;
     }
     const offer = ride.stationOffer();

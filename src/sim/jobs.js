@@ -1,4 +1,4 @@
-import { JOBS, WORLD } from '../config.js';
+import { JOBS, WORLD, RIVALS } from '../config.js';
 import { forwardSpeed } from './bike.js';
 import { round10 } from './economy.js';
 
@@ -26,6 +26,12 @@ const SERVICE_TAGS = ['fuel', 'swap', 'garage'];
 const jobPlaces = (world) => world.places.filter((p) => !p.tags.some((t) => SERVICE_TAGS.includes(t)));
 const pick = (rng, list) => list[Math.floor(rng() * list.length)];
 
+/** How long an app offer stays: rivals take offers, so some go fast. */
+function offerLife(rng) {
+  const [lo, hi] = RIVALS.offerLifeSeconds;
+  return lo + rng() * (hi - lo);
+}
+
 export function makeOffer(world, rng, id) {
   const places = jobPlaces(world);
   const passenger = rng() < JOBS.passengerChance;
@@ -41,12 +47,29 @@ export function makeOffer(world, rng, id) {
   const gameKm = distanceMetres / JOBS.gameKmMetres;
   if (passenger) {
     const p = JOBS.passenger;
-    return { id, type: 'passenger', from, to, distanceMetres, gameKm, kg: p.kg, fragile: false, pay: round10(p.base + p.perGameKm * gameKm), age: 0 };
+    return { id, type: 'passenger', from, to, distanceMetres, gameKm, kg: p.kg, fragile: false, pay: round10(p.base + p.perGameKm * gameKm), age: 0, life: offerLife(rng) };
   }
   const c = JOBS.cargo;
   const kg = Math.round((c.kgMin + rng() * (c.kgMax - c.kgMin)) / 5) * 5;
   const fragile = rng() < c.fragileChance;
-  return { id, type: 'cargo', from, to, distanceMetres, gameKm, kg, fragile, pay: round10(c.base + c.perGameKm * gameKm + c.perKg * kg), age: 0 };
+  return { id, type: 'cargo', from, to, distanceMetres, gameKm, kg, fragile, pay: round10(c.base + c.perGameKm * gameKm + c.perKg * kg), age: 0, life: offerLife(rng) };
+}
+
+/** A street hail: a passenger who waves at the roadside. It starts at the drop off stage (the customer gets on at once). */
+export function makeHailJob(hail, id) {
+  const distanceMetres = tripMetres(hail.from, hail.to);
+  const gameKm = distanceMetres / JOBS.gameKmMetres;
+  const p = JOBS.passenger;
+  return { id, type: 'passenger', hail: true, from: hail.from, to: hail.to, distanceMetres, gameKm, kg: p.kg, fragile: false, pay: round10(p.base + p.perGameKm * gameKm), age: 0 };
+}
+
+/** Take a street hail: the customer is on the bike, go to the drop off. */
+export function acceptHail(board, hail, bike) {
+  if (board.active) return null;
+  board.active = { ...makeHailJob(hail, board.nextId++), stage: 'toDropoff', comfort: 100, damage: 0 };
+  bike.loadKg = board.active.kg;
+  bike.loadType = 'passenger';
+  return board.active;
 }
 
 export function createJobBoard(world, seed = 1) {
@@ -62,7 +85,7 @@ function refill(board, world) {
 /** Age the offers, remove old ones and add new ones. */
 export function updateBoard(board, world, dt) {
   for (const o of board.offers) o.age += dt;
-  board.offers = board.offers.filter((o) => o.age < JOBS.offerLifeSeconds);
+  board.offers = board.offers.filter((o) => o.age < (o.life ?? JOBS.offerLifeSeconds));
   refill(board, world);
 }
 
