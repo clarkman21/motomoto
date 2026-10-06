@@ -1,4 +1,5 @@
 import { mulberry32 } from '../../sim/jobs.js';
+import { LIGHTS } from '../../config.js';
 
 // The district slice for milestone 3: a compressed Nyabugogo to city centre map.
 // It is built in code (not drawn by hand) because it is 96 × 80 tiles.
@@ -130,6 +131,28 @@ export function buildKigaliMap(seed = 7) {
   for (const y of [12]) { set(18, y, '='); set(19, y, '='); }
   for (const x of [62, 76]) { set(x, 32, '='); set(x, 33, '='); }
 
+  // Street lamps beside the tarmac roads, on alternate sides. Murram and cobble lanes stay dark.
+  // side: the side of the road the lamp stands on. The lamp arm points over the road.
+  const lamps = [];
+  const free = (c) => c === '.' || c === 'p';
+  const step = LIGHTS.lampSpacingTiles;
+  for (const r of ROADS) {
+    if (r.surface !== '#') continue;
+    if (r.y !== undefined) {
+      for (let x = r.x0 + 2, i = 0; x <= r.x1 - 2; x += step, i++) {
+        const north = i % 2 === 0;
+        const ty = north ? r.y - 1 : r.y + 2;
+        if (free(get(x, ty))) lamps.push({ x: x + 0.5, y: north ? r.y - 0.3 : r.y + 2.3, side: north ? 'north' : 'south' });
+      }
+    } else {
+      for (let y = r.y0 + 2, i = 0; y <= r.y1 - 2; y += step, i++) {
+        const west = i % 2 === 0;
+        const tx = west ? r.x - 1 : r.x + 2;
+        if (free(get(tx, y))) lamps.push({ x: west ? r.x - 0.3 : r.x + 2.3, y: y + 0.5, side: west ? 'west' : 'east' });
+      }
+    }
+  }
+
   const rows = g.map((r) => r.join(''));
 
   return {
@@ -138,6 +161,7 @@ export function buildKigaliMap(seed = 7) {
     rows,
     hills: HILLS,
     roads: ROADS,
+    lamps,
     places: [
       { id: 'busPark', name: 'Nyabugogo bus park', x: 11, y: 12, tags: ['market'], district: 'valley' },
       { id: 'market', name: 'Nyabugogo market', x: 31, y: 11, tags: ['market'], district: 'valley' },

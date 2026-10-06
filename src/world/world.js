@@ -45,6 +45,7 @@ export class World {
     this.signs = mapData.signs ?? [];
     this.roads = mapData.roads ?? [];
     this.busStops = mapData.busStops ?? [];
+    this.lamps = mapData.lamps ?? []; // street lamps { x, y (tiles), side }
     // Moving things that the bike can hit (traffic, people). Set by the game: (x, y) => agent or null.
     this.dynamicSolid = null;
     this.lastHit = null;

@@ -28,13 +28,15 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Fuel station (pay per litre) and Ampersand swap station (flat fee) | Done |
 | Speed limit zones, signs and speed cameras with fines | Done |
 | Garage, service meter, breakdowns, crash repairs, daily rent | Done |
-| Day clock (06:00–22:00 in 6 min) and day end summary | Done |
+| Shift clock for each level (for example 19:00–23:00 in 3 min) and day end summary | Done |
 | Out of cash: one loan, then game over | Done |
 | District map: Nyabugogo valley to the city centre (96 × 80 tiles), streamed in chunks | Done |
 | Traffic: cars, minibuses (bus stops), trucks (slow on hills), other motos; exhaust | Done |
 | People on pavements and in the market; customers who wave (street hails) | Done |
 | Rival riders who race you to pickups and take street hails | Done |
-| Story, police helmet checks, upgrades, traffic lights | Later milestones |
+| Levels 1–4: savings goals, milestones (phone, electric moto), streak bonus, save game | Done |
+| Day and night: fast clock, night colour, sunset, street lamps, lit windows, headlights and tail lights | Done |
+| Levels 5–10, police helmet checks, hired riders, traffic lights | Later milestones |
 
 ## Run the game
 
@@ -136,6 +138,9 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `TRAFFIC` | Number of each vehicle type, speeds, hill slowdown, exhaust, bus stop time |
 | `PEOPLE` | Number of walkers, street hails, police fine for hitting a person |
 | `RIVALS` | Chance a rival races you or takes a street hail, offer lifetimes |
+| `LEVELS`, `SAVINGS_FLOAT`, `STREAK` | Goals, shifts, rent, traffic and rivals for each level; the clean ride bonus |
+| `DAYLIGHT` | Light at each hour, night colour, sunset colour |
+| `LIGHTS` | Street lamp spacing, light pools, lit windows, headlights and tail lights |
 
 To change the map, edit the ASCII grid in [`src/world/map-data.js`](src/world/map-data.js). The legend is at the top of the file. Hills are plateaus with ramps; each hill has a height and a ramp length for each side. The same file has the job places, speed limit zones, cameras and signs.
 
@@ -153,7 +158,8 @@ src/
     world.js             Heights, slopes, surfaces, solid blocks
     pixel-canvas.js      Small software rasterizer for pixel art
     terrain-render.js    Draws the ground into one image
-    sprites.js           Draws the bike (16 directions), buildings, trees
+    sprites.js           Draws the bike (16 directions), buildings, trees, lit windows
+    light-sprites.js     Light pools, headlight cones, light dots, lamp posts
   sim/
     bike.js              Arcade bike physics and energy (no Phaser)
     controls.js          The two steering models
@@ -165,6 +171,8 @@ src/
     people.js            Walkers, dodging, street hail customers
     rivals.js            Rival riders who race you to customers
     maintenance.js       Service meter, wear, breakdown, garage quote
+    levels.js            Levels, savings goals, milestones, streak bonus
+    daylight.js          Light and colour at each hour of the day
   audio/engine-sound.js  Engine and horn with Web Audio
   scenes/
     RideScene.js         World, bike, camera, smoke, occlusion
@@ -173,6 +181,8 @@ src/
     chunks.js            Streams ground and buildings in chunks; texture atlas packing
     TrafficView.js       Draws traffic
     PeopleView.js        Draws people and waving customers
+    LightsView.js        Night colour, street lamps, headlights and tail lights
+    save.js              Saves the game in the browser (localStorage)
 test/                    Unit tests (Vitest)
 ```
 

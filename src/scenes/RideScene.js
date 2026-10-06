@@ -26,6 +26,8 @@ import { startRace, chaseHail, stepRivals, cancelMission } from '../sim/rivals.j
 import { PeopleView } from './PeopleView.js';
 import { levelSettings, milestoneReady, buyMilestone, restartLevel, streakMultiplier, updateStreak, savingsTarget } from '../sim/levels.js';
 import { loadGame, saveGame, clearSave } from './save.js';
+import { LightsView } from './LightsView.js';
+import { daylight } from '../sim/daylight.js';
 
 const FIXED_DT = 1 / 120; // physics step in seconds
 const BARKS = {
@@ -79,6 +81,10 @@ export class RideScene extends Phaser.Scene {
     this.puffTimer = 0;
 
     this.#createProps();
+    // Night lights and the colour of the day (see LightsView.js).
+    this.lights = new LightsView(this, this.world);
+    // These stay bright at night: they are not tinted.
+    for (const obj of [this.ghost, this.glow, this.markerRing, this.markerPin, this.arrow]) obj.noAmbient = true;
 
     // Traffic, people and jobs come from the level (see #applyLevel).
     this.roadGraph = buildRoadGraph(this.world.roads);
@@ -90,6 +96,7 @@ export class RideScene extends Phaser.Scene {
     this.raceRival = null; // a rival who races you to your pickup
     addCanvasTexture(this, 'pin-rival', drawMarkerPin(0xec5825));
     this.rivalPin = this.add.image(0, 0, 'pin-rival').setOrigin(0.5, 1).setDepth(1e5).setVisible(false);
+    this.rivalPin.noAmbient = true;
     // The bike collides with vehicles and people near it.
     this.world.dynamicSolid = (x, y) =>
       this.nearAgents.find((v) => insideVehicle(v, x, y, 0.1)) ?? this.nearPeople.find((p) => insidePerson(p, x, y)) ?? null;
@@ -331,6 +338,7 @@ export class RideScene extends Phaser.Scene {
     this.peopleView?.destroy();
     this.traffic = createTraffic(this.world, this.roadGraph, mulberry32(Date.now() & 0xffff), counts);
     this.trafficView = new TrafficView(this, this.traffic);
+    this.lights.setTraffic(this.traffic);
     this.people = createPeople(this.world, this.rng, { hailEvery: L.hailEvery, districts: L.districts });
     this.peopleView = new PeopleView(this, this.people);
     this.board = createJobBoard(this.world, Date.now() & 0xffff, { fareMultiplier: L.fare, offerLife: L.offerLife, districts: L.districts, maxOffers: L.maxOffers });
@@ -485,6 +493,9 @@ export class RideScene extends Phaser.Scene {
     this.chunks.cull(this.cameras.main.worldView);
     this.trafficView.update(this.world, this.cameras.main.worldView);
     this.peopleView.update(this.world, this.cameras.main.worldView, this.time.now);
+    this.daylight = daylight(this.clockHours);
+    this.chunks.night = this.daylight.night;
+    this.lights.update(this.daylight, this.cameras.main.worldView, this.bike, this.controls.brake > 0.1);
     this.#updateRivalPin();
     this.engineSound.update(this.bike.type, Math.min(1, this.bike.revs), this.controls.throttle);
     this.dayTime += dt;
@@ -689,7 +700,11 @@ export class RideScene extends Phaser.Scene {
         hidingGroups.add(groupKey(bs.block));
       }
     }
-    for (const bs of blockSprites) bs.img.setAlpha(hidingGroups.has(groupKey(bs.block)) ? 0.45 : 1);
+    for (const bs of blockSprites) {
+      const alpha = hidingGroups.has(groupKey(bs.block)) ? 0.45 : 1;
+      bs.img.setAlpha(alpha);
+      bs.glow?.setAlpha(alpha * this.chunks.night); // lit windows fade with the building
+    }
     const occluded = hidingGroups.size > 0;
     this.occluded = occluded;
     this.ghost.setVisible(occluded);

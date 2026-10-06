@@ -340,7 +340,27 @@ export const STREAK = { step: 0.1, max: 1.5, minComfort: 80 }; // clean ride str
 // Day and night: the light at each hour (0-24). light: 0 = night, 1 = full day.
 export const DAYLIGHT = {
   nightTint: [0.3, 0.34, 0.52], // colour multiplier at full night (blue)
-  sunsetTint: [1.0, 0.78, 0.6], // warm light at sunset
+  sunsetTint: [1.0, 0.84, 0.7], // warm light at sunset
   // [hour, light] points; light between them is interpolated.
   curve: [[0, 0], [5, 0], [6.5, 0.6], [7.5, 1], [17, 1], [18.2, 0.7], [19.3, 0.15], [20, 0], [24, 0]],
+};
+
+// Night lights. Colours are 0xRRGGBB. Distances are in metres. Alpha is 0-255 at full night.
+// Surge Yellow is not used here: the lamps are sodium orange and the windows warm white.
+export const LIGHTS = {
+  lampSpacingTiles: 5, // street lamps along tarmac roads, on alternate sides
+  lampHeightMetres: 5,
+  poolRadiusMetres: 7, // the lit ground under one lamp
+  poolColour: 0xff9a40,
+  poolAlpha: 100,
+  stationPoolRadiusMetres: 7,
+  windowColour: 0xffc874,
+  windowLitChance: 0.55, // part of the windows that are lit at night
+  headlightLengthMetres: 9,
+  headlightHalfAngleDeg: 22,
+  headlightColour: 0xfff1c8,
+  headlightAlpha: 140,
+  headDotColour: 0xfff6d8,
+  tailDotColour: 0xff2a1a,
+  lampHeadColour: 0xffb45a,
 };

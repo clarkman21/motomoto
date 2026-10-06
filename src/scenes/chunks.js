@@ -18,6 +18,7 @@ export class ChunkStreamer {
     this.chunks = new Map(); // key -> { terrain, blocks: [...] }
     this.cols = Math.ceil(world.width / CHUNK);
     this.rows = Math.ceil(world.height / CHUNK);
+    this.night = 0; // 0..1: how strong the lit windows are (set by the scene)
   }
 
   /** All loaded block sprites: { img, canvas, depth, block }. */
@@ -35,6 +36,7 @@ export class ChunkStreamer {
       for (const b of c.blocks) {
         const img = b.img;
         img.setVisible(img.x < x1 && img.x + img.width > x0 && img.y < y1 && img.y + img.height > y0);
+        if (b.glow) b.glow.setVisible(img.visible && this.night > 0);
       }
       const t = c.terrain;
       t.setVisible(t.x < x1 && t.x + t.width > x0 && t.y < y1 && t.y + t.height > y0);
@@ -75,23 +77,34 @@ export class ChunkStreamer {
     const items = [];
     for (const block of this.world.blocks) {
       if (block.tx < area.tx0 || block.tx >= area.tx1 || block.ty < area.ty0 || block.ty >= area.ty1) continue;
-      const { canvas, depth } = drawBlock(block, this.world);
-      items.push({ block, canvas, depth });
+      const { canvas, depth, glow } = drawBlock(block, this.world);
+      items.push({ block, canvas, depth, glow });
     }
     const atlasKey = `blocks-${key}`;
     const blocks = [];
     if (items.length) {
-      const { width, height, places } = packShelves(items.map((i) => i.canvas));
-      const tex = this.scene.textures.createCanvas(atlasKey, width, height);
+      // The night glow of a block (lit windows) is a second frame in the same atlas.
+      const frames = [];
       items.forEach((item, i) => {
+        frames.push({ name: `b${i}`, canvas: item.canvas });
+        if (item.glow) frames.push({ name: `g${i}`, canvas: item.glow });
+      });
+      const { width, height, places } = packShelves(frames.map((f) => f.canvas));
+      const tex = this.scene.textures.createCanvas(atlasKey, width, height);
+      frames.forEach((f, i) => {
         const p = places[i];
-        tex.context.putImageData(new ImageData(item.canvas.data, item.canvas.width, item.canvas.height), p.x, p.y);
-        tex.add(`b${i}`, 0, p.x, p.y, item.canvas.width, item.canvas.height);
+        tex.context.putImageData(new ImageData(f.canvas.data, f.canvas.width, f.canvas.height), p.x, p.y);
+        tex.add(f.name, 0, p.x, p.y, f.canvas.width, f.canvas.height);
       });
       tex.refresh();
       items.forEach((item, i) => {
         const img = this.scene.add.image(item.canvas.ox, item.canvas.oy, atlasKey, `b${i}`).setOrigin(0).setDepth(item.depth);
-        blocks.push({ img, canvas: item.canvas, depth: item.depth, block: item.block });
+        // The glow is not tinted by the night colour (noAmbient); LightsView sets its alpha.
+        const glow = item.glow
+          ? this.scene.add.image(item.canvas.ox, item.canvas.oy, atlasKey, `g${i}`).setOrigin(0).setDepth(item.depth + 0.001).setAlpha(0)
+          : null;
+        if (glow) glow.noAmbient = true;
+        blocks.push({ img, glow, canvas: item.canvas, depth: item.depth, block: item.block });
       });
     }
     this.chunks.set(key, { terrain, terrainKey, atlasKey: items.length ? atlasKey : null, blocks });
@@ -100,7 +113,10 @@ export class ChunkStreamer {
   #unload(key, chunk) {
     chunk.terrain.destroy();
     this.scene.textures.remove(chunk.terrainKey);
-    for (const b of chunk.blocks) b.img.destroy();
+    for (const b of chunk.blocks) {
+      b.img.destroy();
+      b.glow?.destroy();
+    }
     if (chunk.atlasKey) this.scene.textures.remove(chunk.atlasKey);
     this.chunks.delete(key);
   }

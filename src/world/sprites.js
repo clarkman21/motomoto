@@ -1,4 +1,4 @@
-import { WORLD, COLOURS } from '../config.js';
+import { WORLD, COLOURS, LIGHTS } from '../config.js';
 import { toScreen } from './iso.js';
 import { PixelCanvas, shadeColour, hash2 } from './pixel-canvas.js';
 
@@ -158,12 +158,15 @@ export function drawBlock(block, world) {
   const maxY = Math.ceil(Math.max(...corners.map((p) => p.y))) + 2;
   const c = new PixelCanvas(maxX - minX, maxY - minY, minX, minY);
 
-  if (block.kind === 'building') drawBuilding(c, block, pt, world);
-  else if (block.kind === 'fuel' || block.kind === 'swap') drawStation(c, block, pt, world);
+  // glow: the parts that shine at night (lit windows, station signs). It has the same size as the canvas.
+  const glow = new PixelCanvas(c.width, c.height, c.ox, c.oy);
+  if (block.kind === 'building') drawBuilding(c, block, pt, world, glow);
+  else if (block.kind === 'fuel' || block.kind === 'swap') drawStation(c, block, pt, world, glow);
   else if (block.kind === 'garage') drawGarage(c, block, pt, world);
   else if (block.kind === 'tree') drawTree(c, block, pt, world);
   else drawMonument(c, block, pt, world);
-  return { canvas: c, depth: tx + ty + 1 };
+  const lit = glow.data.some((v, i) => (i & 3) === 3 && v > 0);
+  return { canvas: c, depth: tx + ty + 1, glow: lit ? glow : null };
 }
 
 function drawBox(c, x0, y0, x1, y1, base, top, pt, shadeTop, shadeEast, shadeSouth, faces = { east: true, south: true }) {
@@ -191,7 +194,7 @@ function visibleFaces(block, world) {
   return { east: !hidden(world.blockAt(block.tx + 1, block.ty)), south: !hidden(world.blockAt(block.tx, block.ty + 1)) };
 }
 
-function drawBuilding(c, block, pt, world) {
+function drawBuilding(c, block, pt, world, glow) {
   const { tx, ty, baseLevel, topLevel, groupId } = block;
   const wall = BUILDING_WALLS[groupId % BUILDING_WALLS.length];
   const roof = BUILDING_ROOFS[groupId % BUILDING_ROOFS.length];
@@ -206,6 +209,10 @@ function drawBuilding(c, block, pt, world) {
       const a = (along * 3) % 1;
       if (floorPos > 0.7 && floorPos < 1.6 && a > 0.22 && a < 0.78) {
         col = hash2(Math.floor(along * 3), Math.floor(zl / 2), groupId) > 0.75 ? WINDOW_LIT : WINDOW;
+        // Some windows have the light on at night.
+        if (glow && hash2(Math.floor(along * 3), Math.floor(zl / 2), groupId + 101) < LIGHTS.windowLitChance) {
+          glow.setPixel(px, py, shadeColour(LIGHTS.windowColour, 0.7 + 0.3 * k));
+        }
       }
     }
     if (hash2(px + c.ox, py + c.oy, 2) > 0.95) col = shadeColour(col, 0.94);
@@ -264,7 +271,7 @@ function drawMonument(c, block, pt, world) {
 // ---------------------------------------------------------------------------
 
 /** Fuel station (white and red) or Ampersand swap station (Surge Yellow, black, battery bays). */
-function drawStation(c, block, pt, world) {
+function drawStation(c, block, pt, world, glow) {
   const { tx, ty, baseLevel, topLevel } = block;
   const swap = block.kind === 'swap';
   const wall = swap ? COLOURS.ampersandYellow : 0xf0efe6;
@@ -283,6 +290,8 @@ function drawStation(c, block, pt, world) {
       const a = (along * 2) % 1;
       if (zl > 0.15 && zl < 1.1 && a > 0.35 && a < 0.65) col = 0x3a3f44;
     }
+    // At night the station is lit: the walls and the sign band shine (not the dark parts).
+    if (glow && col !== 0x1a1a1a && col !== 0x3a3f44 && col !== 0x111111) glow.setPixel(px, py, shadeColour(col, k), 230);
     return shadeColour(col, k);
   };
   const roof = swap ? 0x111111 : 0x7a7a7a;
