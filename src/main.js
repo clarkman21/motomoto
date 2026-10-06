@@ -8,6 +8,7 @@ async function boot() {
     await Promise.race([
       Promise.all([
         document.fonts.load('600 16px "Barlow Condensed"'),
+        document.fonts.load('400 14px "Barlow Condensed"'),
         document.fonts.load('400 14px "Instrument Sans"'),
       ]),
       new Promise((resolve) => setTimeout(resolve, 1500)),

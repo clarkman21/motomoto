@@ -17,7 +17,9 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Roundabout, buildings and trees (solid) | Done |
 | Petrol and electric moto with the spec values | Done |
 | Energy bar, uphill and downhill cost, electric regen | Done (placeholder values) |
-| Screen relative and bike relative steering | Done |
+| Bike relative steering (default) and screen relative steering | Done |
+| Petrol 4-speed manual gearbox, engine braking, auto shift option | Done |
+| Brake pad wear; electric regen braking | Done |
 | Hills hide things: buildings fade, bike outline shows | Done |
 | Camera that looks ahead in the direction of travel | Done |
 | Touch controls (virtual stick, GO and STOP buttons) | Done (basic) |
@@ -39,18 +41,33 @@ npm run build    # makes a static build in dist/
 
 | Action | Keyboard | Touch |
 | --- | --- | --- |
-| Steer | Arrows or WASD | Left side: virtual stick |
-| Throttle | Space (and up, in bike relative mode) | GO button |
-| Brake | Shift (and down, in bike relative mode) | STOP button |
+| Throttle | W or ↑ (also Space) | GO button |
+| Brake | S or ↓ (also Shift) | STOP button |
+| Turn left and right | A and D, or ← and → | Left side: virtual stick |
+| Shift up and down (petrol) | E and Q (also X and Z) | + and − buttons |
+| Auto shift on or off | G | G button |
 | Horn | H | H button |
 | Change steering model | C | C button |
 | Change bike (petrol or electric) | B | B button |
-| Reset the bike and the energy | R | R button |
+| Reset the bike, energy and brakes | R | R button |
 | Sound on or off | V | — |
 
-**Screen relative steering.** Push a direction and the bike goes that way on the screen. The diagonal keys (for example up and right together) follow the roads exactly. If you push the opposite direction at speed, the bike brakes first.
+**Bike relative steering (default, GTA 1 style).** Left and right turn the bike. Up is throttle. Down is brake. Hold down when the bike is stopped to push it backwards.
 
-**Bike relative steering (GTA 1 style).** Left and right turn the bike. Up is throttle. Down is brake. Hold down when the bike is stopped to push it backwards.
+**Screen relative steering (C).** Push a direction and the bike goes that way on the screen. The diagonal keys (for example up and right together) follow the roads exactly.
+
+## Gears and brakes
+
+The petrol moto has a manual 4-speed gearbox. The electric moto has no gearbox.
+
+- **Each gear has a top speed** (22, 38, 54 and 70 km/h). At the rev limit, the engine stops pulling. Shift up.
+- **A gear that is too high pulls weakly** (the engine lugs). A start in third gear is slow.
+- **High revs use more fuel.** An early upshift saves fuel. Fuel use goes from 0.6× at low revs to 1.3× at the rev limit.
+- **Engine braking.** When you close the throttle, a low gear slows the bike. It uses no fuel and does not wear the brakes. The game refuses a downshift that would over-rev the engine.
+- **Brake wear.** The friction brakes wear in proportion to the speed that they remove: about 1% of the pads for each hard stop from 60 km/h. Worn pads stop the bike less well (45% of new at 0%).
+- **Electric regen braking.** The motor does the first 2.5 m/s² of braking and charges the battery. Only harder braking uses the friction brakes.
+
+Milestone 2 will add the cost of new brake pads to the economy.
 
 ## How to tune the game
 
@@ -60,8 +77,10 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | --- | --- |
 | `WORLD` | Tile size (4 m), height per level (1.5 m), pixel sizes |
 | `VIEW` | Internal resolution (480 × 270), camera follow and look ahead |
-| `BIKES` | Top speed, acceleration, energy, uphill and downhill factors, regen |
-| `PHYSICS` | Hill force, drag, turn rate, grip |
+| `BIKES` | Top speed, acceleration, energy, uphill and downhill factors, regen, gears |
+| `GEARBOX` | Shift time, lugging, rev limit curve, fuel use per rev, auto shift points |
+| `BRAKES` | Pad wear rate, stopping power of worn pads, warning level |
+| `PHYSICS` | Hill force, drag, engine braking, turn rate, grip |
 | `SURFACES` | Grip, speed factor and energy factor for each surface |
 | `HAZARDS` | Pothole and speed bump effects |
 

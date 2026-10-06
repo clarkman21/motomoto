@@ -41,6 +41,15 @@ export const BIKES = {
     downhillEnergyFactor: 0.5, // spec
     regenFraction: 0, // no regen on petrol
     smoke: true,
+    // Manual gearbox (guess: a 4-speed 125–150 cc moto taxi). Each gear has a top speed
+    // (the rev limit) and a pull factor (fraction of accelMs2).
+    gears: [
+      { topKmh: 22, pull: 1.0 },
+      { topKmh: 38, pull: 0.7 },
+      { topKmh: 54, pull: 0.52 },
+      { topKmh: 70, pull: 0.42 },
+    ],
+    regenBrakeMs2: 0, // no regen braking on petrol
   },
   electric: {
     name: 'Electric moto',
@@ -53,6 +62,11 @@ export const BIKES = {
     downhillEnergyFactor: 0, // no cost when you roll downhill
     regenFraction: 0.2, // spec: regen gives back 20% of climb cost
     smoke: false,
+    gears: null, // single speed, no gearbox — guess for the Ampersand moto
+    // Regen braking: the motor brakes up to this deceleration and charges the battery.
+    // Only the brake force above it uses (and wears) the friction brakes.
+    regenBrakeMs2: 2.5,
+    regenBrakeFraction: 0.35, // part of the braking energy that goes back to the battery — guess
   },
 };
 
@@ -75,6 +89,9 @@ export const PHYSICS = {
   // Grip: how fast sideways velocity is removed (1/s) at grip 1.0.
   // Lower grip lets the bike slide on wet murram.
   lateralGripRate: 10,
+  // Engine braking (petrol, throttle closed): deceleration at the rev limit. It falls with revs squared.
+  // It uses no fuel and does not wear the brakes, so a downshift is a free brake.
+  engineBrakeMs2: 2.4,
   // Hard limit on how far one physics step can move, for collision safety.
   maxStepMetres: 0.5,
   // Speed lost when you hit a wall or a building, as a fraction of speed.
@@ -91,6 +108,32 @@ export const SURFACES = {
   murram: { name: 'Murram, dry', grip: 0.7, speedFactor: 0.75, energyFactor: 1.25 },
   murramWet: { name: 'Murram, wet', grip: 0.45, speedFactor: 0.6, energyFactor: 1.4 },
   grass: { name: 'Grass verge', grip: 0.6, speedFactor: 0.45, energyFactor: 1.5 }, // guess, not in spec
+};
+
+// ---------------------------------------------------------------------------
+// Gearbox and brakes
+// ---------------------------------------------------------------------------
+export const GEARBOX = {
+  shiftSeconds: 0.18, // the engine does not pull while the clutch is in
+  // Below this fraction of the gear's top speed, the engine lugs (pulls weakly). First gear does not lug (clutch slip).
+  lugRevs: 0.3,
+  lugPull: 0.35, // pull at zero revs in gears 2 and up
+  // Above this fraction of the gear's top speed, pull falls to zero at the rev limit.
+  peakRevsEnd: 0.85,
+  // Fuel use rises with revs: factor = fuelAtIdle + fuelPerRev × revs (1.0 at mid revs).
+  fuelAtIdle: 0.6,
+  fuelPerRev: 0.7,
+  // Auto shift (G key) shifts up and down at these revs.
+  autoUpRevs: 0.92,
+  autoDownRevs: 0.35,
+};
+
+export const BRAKES = {
+  // Pad wear per m²/s² of speed that the friction brakes remove (a stop from 60 km/h removes 139).
+  // 0.00007 = about 1% of the pads for each hard stop from 60 km/h — guess.
+  wearPerUnit: 0.00007,
+  wornEfficiency: 0.45, // stopping power with fully worn pads, as a fraction of new
+  warnBelow: 0.25, // warn the rider when the pads are below this level
 };
 
 // Point hazards on top of a surface.

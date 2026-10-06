@@ -1,12 +1,12 @@
 import { screenDirToHeading, wrapAngle } from '../world/iso.js';
 import { forwardSpeed } from './bike.js';
 
-// Two steering models. Milestone 1 tests both.
+// Two steering models. Milestone 1 tests both. Bike relative is the default.
 //
-// Screen relative: push a direction and the bike goes that way on the screen.
-//   The arrow keys and WASD give the direction and also open the throttle.
 // Bike relative (GTA 1 style): left and right turn the bike, up is throttle,
 //   down is brake. Hold down when you stand still to walk the bike backwards.
+// Screen relative: push a direction and the bike goes that way on the screen.
+//   The arrow keys and WASD give the direction and also open the throttle.
 //
 // Space is always throttle and Shift is always brake.
 //
@@ -17,7 +17,7 @@ import { forwardSpeed } from './bike.js';
 // }
 // Result: { throttle 0..1, brake 0..1, steer -1..1 }
 
-export const STEERING_MODES = ['screen', 'bike'];
+export const STEERING_MODES = ['bike', 'screen'];
 export const STEERING_LABELS = { screen: 'Screen relative', bike: 'Bike relative' };
 
 // Snap touch directions to the road axes when they are this close (radians).

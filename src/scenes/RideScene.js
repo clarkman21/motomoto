@@ -5,7 +5,7 @@ import { TEST_MAP } from '../world/map-data.js';
 import { toScreen } from '../world/iso.js';
 import { renderTerrain } from '../world/terrain-render.js';
 import { drawBike, drawBlock, drawShadow, drawGlow, drawPuff, bikeFrameForHeading, BIKE_CANVAS, BIKE_DIRECTIONS } from '../world/sprites.js';
-import { createBike, stepBike, forwardSpeed } from '../sim/bike.js';
+import { createBike, stepBike, forwardSpeed, shiftGear, bestGear } from '../sim/bike.js';
 import { readControls, STEERING_MODES } from '../sim/controls.js';
 import { EngineSound } from '../audio/engine-sound.js';
 
@@ -15,6 +15,9 @@ const BARKS = {
   bumpHard: 'Speed bump too fast!',
   wall: 'Bang!',
   empty: 'Out of energy. Press R to reset.',
+  overRev: 'Too fast to shift down',
+  noGears: 'Electric moto: no gears',
+  brakesWorn: 'Brakes worn! Downshift or use regen',
 };
 
 export class RideScene extends Phaser.Scene {
@@ -58,7 +61,7 @@ export class RideScene extends Phaser.Scene {
     this.puffTimer = 0;
 
     this.bike = createBike(this.world, 'petrol');
-    this.steeringMode = 'screen';
+    this.steeringMode = 'bike';
     this.controls = { throttle: 0, brake: 0, steer: 0 };
     this.touch = { stick: { x: 0, y: 0, active: false }, throttle: false, brake: false };
     this.accumulator = 0;
@@ -92,6 +95,9 @@ export class RideScene extends Phaser.Scene {
         case 'KeyR': this.resetBike(); break;
         case 'KeyH': this.horn(); break;
         case 'KeyV': this.toggleSound(); break;
+        case 'KeyE': case 'KeyX': this.shift(1); break;
+        case 'KeyQ': case 'KeyZ': this.shift(-1); break;
+        case 'KeyG': this.toggleAutoShift(); break;
       }
     });
     this.input.on('pointerdown', () => this.engineSound.start());
@@ -103,13 +109,27 @@ export class RideScene extends Phaser.Scene {
   }
 
   toggleBike() {
-    this.bike.type = this.bike.type === 'petrol' ? 'electric' : 'petrol';
-    this.events.emit('bark', BIKES[this.bike.type].name);
+    const b = this.bike;
+    b.type = b.type === 'petrol' ? 'electric' : 'petrol';
+    const gears = BIKES[b.type].gears;
+    if (gears) b.gear = bestGear(gears, Math.max(0, forwardSpeed(b)));
+    this.events.emit('bark', BIKES[b.type].name);
+  }
+
+  shift(dir) {
+    const e = shiftGear(this.bike, dir);
+    if (e && BARKS[e.type]) this.events.emit('bark', BARKS[e.type]);
+  }
+
+  toggleAutoShift() {
+    this.bike.autoShift = !this.bike.autoShift;
+    this.events.emit('bark', this.bike.autoShift ? 'Auto shift on' : 'Manual shift');
   }
 
   resetBike() {
-    const type = this.bike.type;
+    const { type, autoShift } = this.bike;
     this.bike = createBike(this.world, type);
+    this.bike.autoShift = autoShift;
     this.#placeBike();
   }
 
@@ -165,8 +185,7 @@ export class RideScene extends Phaser.Scene {
     this.#updateSmoke(dt);
     this.#updateOcclusion();
     this.#updateCamera(dt);
-    const topSpeed = BIKES[this.bike.type].topSpeedKmh / 3.6;
-    this.engineSound.update(this.bike.type, Math.min(1, Math.abs(forwardSpeed(this.bike)) / topSpeed), this.controls.throttle);
+    this.engineSound.update(this.bike.type, Math.min(1, this.bike.revs), this.controls.throttle);
   }
 
   #placeBike() {

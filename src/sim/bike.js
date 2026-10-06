@@ -1,4 +1,4 @@
-import { BIKES, PHYSICS, HAZARDS, WORLD } from '../config.js';
+import { BIKES, PHYSICS, HAZARDS, WORLD, GEARBOX, BRAKES } from '../config.js';
 import { wrapAngle } from '../world/iso.js';
 
 // Arcade bike physics. No Phaser here, so the tests can run it.
@@ -23,7 +23,61 @@ export function createBike(world, type = 'petrol') {
     surface: world.surfaceAt(s.x * WORLD.tileMetres, s.y * WORLD.tileMetres),
     tileKey: null,
     bump: 0, // seconds left of the bump bounce animation
+    gear: 0, // index into spec.gears (petrol only)
+    autoShift: false,
+    shiftTimer: 0, // seconds left of a gear change (no engine pull)
+    revs: 0, // 0..1 of the rev limit (electric: fraction of top speed)
+    brakePads: 1, // 1 = new, 0 = fully worn
+    brakesWarned: false,
   };
+}
+
+/**
+ * Shift up (dir = +1) or down (dir = -1). Returns an event, or null when the
+ * gear is already at the end of the box.
+ */
+export function shiftGear(bike, dir) {
+  const gears = BIKES[bike.type].gears;
+  if (!gears) return { type: 'noGears' };
+  const next = bike.gear + dir;
+  if (next < 0 || next >= gears.length) return null;
+  const v = Math.max(0, forwardSpeed(bike));
+  if (dir < 0 && v / (gears[next].topKmh * KMH) > 1.05) return { type: 'overRev' };
+  bike.gear = next;
+  bike.shiftTimer = GEARBOX.shiftSeconds;
+  return { type: 'shift', gear: next };
+}
+
+/** The lowest gear that is not near its rev limit at speed v (m/s). */
+export function bestGear(gears, v) {
+  const i = gears.findIndex((g) => v / (g.topKmh * KMH) < GEARBOX.autoUpRevs);
+  return i === -1 ? gears.length - 1 : i;
+}
+
+/** Engine revs 0..1. Petrol: fraction of the gear's top speed. Electric: fraction of top speed. */
+export function revsFor(spec, gear, v) {
+  const top = spec.gears ? spec.gears[gear].topKmh : spec.topSpeedKmh;
+  return clamp(Math.abs(v) / (top * KMH), 0, 1.2);
+}
+
+/** How hard the engine pulls (m/s²) at full throttle, before the throttle factor. */
+export function enginePull(spec, bike, v, vmax) {
+  if (!spec.gears) return spec.accelMs2 * clamp(1 - v / (vmax * 1.1), 0, 1);
+  if (bike.shiftTimer > 0) return 0;
+  const g = spec.gears[bike.gear];
+  const r = Math.max(0, v) / (g.topKmh * KMH);
+  let curve = 1;
+  if (r >= 1) curve = 0;
+  else if (r > GEARBOX.peakRevsEnd) curve = (1 - r) / (1 - GEARBOX.peakRevsEnd);
+  else if (r < GEARBOX.lugRevs && bike.gear > 0) curve = GEARBOX.lugPull + (1 - GEARBOX.lugPull) * (r / GEARBOX.lugRevs);
+  // A slow surface also limits the pull near its speed limit.
+  const surfaceLimit = vmax < spec.topSpeedKmh * KMH ? clamp((vmax * 1.1 - v) / (vmax * 0.3), 0, 1) : 1;
+  return spec.accelMs2 * g.pull * curve * surfaceLimit;
+}
+
+/** Stopping power of the friction brakes for a pad level 0..1. */
+export function brakeEfficiency(pads) {
+  return BRAKES.wornEfficiency + (1 - BRAKES.wornEfficiency) * pads;
 }
 
 /** Forward speed in m/s (negative when you roll backwards). */
@@ -64,17 +118,34 @@ export function stepBike(bike, input, world, dt) {
   bike.grade = grade;
   const slopeAccel = -PHYSICS.gravity * Math.sin(Math.atan(grade)) * PHYSICS.hillFactor;
 
-  // Engine and brakes.
+  // Gearbox.
   const vmax = topSpeed * surface.speedFactor;
   const hasEnergy = bike.energy > 0;
   const throttle = hasEnergy ? clamp(input.throttle, 0, 1) : 0;
   const brake = clamp(input.brake, 0, 1);
+  bike.shiftTimer = Math.max(0, bike.shiftTimer - dt);
+  if (spec.gears && bike.autoShift && bike.shiftTimer === 0) {
+    const r = revsFor(spec, bike.gear, v);
+    if (r > GEARBOX.autoUpRevs && throttle > 0) shiftGear(bike, 1);
+    else if (r < GEARBOX.autoDownRevs) shiftGear(bike, -1);
+  }
+  bike.revs = revsFor(spec, bike.gear, v);
+
+  // Engine.
   let accel = slopeAccel;
-  // The engine force falls to zero a little above top speed, so drag cannot hold you far below it.
-  if (throttle > 0) accel += throttle * spec.accelMs2 * clamp(1 - v / (vmax * 1.1), 0, 1);
+  if (throttle > 0) accel += throttle * enginePull(spec, bike, v, vmax);
   if (v > vmax) accel -= (v - vmax) * 1.5; // never faster than top speed; a slow surface pulls you down to its limit
+
+  // Brakes. Electric: regen brakes first and charges the battery. Friction brakes do the rest and wear.
+  let regenBrake = 0;
+  let frictionBrake = 0;
+  if (brake > 0 && v > 0.05) {
+    const demand = brake * spec.brakeMs2;
+    regenBrake = v > 1 ? Math.min(demand, spec.regenBrakeMs2) : 0;
+    frictionBrake = (demand - regenBrake) * brakeEfficiency(bike.brakePads);
+    accel -= regenBrake + frictionBrake;
+  }
   const reversing = brake > 0 && throttle === 0 && v < 0.3;
-  if (brake > 0 && v > 0.05) accel -= brake * spec.brakeMs2;
   if (reversing) {
     // Walk the bike backwards slowly, to get away from a wall.
     const target = -spec.reverseSpeedKmh * KMH;
@@ -84,13 +155,26 @@ export function stepBike(bike, input, world, dt) {
 
   // Drag always works against motion and never flips its direction.
   let drag = PHYSICS.rollingDragMs2 + PHYSICS.airDragPerMs * Math.abs(v);
-  if (throttle === 0) drag += PHYSICS.coastDragMs2;
+  if (throttle === 0) {
+    // Petrol: engine braking grows with revs, so a downshift slows you without the brakes.
+    if (spec.gears && bike.shiftTimer === 0 && v > 0.5) drag += PHYSICS.engineBrakeMs2 * Math.min(1.2, bike.revs) ** 2;
+    else drag += PHYSICS.coastDragMs2;
+  }
   if (brake > 0 && v < 0 && !reversing) drag += spec.brakeMs2 * brake;
   // On a slope the bike stays still if drag can hold it. This stops a slow creep down gentle ramps.
   const dv = drag * dt;
   if (Math.abs(v) <= dv) v = 0;
   else v -= Math.sign(v) * dv;
   if (reversing) v = Math.max(v, -spec.reverseSpeedKmh * KMH);
+
+  // Brake wear: proportional to the speed that the friction brakes remove (v · a · dt = change of v²/2).
+  if (frictionBrake > 0) {
+    bike.brakePads = Math.max(0, bike.brakePads - frictionBrake * Math.abs(v) * dt * BRAKES.wearPerUnit);
+    if (!bike.brakesWarned && bike.brakePads < BRAKES.warnBelow) {
+      bike.brakesWarned = true;
+      events.push({ type: 'brakesWorn' });
+    }
+  }
 
   // Grip removes sideways speed. Low grip lets the bike slide.
   lateral *= Math.exp(-PHYSICS.lateralGripRate * surface.grip * dt);
@@ -119,10 +203,21 @@ export function stepBike(bike, input, world, dt) {
   }
   bike.bump = Math.max(0, bike.bump - dt);
 
-  // Energy.
-  bike.energy = clamp(bike.energy - energyUse(spec, surface, grade, throttle, v, topSpeed) * dt, 0, 1);
+  // Energy. Regen braking puts a part of the braking energy back into the battery.
+  const fuelRevs = spec.gears ? GEARBOX.fuelAtIdle + GEARBOX.fuelPerRev * Math.min(1, bike.revs) : 1;
+  let use = energyUse(spec, surface, grade, throttle, v, topSpeed) * (throttle > 0 ? fuelRevs : 1);
+  if (regenBrake > 0) use -= (spec.regenBrakeFraction * regenBrake * Math.abs(v)) / barInKinetic(spec);
+  bike.energy = clamp(bike.energy - use * dt, 0, 1);
   if (hasEnergy && bike.energy === 0) events.push({ type: 'empty' });
   return events;
+}
+
+/**
+ * A full energy bar expressed as kinetic energy per kg (m²/s²): full throttle
+ * power at half top speed for the full bar time. Used to convert regen braking.
+ */
+function barInKinetic(spec) {
+  return spec.energySeconds * spec.accelMs2 * spec.topSpeedKmh * KMH * 0.5;
 }
 
 /** Energy per second as a fraction of a full bar. Negative = regen. */

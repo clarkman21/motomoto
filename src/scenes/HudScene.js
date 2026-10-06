@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BIKES, COLOURS } from '../config.js';
+import { BIKES, COLOURS, GEARBOX, BRAKES } from '../config.js';
 import { forwardSpeed } from '../sim/bike.js';
 import { STEERING_LABELS } from '../sim/controls.js';
 
@@ -26,6 +26,11 @@ export class HudScene extends Phaser.Scene {
     this.unitText = this.add.text(0, 0, 'km/h', { fontFamily: FONT_LABEL, fontSize: '18px', color: ALLOY_GREY });
     this.energyLabel = this.add.text(0, 0, '', { fontFamily: FONT_LABEL, fontSize: '16px', color: '#ffffff' });
     this.energyBar = this.add.graphics();
+    this.gearLabel = this.add.text(0, 0, 'GEAR', { fontFamily: FONT_LABEL, fontSize: '14px', color: ALLOY_GREY }).setOrigin(0.5, 0);
+    this.gearText = this.add.text(0, 0, '1', { fontFamily: FONT_LABEL, fontSize: '40px', fontStyle: '600', color: '#ffffff' }).setOrigin(0.5, 0);
+    this.revsLabel = this.add.text(0, 0, 'REVS', { fontFamily: FONT_LABEL, fontSize: '14px', color: ALLOY_GREY });
+    this.brakesLabel = this.add.text(0, 0, 'BRAKES', { fontFamily: FONT_LABEL, fontSize: '14px', color: ALLOY_GREY });
+    this.meters = this.add.graphics();
     this.infoText = this.add.text(0, 0, '', { fontFamily: FONT_BODY, fontSize: '14px', color: '#ffffff', lineSpacing: 4 });
 
     // Help line and bark
@@ -54,23 +59,33 @@ export class HudScene extends Phaser.Scene {
     this.speedText.setFontSize(px(44));
     this.unitText.setFontSize(px(18));
     this.energyLabel.setFontSize(px(16));
+    this.gearLabel.setFontSize(px(14));
+    this.gearText.setFontSize(px(40));
+    this.revsLabel.setFontSize(px(14));
+    this.brakesLabel.setFontSize(px(14));
     this.infoText.setFontSize(px(14));
     this.helpText.setFontSize(px(14));
     this.barkText.setFontSize(px(28));
     const x = 16 * s, y = 16 * s;
-    this.panel.clear().fillStyle(0x000000, 0.62).fillRoundedRect(x, y, 300 * s, 150 * s, 8 * s);
+    this.panel.clear().fillStyle(0x000000, 0.62).fillRoundedRect(x, y, 300 * s, 188 * s, 8 * s);
     this.speedText.setPosition(x + 14 * s, y + 4 * s);
     this.unitText.setPosition(x + 90 * s, y + 26 * s);
+    this.gearLabel.setPosition(x + 252 * s, y + 6 * s);
+    this.gearText.setPosition(x + 252 * s, y + 16 * s);
     this.energyLabel.setPosition(x + 14 * s, y + 58 * s);
     this.energyBarPos = { x: x + 14 * s, y: y + 80 * s, w: 272 * s, h: 10 * s };
-    this.infoText.setPosition(x + 14 * s, y + 98 * s);
+    this.revsLabel.setPosition(x + 14 * s, y + 96 * s);
+    this.brakesLabel.setPosition(x + 186 * s, y + 96 * s);
+    this.revsBarPos = { x: x + 14 * s, y: y + 116 * s, w: 156 * s, h: 8 * s };
+    this.brakesBarPos = { x: x + 186 * s, y: y + 116 * s, w: 100 * s, h: 8 * s };
+    this.infoText.setPosition(x + 14 * s, y + 134 * s);
     this.helpText.setPosition(width / 2, height - 12 * s);
     this.helpText.setText(
       this.isTouch
-        ? 'Stick: steer · GO: throttle · STOP: brake'
-        : 'Arrows/WASD: steer · Space: throttle · Shift: brake · H: horn · C: steering · B: bike · R: reset · V: sound',
+        ? 'Stick: steer · GO: throttle · STOP: brake · + −: shift'
+        : 'W/↑: throttle · S/↓: brake · A D/← →: steer · E/Q: shift · G: auto shift · H: horn · C: steering · B: bike · R: reset · V: sound',
     );
-    this.helpText.setVisible(width > 700 || this.isTouch);
+    this.helpText.setVisible(width > 900 || this.isTouch);
     this.barkText.setPosition(width / 2, 24 * s);
     if (this.isTouch) this.#layoutTouch(width, height);
   }
@@ -88,6 +103,19 @@ export class HudScene extends Phaser.Scene {
     const b = this.energyBarPos;
     this.energyBar.clear().fillStyle(0x333333, 1).fillRect(b.x, b.y, b.w, b.h);
     this.energyBar.fillStyle(electric ? COLOURS.ampersandYellow : PETROL_RED, 1).fillRect(b.x, b.y, b.w * bike.energy, b.h);
+
+    // Gear, revs and brakes
+    this.gearText.setText(spec.gears ? `${bike.autoShift ? 'A' : ''}${bike.gear + 1}` : 'E');
+    this.gearLabel.setText(spec.gears ? 'GEAR' : 'SINGLE');
+    this.revsLabel.setText(spec.gears ? 'REVS' : 'MOTOR');
+    const pads = bike.brakePads;
+    this.brakesLabel.setText(`BRAKES ${Math.round(pads * 100)}%`).setColor(pads < BRAKES.warnBelow ? '#ec5825' : ALLOY_GREY);
+    const r = this.revsBarPos, k = this.brakesBarPos, m = this.meters.clear();
+    m.fillStyle(0x333333, 1).fillRect(r.x, r.y, r.w, r.h).fillRect(k.x, k.y, k.w, k.h);
+    if (spec.gears) m.fillStyle(0x5c1c0e, 1).fillRect(r.x + r.w * GEARBOX.peakRevsEnd, r.y, r.w * (1 - GEARBOX.peakRevsEnd), r.h); // red zone
+    const revs = Math.min(1, bike.revs);
+    m.fillStyle(spec.gears && revs > GEARBOX.peakRevsEnd ? PETROL_RED : 0xf6f5ec, 1).fillRect(r.x, r.y, r.w * revs, r.h);
+    m.fillStyle(pads < BRAKES.warnBelow ? PETROL_RED : 0xf6f5ec, 1).fillRect(k.x, k.y, k.w * pads, k.h);
 
     const grade = Math.round(bike.grade * 100);
     const gradeText = grade === 0 ? 'Flat' : `${grade > 0 ? 'Uphill' : 'Downhill'} ${Math.abs(grade)}%`;
@@ -115,6 +143,9 @@ export class HudScene extends Phaser.Scene {
     this.bikeBtn = this.#button('B', () => this.ride.toggleBike(), null, 22);
     this.resetBtn = this.#button('R', () => this.ride.resetBike(), null, 22);
     this.hornBtn = this.#button('H', () => this.ride.horn(), null, 22);
+    this.autoBtn = this.#button('G', () => this.ride.toggleAutoShift(), null, 22);
+    this.upBtn = this.#button('+', () => this.ride.shift(1), null, 26);
+    this.downBtn = this.#button('−', () => this.ride.shift(-1), null, 26);
     this.stickPointer = null;
     this.input.on('pointerdown', (p) => {
       if (p.x < this.scale.gameSize.width / 2 && !this.stickPointer && !p.hitButton) {
@@ -156,6 +187,9 @@ export class HudScene extends Phaser.Scene {
     this.bikeBtn.setPosition(width - 95, 40);
     this.resetBtn.setPosition(width - 150, 40);
     this.hornBtn.setPosition(width - 205, 40);
+    this.autoBtn.setPosition(width - 260, 40);
+    this.upBtn.setPosition(width - 60, height - 165);
+    this.downBtn.setPosition(width - 140, height - 140);
   }
 
   #drawStick() {

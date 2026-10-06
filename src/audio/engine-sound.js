@@ -51,19 +51,19 @@ export class EngineSound {
     if (this.master) this.master.gain.setTargetAtTime(on ? 0.5 : 0, this.ctx.currentTime, 0.05);
   }
 
-  /** speedFrac 0..1, throttle 0..1 */
-  update(type, speedFrac, throttle) {
+  /** revs 0..1 (petrol: of the rev limit in this gear; electric: of top speed), throttle 0..1 */
+  update(type, revs, throttle) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
     const k = 0.08;
     if (type === 'petrol') {
-      this.petrolOsc.frequency.setTargetAtTime(38 + speedFrac * 70 + throttle * 14, t, k);
-      this.petrolFilter.frequency.setTargetAtTime(300 + throttle * 500 + speedFrac * 400, t, k);
+      this.petrolOsc.frequency.setTargetAtTime(34 + revs * 95 + throttle * 10, t, k);
+      this.petrolFilter.frequency.setTargetAtTime(300 + throttle * 500 + revs * 400, t, k);
       this.petrolGain.gain.setTargetAtTime(0.1 + throttle * 0.12, t, k);
       this.elecGain.gain.setTargetAtTime(0, t, k);
     } else {
-      this.elecOsc.frequency.setTargetAtTime(180 + speedFrac * 520, t, k);
-      this.elecGain.gain.setTargetAtTime(speedFrac > 0.01 || throttle > 0 ? 0.03 + throttle * 0.04 : 0, t, k);
+      this.elecOsc.frequency.setTargetAtTime(180 + revs * 520, t, k);
+      this.elecGain.gain.setTargetAtTime(revs > 0.01 || throttle > 0 ? 0.03 + throttle * 0.04 : 0, t, k);
       this.petrolGain.gain.setTargetAtTime(0, t, k);
     }
   }
