@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
 import { VIEW, WORLD, BIKES, DAY, MONEY, MAINTENANCE } from '../config.js';
 import { World } from '../world/world.js';
-import { TEST_MAP } from '../world/map-data.js';
+import { buildKigaliMap } from '../world/maps/kigali.js';
+import { ChunkStreamer } from './chunks.js';
+import { addCanvasTexture } from './textures.js';
 import { toScreen } from '../world/iso.js';
-import { renderTerrain } from '../world/terrain-render.js';
 import {
   drawBike, drawBlock, drawShadow, drawGlow, drawPuff, bikeFrameForHeading, BIKE_CANVAS, BIKE_DIRECTIONS,
   drawCamera, drawSpeedSign, drawMarkerRing, drawMarkerPin, drawArrow, PROP_CANVAS,
@@ -41,22 +42,12 @@ export class RideScene extends Phaser.Scene {
   }
 
   create() {
-    this.world = new World(TEST_MAP);
+    this.world = new World(buildKigaliMap());
     this.cameras.main.setBackgroundColor('#1d2a33');
     this.cameras.main.setRoundPixels(false); // smooth sub pixel camera; textures stay sharp (antialias off)
 
-    // Ground: one image under everything.
-    const terrain = renderTerrain(this.world);
-    addCanvasTexture(this, 'terrain', terrain);
-    this.add.image(terrain.ox, terrain.oy, 'terrain').setOrigin(0).setDepth(-1000);
-
-    // Solid blocks: one sprite each, sorted by depth with the bike.
-    this.blockSprites = this.world.blocks.map((block, i) => {
-      const { canvas, depth } = drawBlock(block, this.world);
-      addCanvasTexture(this, `block-${i}`, canvas);
-      const img = this.add.image(canvas.ox, canvas.oy, `block-${i}`).setOrigin(0).setDepth(depth);
-      return { img, canvas, depth, block };
-    });
+    // Ground and blocks stream in chunks near the bike (see chunks.js).
+    this.chunks = new ChunkStreamer(this, this.world);
 
     // Bike frames, shadow, glow and smoke.
     for (const type of Object.keys(BIKES)) {
@@ -94,6 +85,7 @@ export class RideScene extends Phaser.Scene {
     this.engineSound = new EngineSound();
     this.occluded = false;
 
+    this.chunks.update(this.bike.x, this.bike.y);
     this.#setupKeys();
     this.#updateZoom();
     this.scale.on('resize', () => this.#updateZoom());
@@ -271,8 +263,9 @@ export class RideScene extends Phaser.Scene {
     this.station = null;
     if (!slow) return;
     for (const kind of ['fuel', 'swap', 'garage']) {
-      const p = this.world.place(kind);
-      if (p && Math.hypot(b.x - p.x * WORLD.tileMetres, b.y - p.y * WORLD.tileMetres) < STATION_RANGE_METRES) this.station = kind;
+      for (const p of this.world.placesWithTag(kind)) {
+        if (Math.hypot(b.x - p.x * WORLD.tileMetres, b.y - p.y * WORLD.tileMetres) < STATION_RANGE_METRES) this.station = kind;
+      }
     }
   }
 
@@ -306,6 +299,15 @@ export class RideScene extends Phaser.Scene {
   /** Game clock as hours (6.0 .. 22.0). */
   get clockHours() {
     return DAY.startHour + ((DAY.endHour - DAY.startHour) * this.dayTime) / DAY.realSeconds;
+  }
+
+  /** Debug and tests: move the bike to a tile position and snap the camera there. */
+  teleport(tx, ty, headingDeg = 0) {
+    const b = this.bike;
+    Object.assign(b, { x: tx * WORLD.tileMetres, y: ty * WORLD.tileMetres, vx: 0, vy: 0, heading: (headingDeg * Math.PI) / 180 });
+    this.chunks.update(b.x, b.y);
+    this.#placeBike();
+    this.camPos = { x: this.bikeScreen.x, y: this.bikeScreen.y - 10 };
   }
 
   horn() {
@@ -364,10 +366,12 @@ export class RideScene extends Phaser.Scene {
     updateBoard(this.board, this.world, dt);
     this.speedLimit = speedLimitAt(this.world, this.bike.x, this.bike.y);
     this.#updateMarker();
+    this.chunks.update(this.bike.x, this.bike.y);
     this.#placeBike();
     this.#updateSmoke(dt);
     this.#updateOcclusion();
     this.#updateCamera(dt);
+    this.chunks.cull(this.cameras.main.worldView);
     this.engineSound.update(this.bike.type, Math.min(1, this.bike.revs), this.controls.throttle);
     this.dayTime += dt;
     if (this.dayTime >= DAY.realSeconds) this.#endDay();
@@ -481,14 +485,15 @@ export class RideScene extends Phaser.Scene {
     const samples = [[0, -3], [0, -10], [0, -18], [0, -24], [-7, -3], [7, -3]];
     // Fade the whole building (all its tiles), not only the tiles that cover the bike.
     const hidingGroups = new Set();
-    for (const bs of this.blockSprites) {
-      if (bs.depth <= this.bikeDepth || Math.abs(bs.block.tx + bs.block.ty - this.bikeDepth) > 8) continue;
+    const blockSprites = this.chunks.blockSprites;
+    for (const bs of blockSprites) {
+      if (!bs.img.visible || bs.depth <= this.bikeDepth || Math.abs(bs.block.tx + bs.block.ty - this.bikeDepth) > 8) continue;
       const c = bs.canvas;
       if (samples.some(([dx, dy]) => c.alphaAt(Math.floor(s.x + dx - c.ox), Math.floor(s.y + dy - c.oy)) > 0)) {
         hidingGroups.add(groupKey(bs.block));
       }
     }
-    for (const bs of this.blockSprites) bs.img.setAlpha(hidingGroups.has(groupKey(bs.block)) ? 0.45 : 1);
+    for (const bs of blockSprites) bs.img.setAlpha(hidingGroups.has(groupKey(bs.block)) ? 0.45 : 1);
     const occluded = hidingGroups.size > 0;
     this.occluded = occluded;
     this.ghost.setVisible(occluded);
@@ -515,12 +520,4 @@ function groupKey(block) {
   if (block.kind === 'building') return 'building-' + block.groupId;
   if (block.kind === 'monument') return 'monument';
   return block.kind + '-' + block.tx + ',' + block.ty;
-}
-
-/** Copy a PixelCanvas into a Phaser canvas texture. */
-function addCanvasTexture(scene, key, pc) {
-  if (scene.textures.exists(key)) scene.textures.remove(key);
-  const tex = scene.textures.createCanvas(key, pc.width, pc.height);
-  tex.context.putImageData(new ImageData(pc.data, pc.width, pc.height), 0, 0);
-  tex.refresh();
 }

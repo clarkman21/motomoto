@@ -217,9 +217,12 @@ export function stepBike(bike, input, world, dt) {
   const dist = speedBefore * dt;
   const steps = Math.max(1, Math.ceil(dist / PHYSICS.maxStepMetres));
   const x0 = bike.x, y0 = bike.y;
+  // If a car or a person moved into the bike, let the bike move out (ignore moving things this step).
+  const withDynamic = !world.dynamicSolid || !blocked(world, bike.x, bike.y, true);
+  world.lastHit = null;
   for (let i = 0; i < steps; i++) {
-    if (moveWithCollision(bike, world, (bike.vx * dt) / steps, (bike.vy * dt) / steps)) {
-      events.push({ type: 'wall', speed: speedBefore });
+    if (moveWithCollision(bike, world, (bike.vx * dt) / steps, (bike.vy * dt) / steps, withDynamic)) {
+      events.push({ type: 'wall', speed: speedBefore, hit: world.lastHit });
       break;
     }
   }
@@ -305,27 +308,28 @@ function scaleSpeed(bike, k) {
   bike.vy *= k;
 }
 
-function blocked(world, x, y) {
-  if (world.isSolidAt(x, y)) return true;
+function blocked(world, x, y, withDynamic = true) {
+  if (world.isSolidAt(x, y, withDynamic)) return true;
   for (let i = 0; i < PROBES; i++) {
     const a = (i / PROBES) * Math.PI * 2;
-    if (world.isSolidAt(x + Math.cos(a) * COLLISION_RADIUS, y + Math.sin(a) * COLLISION_RADIUS)) return true;
+    if (world.isSolidAt(x + Math.cos(a) * COLLISION_RADIUS, y + Math.sin(a) * COLLISION_RADIUS, withDynamic)) return true;
   }
   return false;
 }
 
 /** Move by (dx, dy). Slide along walls. Returns true when the bike hit a wall. */
-function moveWithCollision(bike, world, dx, dy) {
-  if (!blocked(world, bike.x + dx, bike.y + dy)) {
+function moveWithCollision(bike, world, dx, dy, withDynamic = true) {
+  const blocked_ = (x, y) => blocked(world, x, y, withDynamic);
+  if (!blocked_(bike.x + dx, bike.y + dy)) {
     bike.x += dx;
     bike.y += dy;
     return false;
   }
   const k = PHYSICS.wallBounce;
-  if (!blocked(world, bike.x + dx, bike.y)) {
+  if (!blocked_(bike.x + dx, bike.y)) {
     bike.x += dx;
     bike.vy *= -k;
-  } else if (!blocked(world, bike.x, bike.y + dy)) {
+  } else if (!blocked_(bike.x, bike.y + dy)) {
     bike.y += dy;
     bike.vx *= -k;
   } else {

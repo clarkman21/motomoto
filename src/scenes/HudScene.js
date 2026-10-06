@@ -69,8 +69,7 @@ export class HudScene extends Phaser.Scene {
     this.ride.events.on('money', (amount, label) => this.#popup(amount, label));
     this.flash = this.add.rectangle(0, 0, 10, 10, 0xffffff, 1).setOrigin(0).setAlpha(0);
     this.ride.events.on('camera', (e) => {
-      this.flash.setAlpha(e.fine ? 0.75 : 0.25);
-      if (!e.fine) this.#bark(`Speed camera: ${Math.round(e.speedKmh)} km/h, limit ${e.limitKmh}. OK`);
+      this.flash.setAlpha(e.fine ? 0.75 : 0.2); // a small flash when you pass a camera; the fine shows as a money pop up
     });
 
     this.isTouch = this.sys.game.device.input.touch;

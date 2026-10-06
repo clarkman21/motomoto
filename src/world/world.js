@@ -17,6 +17,8 @@ const CHAR_INFO = {
   F: { surface: 'tarmac', block: 'fuel', blockLevels: 2 },
   S: { surface: 'tarmac', block: 'swap', blockLevels: 2 },
   G: { surface: 'tarmac', block: 'garage', blockLevels: 3 },
+  p: { surface: 'pavement' },
+  r: { surface: 'water', solid: true },
 };
 
 // Blocks that join with neighbours of the same kind into one building (one colour, no inner walls).
@@ -41,6 +43,11 @@ export class World {
     this.zones = mapData.zones ?? [];
     this.cameras = (mapData.cameras ?? []).map((c, i) => ({ id: i, ...c }));
     this.signs = mapData.signs ?? [];
+    this.roads = mapData.roads ?? [];
+    this.busStops = mapData.busStops ?? [];
+    // Moving things that the bike can hit (traffic, people). Set by the game: (x, y) => agent or null.
+    this.dynamicSolid = null;
+    this.lastHit = null;
     this.tiles = this.#parseTiles();
     this.vertexLevels = this.#buildHeights(mapData.hills ?? []);
     this.blocks = this.#buildBlocks();
@@ -60,11 +67,11 @@ export class World {
       for (let tx = 0; tx < this.width; tx++) {
         const ch = this.rows[ty][tx];
         let info = CHAR_INFO[ch];
-        if (!info && ch >= '2' && ch <= '9') {
+        if (!info && ch >= '1' && ch <= '9') {
           info = { surface: 'tarmac', block: 'building', blockLevels: Number(ch) };
         }
         if (!info) throw new Error(`Unknown map character '${ch}' at ${tx},${ty}`);
-        tiles.push({ tx, ty, ch, surface: info.surface, hazard: info.hazard ?? null, block: info.block ?? null, blockLevels: info.blockLevels ?? 0 });
+        tiles.push({ tx, ty, ch, surface: info.surface, hazard: info.hazard ?? null, block: info.block ?? null, blockLevels: info.blockLevels ?? 0, solid: !!info.solid });
       }
     }
     return tiles;
@@ -96,7 +103,8 @@ export class World {
         const cur = stack.pop();
         for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
           const n = this.tile(cur.tx + dx, cur.ty + dy);
-          if (n && n.block === t.block && !ids.has(n)) {
+          // One building = connected tiles of the same kind and the same height (one colour each).
+          if (n && n.block === t.block && n.blockLevels === t.blockLevels && !ids.has(n)) {
             ids.set(n, nextId);
             stack.push(n);
           }
@@ -134,6 +142,11 @@ export class World {
   blockAt(tx, ty) {
     if (!this.blockIndex) this.blockIndex = new Map(this.blocks.map((b) => [b.tx + ',' + b.ty, b]));
     return this.blockIndex.get(tx + ',' + ty) ?? null;
+  }
+
+  /** All places with a tag, for example 'swap'. */
+  placesWithTag(tag) {
+    return this.places.filter((p) => p.tags.includes(tag));
   }
 
   /** Tile at tile coordinates, or null outside the map. */
@@ -201,10 +214,18 @@ export class World {
     return SURFACES[t ? t.surface : 'grass'];
   }
 
-  /** True if a world point is outside the map or inside a solid block. */
-  isSolidAt(x, y) {
+  /** True if a world point is outside the map, on water, inside a solid block or inside a moving agent. */
+  isSolidAt(x, y, withDynamic = true) {
     const t = this.tileAt(x, y);
     if (!t) return true;
+    if (t.solid) return true;
+    if (withDynamic && this.dynamicSolid) {
+      const hit = this.dynamicSolid(x, y);
+      if (hit) {
+        this.lastHit = hit;
+        return true;
+      }
+    }
     if (!t.block) return false;
     if (t.block === 'tree') {
       const cx = (t.tx + 0.5) * WORLD.tileMetres;

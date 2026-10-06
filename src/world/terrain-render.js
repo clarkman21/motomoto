@@ -30,9 +30,18 @@ const PALETTE = {
   curb: 0xb8b2a2,
   flowers: [0xd04a6a, 0x9a5ad0, 0xf0f0f0],
   soil: [0x6b3a22, 0x9a4a27, 0x7d3b20],
+  pavement: [0xb3ada2, 0xa59f94, 0xbfb9ae],
+  pavementJoint: 0x8f897f,
+  water: [0x3b6e86, 0x356379, 0x4a7f96],
+  waterShine: 0x9cc3d3,
 };
 
-export function renderTerrain(world) {
+/**
+ * Draw the ground of a rectangle of tiles (default: the whole map) into a PixelCanvas.
+ * A big map is drawn in chunks: renderTerrain(world, { tx0, ty0, tx1, ty1 }) with tx1/ty1 exclusive.
+ */
+export function renderTerrain(world, area = { tx0: 0, ty0: 0, tx1: world.width, ty1: world.height }) {
+  const { tx0, ty0, tx1, ty1 } = area;
   const T = WORLD.tileMetres;
   const L = WORLD.levelMetres;
   const vertex = (vx, vy, levels = world.vertexLevel(vx, vy)) => {
@@ -42,8 +51,8 @@ export function renderTerrain(world) {
 
   // Screen bounds of the ground and the front edge walls.
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (let vy = 0; vy <= world.height; vy++) {
-    for (let vx = 0; vx <= world.width; vx++) {
+  for (let vy = ty0; vy <= ty1; vy++) {
+    for (let vx = tx0; vx <= tx1; vx++) {
       for (const lv of [world.vertexLevel(vx, vy), -SKIRT_LEVELS]) {
         const p = vertex(vx, vy, lv);
         minX = Math.min(minX, p.sx); maxX = Math.max(maxX, p.sx);
@@ -56,7 +65,9 @@ export function renderTerrain(world) {
   const canvas = new PixelCanvas(maxX - ox + 4, maxY - oy + 4, ox, oy);
 
   // Painter's order: tiles further back (smaller x + y) first.
-  const order = [...world.tiles].sort((a, b) => a.tx + a.ty - (b.tx + b.ty) || a.tx - b.tx);
+  const order = world.tiles
+    .filter((t) => t.tx >= tx0 && t.tx < tx1 && t.ty >= ty0 && t.ty < ty1)
+    .sort((a, b) => a.tx + a.ty - (b.tx + b.ty) || a.tx - b.tx);
   for (const tile of order) {
     const { tx, ty } = tile;
     const p00 = vertex(tx, ty), p10 = vertex(tx + 1, ty), p11 = vertex(tx + 1, ty + 1), p01 = vertex(tx, ty + 1);
@@ -64,12 +75,16 @@ export function renderTerrain(world) {
     drawGroundTri(canvas, world, tile, [p00, 0, 0], [p11, 1, 1], [p01, 0, 1]);
   }
 
-  // Earth walls on the two front edges of the map.
-  for (let ty = 0; ty < world.height; ty++) {
-    drawSkirt(canvas, vertex(world.width, ty), vertex(world.width, ty + 1), vertex(world.width, ty + 1, -SKIRT_LEVELS), vertex(world.width, ty, -SKIRT_LEVELS), 0.72);
+  // Earth walls on the two front edges of the map (only in chunks on those edges).
+  if (tx1 === world.width) {
+    for (let ty = ty0; ty < ty1; ty++) {
+      drawSkirt(canvas, vertex(world.width, ty), vertex(world.width, ty + 1), vertex(world.width, ty + 1, -SKIRT_LEVELS), vertex(world.width, ty, -SKIRT_LEVELS), 0.72);
+    }
   }
-  for (let tx = 0; tx < world.width; tx++) {
-    drawSkirt(canvas, vertex(tx, world.height), vertex(tx + 1, world.height), vertex(tx + 1, world.height, -SKIRT_LEVELS), vertex(tx, world.height, -SKIRT_LEVELS), 0.9);
+  if (ty1 === world.height) {
+    for (let tx = tx0; tx < tx1; tx++) {
+      drawSkirt(canvas, vertex(tx, world.height), vertex(tx + 1, world.height), vertex(tx + 1, world.height, -SKIRT_LEVELS), vertex(tx, world.height, -SKIRT_LEVELS), 0.9);
+    }
   }
   return canvas;
 }
@@ -138,6 +153,17 @@ function surfaceColour(ctx, u, v, sx, sy) {
       if (fu < 0.14 || fv < 0.16) return PALETTE.cobbleMortar;
       const tone = PALETTE.cobbleStone[Math.floor(hash2(Math.floor(su), row, 5) * 3)];
       return fv < 0.32 ? shadeColour(tone, 1.08) : tone;
+    }
+    case 'pavement': {
+      // Concrete slabs with joints.
+      const fu = (wu * 3) % 1, fv = (wv * 3) % 1;
+      if (fu < 0.06 || fv < 0.06) return PALETTE.pavementJoint;
+      return pick(PALETTE.pavement, r, 0.1, 0.9);
+    }
+    case 'water': {
+      const w = valueNoise(wu * 1.5, wv * 3, 21);
+      if (w > 0.7 && r > 0.6) return PALETTE.waterShine;
+      return pick(PALETTE.water, w, 0.35, 0.65);
     }
     case 'murram': {
       if (r > 0.985) return PALETTE.pebble;
