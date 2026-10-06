@@ -186,10 +186,8 @@ export const MONEY = {
   fuelQueueMaxSeconds: 8, // random queue 0..8 s — guess
   swapFee: 2500, // spec: flat fee, whatever charge is left in the old battery
   swapSeconds: 15, // spec
-  brakePads: 3000, // new pads — guess
-  replacePadsBelow: 0.5, // the mechanic replaces pads below this level at day end
-  servicePerGameKm: { petrol: 25, electric: 5 }, // oil, chain, engine wear, per game km of tarmac; × the surface wearFactor — guess
-  repairs: { pothole: 300, bumpHard: 500, wall: 800 }, // damage — guess
+  brakePads: 3000, // new pads at the garage — guess
+  repairs: { wall: 800 }, // a crash costs money at once; potholes and bumps add wear instead (see MAINTENANCE) — guess
   // Out of cash at day end = game over, or one loan. The loan makes the next days harder. All guesses.
   loan: { amount: 20000, days: 10, interest: 0.2 }, // repay 2,400 RWF per day for 10 days
 };
@@ -224,4 +222,24 @@ export const LAW = {
   cameraFine: 5000, // guess
   cameraFineHigh: 10000, // when you are more than highOverKmh over the limit — guess
   highOverKmh: 15,
+};
+
+// ---------------------------------------------------------------------------
+// Maintenance and the garage. The service meter fills as you ride; at 100% the bike
+// needs a service at the garage. Bad roads, high revs and hits fill it faster. All guesses.
+// ---------------------------------------------------------------------------
+export const MAINTENANCE = {
+  intervalKm: { petrol: 150, electric: 600 }, // game km of tarmac riding between services
+  // Each km counts × the surface wearFactor (SURFACES) × this factor when the petrol engine is in the red zone.
+  redlineWearFactor: 3,
+  hazardWearKm: { pothole: 2, bumpHard: 1.5, wall: 4 }, // extra km on the service meter for each hit
+  warnAt: 0.8, // "Service soon"
+  breakdownAt: 1.5, // the engine stops; push the bike to the garage
+  // Between 100% and the breakdown, the bike loses power and uses more energy (up to these values).
+  overduePowerLoss: 0.3,
+  overdueEnergyExtra: 0.3,
+  serviceCost: { petrol: 3500, electric: 2000 }, // oil, filters, chain, check — guess
+  serviceSeconds: 20,
+  padsBelow: 0.7, // the mechanic also replaces brake pads below this level (MONEY.brakePads)
+  minServiceFraction: 0.05, // below this, and with good pads, the mechanic has nothing to do
 };

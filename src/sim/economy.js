@@ -1,16 +1,16 @@
 import { MONEY, JOBS } from '../config.js';
+import { garageQuote, serviceBike, serviceDue } from './maintenance.js';
 
 // Money: everything the rider earns and spends. No Phaser here.
-// Income: fares, tips, cargo. Costs: fuel, swaps, fines, repairs, service, brake pads, rent.
+// Income: fares, tips, cargo. Costs: fuel, swaps, fines, crash repairs, garage, rent, loan.
 
 export const INCOME = { fares: 'Fares', tips: 'Tips', cargo: 'Cargo' };
 export const COSTS = {
   fuel: 'Fuel',
   swaps: 'Battery swaps',
   fines: 'Speed camera fines',
-  repairs: 'Damage repairs',
-  service: 'Service (per km, more off road)',
-  pads: 'Brake pads',
+  repairs: 'Crash repairs',
+  garage: 'Garage (service, brake pads)',
   rent: 'Daily bike rent',
   loan: 'Loan payment',
 };
@@ -90,10 +90,24 @@ export function swapBattery(wallet, bike) {
   return { ok: true, cost: MONEY.swapFee };
 }
 
-/** Repair cost for a damage event, or 0. */
+/** Repair cost for a damage event, or 0. Only a crash costs money at once; other hits add wear. */
 export function repairCost(event) {
   if (event.type === 'wall') return event.speed >= 4 ? MONEY.repairs.wall : 0;
-  return MONEY.repairs[event.type] ?? 0;
+  return 0;
+}
+
+/**
+ * Service the bike at the garage. Returns { ok, cost, pads, reason }. Call when the work is done.
+ * After a breakdown, the mechanic repairs the bike on credit (cash can go below zero), so you are never
+ * stuck. The day end check then decides: a loan, or game over. A normal service needs the cash.
+ */
+export function payGarage(wallet, bike) {
+  const q = garageQuote(bike);
+  if (q.nothing) return { ok: false, cost: 0, reason: 'nothing' };
+  if (wallet.cash < q.cost && !bike.brokenDown) return { ok: false, cost: q.cost, reason: 'cash' };
+  spend(wallet, 'garage', q.cost);
+  serviceBike(bike);
+  return { ok: true, cost: q.cost, pads: q.pads };
 }
 
 /**
@@ -102,15 +116,6 @@ export function repairCost(event) {
  */
 export function endDay(wallet, bike) {
   const gameKm = bike.odometer / JOBS.gameKmMetres;
-  // Service: each metre counts by its surface wear factor, so off road riding costs more.
-  spend(wallet, 'service', round10((bike.wearMetres / JOBS.gameKmMetres) * MONEY.servicePerGameKm[bike.type]));
-  let padsReplaced = false;
-  if (bike.brakePads < MONEY.replacePadsBelow) {
-    spend(wallet, 'pads', MONEY.brakePads);
-    bike.brakePads = 1;
-    bike.brakesWarned = false;
-    padsReplaced = true;
-  }
   spend(wallet, 'rent', MONEY.dailyRent[bike.type]);
   if (wallet.loan) {
     spend(wallet, 'loan', wallet.loan.payment);
@@ -133,7 +138,7 @@ export function endDay(wallet, bike) {
     profit: totalIncome - totalCosts,
     cash: wallet.cash,
     brakePads: bike.brakePads,
-    padsReplaced,
+    serviceDue: serviceDue(bike),
     // Regen: energy put back into the battery. A full battery costs one swap, so this is the money saved.
     regenFraction: bike.regenToday,
     regenSaved: bike.type === 'electric' ? round10(bike.regenToday * MONEY.swapFee) : 0,
@@ -145,7 +150,6 @@ export function endDay(wallet, bike) {
   wallet.ledger = emptyLedger();
   wallet.day += 1;
   bike.odometer = 0;
-  bike.wearMetres = 0;
   bike.offRoadMetres = 0;
   bike.regenToday = 0;
   return summary;

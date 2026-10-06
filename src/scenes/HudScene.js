@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { BIKES, COLOURS, GEARBOX, BRAKES, LAW, JOBS } from '../config.js';
 import { forwardSpeed } from '../sim/bike.js';
+import { serviceDue } from '../sim/maintenance.js';
 import { STEERING_LABELS } from '../sim/controls.js';
 
 // The HUD runs as its own scene at zoom 1, so text stays sharp at any size.
@@ -30,6 +31,7 @@ export class HudScene extends Phaser.Scene {
     this.gearText = this.add.text(0, 0, '1', { fontFamily: FONT_LABEL, fontSize: '40px', fontStyle: '600', color: '#ffffff' }).setOrigin(0.5, 0);
     this.revsLabel = this.add.text(0, 0, 'REVS', { fontFamily: FONT_LABEL, fontSize: '14px', color: ALLOY_GREY });
     this.brakesLabel = this.add.text(0, 0, 'BRAKES', { fontFamily: FONT_LABEL, fontSize: '14px', color: ALLOY_GREY });
+    this.serviceLabel = this.add.text(0, 0, 'SERVICE', { fontFamily: FONT_LABEL, fontSize: '14px', color: ALLOY_GREY });
     this.meters = this.add.graphics();
     this.infoText = this.add.text(0, 0, '', { fontFamily: FONT_BODY, fontSize: '14px', color: '#ffffff', lineSpacing: 4 });
 
@@ -104,15 +106,18 @@ export class HudScene extends Phaser.Scene {
     this.energyLabel.setPosition(x + 14 * s, y + 58 * s);
     this.energyBarPos = { x: x + 14 * s, y: y + 80 * s, w: 272 * s, h: 10 * s };
     this.revsLabel.setPosition(x + 14 * s, y + 96 * s);
-    this.brakesLabel.setPosition(x + 186 * s, y + 96 * s);
-    this.revsBarPos = { x: x + 14 * s, y: y + 116 * s, w: 156 * s, h: 8 * s };
-    this.brakesBarPos = { x: x + 186 * s, y: y + 116 * s, w: 100 * s, h: 8 * s };
+    // Three meters in one row: revs, brake pads, service.
+    this.brakesLabel.setPosition(x + 108 * s, y + 96 * s);
+    this.serviceLabel.setFontSize(px(14)).setPosition(x + 200 * s, y + 96 * s);
+    this.revsBarPos = { x: x + 14 * s, y: y + 116 * s, w: 82 * s, h: 8 * s };
+    this.brakesBarPos = { x: x + 108 * s, y: y + 116 * s, w: 80 * s, h: 8 * s };
+    this.serviceBarPos = { x: x + 200 * s, y: y + 116 * s, w: 86 * s, h: 8 * s };
     this.infoText.setPosition(x + 14 * s, y + 134 * s);
     this.helpText.setPosition(width / 2, height - 12 * s);
     this.helpText.setText(
       this.isTouch
         ? 'Stick: steer · GO: throttle · STOP: brake · + −: shift'
-        : 'W/↑ throttle · S/↓ brake · A D/← → steer · E/Q shift · G auto shift · 1–3 take job · F fuel/swap · H horn · C steering · B bike · R reset · V sound',
+        : 'W/↑ throttle · S/↓ brake · A D/← → steer · E/Q shift · G auto shift · 1–3 take job · F fuel/swap/garage · H horn · C steering · B bike · R reset · V sound',
     );
     this.helpText.setVisible(width > 1000 || this.isTouch);
     this.barkText.setPosition(width / 2, 24 * s);
@@ -157,13 +162,21 @@ export class HudScene extends Phaser.Scene {
     this.gearLabel.setText(spec.gears ? 'GEAR' : 'SINGLE');
     this.revsLabel.setText(spec.gears ? 'REVS' : 'MOTOR');
     const pads = bike.brakePads;
-    this.brakesLabel.setText(`BRAKES ${Math.round(pads * 100)}%`).setColor(pads < BRAKES.warnBelow ? '#ec5825' : ALLOY_GREY);
+    this.brakesLabel.setText(`PADS ${Math.round(pads * 100)}%`).setColor(pads < BRAKES.warnBelow ? '#ec5825' : ALLOY_GREY);
     const r = this.revsBarPos, k = this.brakesBarPos, m = this.meters.clear();
     m.fillStyle(0x333333, 1).fillRect(r.x, r.y, r.w, r.h).fillRect(k.x, k.y, k.w, k.h);
     if (spec.gears) m.fillStyle(0x5c1c0e, 1).fillRect(r.x + r.w * GEARBOX.peakRevsEnd, r.y, r.w * (1 - GEARBOX.peakRevsEnd), r.h); // red zone
     const revs = Math.min(1, bike.revs);
     m.fillStyle(spec.gears && revs > GEARBOX.peakRevsEnd ? PETROL_RED : 0xf6f5ec, 1).fillRect(r.x, r.y, r.w * revs, r.h);
     m.fillStyle(pads < BRAKES.warnBelow ? PETROL_RED : 0xf6f5ec, 1).fillRect(k.x, k.y, k.w * pads, k.h);
+    // Service meter: it fills up as the bike wears. Orange from 80%, red when the service is due.
+    const due = serviceDue(bike);
+    const sv = this.serviceBarPos;
+    const late = due >= 1;
+    const blink = bike.brokenDown && Math.floor(this.time.now / 300) % 2 === 0;
+    this.serviceLabel.setText(bike.brokenDown ? 'BROKEN DOWN' : `SERVICE ${Math.round(due * 100)}%`).setColor(late ? '#ec5825' : due >= 0.8 ? '#e8a33a' : ALLOY_GREY);
+    m.fillStyle(0x333333, 1).fillRect(sv.x, sv.y, sv.w, sv.h);
+    m.fillStyle(blink ? 0xffffff : late ? PETROL_RED : due >= 0.8 ? 0xe8a33a : 0xf6f5ec, 1).fillRect(sv.x, sv.y, sv.w * Math.min(1, due), sv.h);
 
     const grade = Math.round(bike.grade * 100);
     const gradeText = grade === 0 ? 'Flat' : `${grade > 0 ? 'Uphill' : 'Downhill'} ${Math.abs(grade)}%`;
@@ -241,7 +254,8 @@ export class HudScene extends Phaser.Scene {
     if (ride.refuel) {
       const r = ride.refuel;
       const done = Math.round((1 - r.timeLeft / r.total) * 100);
-      this.stationText.setText(`${r.kind === 'fuel' ? 'Filling up' : 'Swapping battery'} · ${done}% · ${Math.ceil(r.timeLeft)} s left`).setVisible(true);
+      const what = r.kind === 'fuel' ? 'Filling up' : r.kind === 'swap' ? 'Swapping battery' : 'The mechanic is working';
+      this.stationText.setText(`${what} · ${done}% · ${Math.ceil(r.timeLeft)} s left`).setVisible(true);
       return;
     }
     const offer = ride.stationOffer();

@@ -22,7 +22,8 @@ export function tripMetres(a, b) {
   return (Math.abs(a.x - b.x) + Math.abs(a.y - b.y)) * WORLD.tileMetres;
 }
 
-const jobPlaces = (world) => world.places.filter((p) => !p.tags.includes('fuel') && !p.tags.includes('swap'));
+const SERVICE_TAGS = ['fuel', 'swap', 'garage'];
+const jobPlaces = (world) => world.places.filter((p) => !p.tags.some((t) => SERVICE_TAGS.includes(t)));
 const pick = (rng, list) => list[Math.floor(rng() * list.length)];
 
 export function makeOffer(world, rng, id) {

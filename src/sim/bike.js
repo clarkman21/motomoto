@@ -1,5 +1,6 @@
 import { BIKES, PHYSICS, HAZARDS, WORLD, GEARBOX, BRAKES, LOAD } from '../config.js';
 import { wrapAngle } from '../world/iso.js';
+import { addWear, rideWearKm, hitWearKm, powerFactor, energyFactor } from './maintenance.js';
 
 // Arcade bike physics. No Phaser here, so the tests can run it.
 // Position is in metres, speed in m/s, heading in radians (0 = +x).
@@ -31,8 +32,9 @@ export function createBike(world, type = 'petrol') {
     brakesWarned: false,
     loadKg: 0, // passenger or cargo
     odometer: 0, // metres ridden today
-    wearMetres: 0, // metres ridden today × surface wear factor (for the service bill)
     offRoadMetres: 0, // metres ridden off road today
+    serviceWear: 0, // game km on the service meter since the last service (see maintenance.js)
+    brokenDown: false, // true after a breakdown: push the bike to the garage
     offRoad: false,
     pushing: false, // true when you push an empty bike
     regenToday: 0, // energy that regen put back today, as a fraction of a full battery
@@ -128,7 +130,8 @@ export function stepBike(bike, input, world, dt) {
   const vStart = v;
   const vmax = topSpeed * surface.speedFactor;
   const hasEnergy = bike.energy > 0;
-  const throttle = hasEnergy ? clamp(input.throttle, 0, 1) : 0;
+  const engineRuns = hasEnergy && !bike.brokenDown;
+  const throttle = engineRuns ? clamp(input.throttle, 0, 1) : 0;
   const brake = clamp(input.brake, 0, 1);
   bike.shiftTimer = Math.max(0, bike.shiftTimer - dt);
   if (spec.gears && bike.autoShift && bike.shiftTimer === 0) {
@@ -141,9 +144,9 @@ export function stepBike(bike, input, world, dt) {
   // Engine. A load makes the bike heavier, so the same engine force gives less acceleration.
   const massFactor = 1 + bike.loadKg / LOAD.baseMassKg;
   let accel = slopeAccel;
-  if (throttle > 0) accel += (throttle * enginePull(spec, bike, v)) / massFactor;
-  // No energy left: you can only push the bike at walking speed.
-  bike.pushing = !hasEnergy && input.throttle > 0;
+  if (throttle > 0) accel += (throttle * enginePull(spec, bike, v) * powerFactor(bike)) / massFactor;
+  // No energy left, or a breakdown: you can only push the bike at walking speed.
+  bike.pushing = !engineRuns && input.throttle > 0;
   if (bike.pushing && v < PHYSICS.pushSpeedKmh * KMH) accel += 1.2;
   if (v > vmax) accel -= (v - vmax) * 1.5; // never faster than top speed; a slow surface pulls you down to its limit
 
@@ -222,7 +225,6 @@ export function stepBike(bike, input, world, dt) {
   }
   const moved = Math.hypot(bike.x - x0, bike.y - y0);
   bike.odometer += moved;
-  bike.wearMetres += moved * (surface.wearFactor ?? 1);
   if (surface.offRoad) bike.offRoadMetres += moved;
   // Tell the rider once each time the bike leaves the road.
   const offRoad = !!surface.offRoad && Math.abs(v) > 1;
@@ -240,9 +242,14 @@ export function stepBike(bike, input, world, dt) {
   }
   bike.bump = Math.max(0, bike.bump - dt);
 
+  // Maintenance: the service meter fills with distance (more on bad roads and in the red zone) and with hits.
+  let wearKm = rideWearKm(bike, spec, surface, moved);
+  for (const e of events) wearKm += hitWearKm(e);
+  events.push(...addWear(bike, wearKm));
+
   // Energy. Regen braking puts a part of the braking energy back into the battery.
   const fuelRevs = spec.gears ? GEARBOX.fuelAtIdle + GEARBOX.fuelPerRev * Math.min(1, bike.revs) : 1;
-  let use = energyUse(spec, surface, grade, throttle, v, topSpeed) * (throttle > 0 ? fuelRevs * massFactor : 1);
+  let use = energyUse(spec, surface, grade, throttle, v, topSpeed) * (throttle > 0 ? fuelRevs * massFactor * energyFactor(bike) : 1);
   if (regenBrake > 0) use -= (spec.regenBrakeFraction * regenBrake * Math.abs(v)) / barInKinetic(spec);
   bike.energyRate = use; // fraction of a full bar per second (negative = charging)
   const before = bike.energy;

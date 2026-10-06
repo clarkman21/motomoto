@@ -159,6 +159,7 @@ export function drawBlock(block, world) {
 
   if (block.kind === 'building') drawBuilding(c, block, pt, world);
   else if (block.kind === 'fuel' || block.kind === 'swap') drawStation(c, block, pt, world);
+  else if (block.kind === 'garage') drawGarage(c, block, pt, world);
   else if (block.kind === 'tree') drawTree(c, block, pt, world);
   else drawMonument(c, block, pt, world);
   return { canvas: c, depth: tx + ty + 1 };
@@ -407,4 +408,23 @@ export function drawCargoPile() {
   c.line(gx - 3, gy - 9, gx + 1, gy - 9, 5, 0x9a7a4a); // sack on top
   c.outline(0x161616);
   return c;
+}
+
+/** Garage: grey walls, a blue sign band, roll up doors with a tyre stack look. */
+function drawGarage(c, block, pt, world) {
+  const { tx, ty, baseLevel, topLevel } = block;
+  const wall = 0xb9b6ae, band = 0x2f5d9a, door = 0x4a4f55;
+  const wallShade = (k) => (along, z, px, py) => {
+    const zl = z - baseLevel;
+    let col = wall;
+    if (topLevel - z < 0.5) col = (Math.floor(along * 8) & 1) && topLevel - z > 0.15 ? 0xf0efe6 : band; // sign band
+    else if (zl < 0.15) col = shadeColour(wall, 0.7);
+    else {
+      const a = along % 1;
+      if (zl < 1.9 && a > 0.12 && a < 0.88) col = Math.floor(zl * 6) & 1 ? door : shadeColour(door, 1.2); // roll up door
+    }
+    return shadeColour(col, k);
+  };
+  const roofShade = (u, v, px, py) => (Math.floor((tx + u) * 10) & 1 ? 0x8f8f8a : 0x7f7f7a);
+  drawBox(c, tx, ty, tx + 1, ty + 1, baseLevel, topLevel, pt, roofShade, wallShade(0.72), wallShade(0.88), visibleFaces(block, world));
 }

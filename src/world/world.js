@@ -16,10 +16,11 @@ const CHAR_INFO = {
   M: { surface: 'grass', block: 'monument' },
   F: { surface: 'tarmac', block: 'fuel', blockLevels: 2 },
   S: { surface: 'tarmac', block: 'swap', blockLevels: 2 },
+  G: { surface: 'tarmac', block: 'garage', blockLevels: 3 },
 };
 
 // Blocks that join with neighbours of the same kind into one building (one colour, no inner walls).
-const GROUPED = ['building', 'fuel', 'swap'];
+const GROUPED = ['building', 'fuel', 'swap', 'garage'];
 
 // Trees are round and smaller than a tile. Other blocks fill the whole tile.
 const TREE_RADIUS_TILES = 0.28;

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, WORLD, BIKES, DAY, MONEY } from '../config.js';
+import { VIEW, WORLD, BIKES, DAY, MONEY, MAINTENANCE } from '../config.js';
 import { World } from '../world/world.js';
 import { TEST_MAP } from '../world/map-data.js';
 import { toScreen } from '../world/iso.js';
@@ -12,23 +12,27 @@ import {
 import { createBike, stepBike, forwardSpeed, shiftGear, bestGear } from '../sim/bike.js';
 import { readControls, STEERING_MODES } from '../sim/controls.js';
 import { EngineSound } from '../audio/engine-sound.js';
-import { createWallet, earn, spend, buyFuel, swapBattery, fuelFillCost, repairCost, endDay, takeLoan } from '../sim/economy.js';
+import { createWallet, earn, spend, buyFuel, swapBattery, fuelFillCost, repairCost, endDay, takeLoan, payGarage } from '../sim/economy.js';
+import { garageQuote, serviceDue } from '../sim/maintenance.js';
 import { createJobBoard, updateBoard, acceptOffer, cancelJob, updateJob, jobTarget } from '../sim/jobs.js';
 import { createCameraState, checkCameras, speedLimitAt } from '../sim/law.js';
 
 const FIXED_DT = 1 / 120; // physics step in seconds
 const BARKS = {
-  pothole: 'Pothole! Speed −30%',
   bumpHard: 'Speed bump too fast!',
   wall: 'Bang!',
   empty: 'Out of energy! Hold throttle to push the bike to a station',
+  pothole: 'Pothole! Speed −30%, more wear',
   overRev: 'Too fast to shift down',
   noGears: 'Electric moto: no gears',
   brakesWorn: 'Brakes worn! Downshift or use regen',
   lugging: 'Shift down!',
   offRoad: 'Off road! The bike wears 4 times faster',
+  serviceSoon: 'Service soon: 80%. Plan a garage visit',
+  serviceDue: 'Service due! The bike loses power. Go to the garage',
+  breakdown: 'Breakdown! Push the bike to the garage',
 };
-const REPAIR_LABELS = { pothole: 'Pothole damage', bumpHard: 'Speed bump damage', wall: 'Crash damage' };
+const REPAIR_LABELS = { wall: 'Crash damage' };
 const STATION_RANGE_METRES = 6;
 
 export class RideScene extends Phaser.Scene {
@@ -182,6 +186,17 @@ export class RideScene extends Phaser.Scene {
     const kind = this.station;
     if (!kind || this.refuel) return null;
     const type = this.bike.type;
+    if (kind === 'garage') {
+      const q = garageQuote(this.bike);
+      const meter = Math.round(serviceDue(this.bike) * 100);
+      if (q.nothing) return { ok: false, text: `Garage. The bike is fine (service meter ${meter}%).` };
+      if (this.wallet.cash < q.cost && this.bike.brokenDown) {
+        return { ok: true, text: `F: Emergency repair on credit (${q.cost.toLocaleString('en')} RWF, ${MAINTENANCE.serviceSeconds} s). Cash goes below zero` };
+      }
+      if (this.wallet.cash < q.cost) return { ok: false, text: `A service costs ${q.cost.toLocaleString('en')} RWF. Not enough cash.` };
+      const pads = q.pads ? ' + new brake pads' : '';
+      return { ok: true, text: `F: Service the bike${pads} (${q.cost.toLocaleString('en')} RWF, ${MAINTENANCE.serviceSeconds} s). Meter ${meter}%` };
+    }
     if (kind === 'fuel' && type !== 'petrol') return { ok: false, text: 'Fuel station. Your electric moto needs a swap station.' };
     if (kind === 'swap' && type !== 'electric') return { ok: false, text: 'Swap station. Your petrol moto needs a fuel station.' };
     if (kind === 'fuel') {
@@ -201,15 +216,20 @@ export class RideScene extends Phaser.Scene {
       this.events.emit('bark', offer.text);
       return;
     }
-    const total = this.station === 'fuel' ? MONEY.fuelSeconds + Math.random() * MONEY.fuelQueueMaxSeconds : MONEY.swapSeconds;
+    const total =
+      this.station === 'fuel' ? MONEY.fuelSeconds + Math.random() * MONEY.fuelQueueMaxSeconds :
+      this.station === 'garage' ? MAINTENANCE.serviceSeconds : MONEY.swapSeconds;
     this.refuel = { kind: this.station, timeLeft: total, total };
   }
 
   #finishRefuel() {
     const kind = this.refuel.kind;
     this.refuel = null;
-    const r = kind === 'fuel' ? buyFuel(this.wallet, this.bike) : swapBattery(this.wallet, this.bike);
-    if (r.ok) this.events.emit('money', -r.cost, kind === 'fuel' ? 'Fuel' : 'Battery swap');
+    const r =
+      kind === 'fuel' ? buyFuel(this.wallet, this.bike) :
+      kind === 'swap' ? swapBattery(this.wallet, this.bike) : payGarage(this.wallet, this.bike);
+    const label = kind === 'fuel' ? 'Fuel' : kind === 'swap' ? 'Battery swap' : r.pads ? 'Service and brake pads' : 'Service';
+    if (r.ok) this.events.emit('money', -r.cost, label);
     else this.events.emit('bark', 'Not enough cash');
   }
 
@@ -250,7 +270,7 @@ export class RideScene extends Phaser.Scene {
     const slow = Math.abs(forwardSpeed(b)) * 3.6 < 3;
     this.station = null;
     if (!slow) return;
-    for (const kind of ['fuel', 'swap']) {
+    for (const kind of ['fuel', 'swap', 'garage']) {
       const p = this.world.place(kind);
       if (p && Math.hypot(b.x - p.x * WORLD.tileMetres, b.y - p.y * WORLD.tileMetres) < STATION_RANGE_METRES) this.station = kind;
     }

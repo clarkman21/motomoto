@@ -27,7 +27,7 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Passenger and cargo jobs, cash, fares and tips | Done |
 | Fuel station (pay per litre) and Ampersand swap station (flat fee) | Done |
 | Speed limit zones, signs and speed cameras with fines | Done |
-| Damage repairs, servicing, brake pads, daily rent | Done |
+| Garage, service meter, breakdowns, crash repairs, daily rent | Done |
 | Day clock (06:00–22:00 in 6 min) and day end summary | Done |
 | Out of cash: one loan, then game over | Done |
 | Story, other districts, police helmet checks, upgrades | Later milestones |
@@ -87,15 +87,16 @@ The game is about money. You earn from jobs. You spend on energy, fines and the 
 | Passenger fare: 500 RWF + 200 RWF per game km | Fuel: 4,000 RWF for a full tank, you pay for what you fill (petrol) |
 | Tip: up to 30% of the fare, from passenger comfort | Battery swap: 2,500 RWF flat (electric) |
 | Cargo: 400 RWF + 160 RWF per game km + 12 RWF per kg, less damage | Speed camera fine: 5,000 RWF, or 10,000 RWF when more than 15 km/h over |
-| | Damage: pothole 300, hard speed bump 500, crash 800 RWF |
-| | Service at day end: 25 RWF per game km (petrol), 5 RWF (electric), × the surface wear factor (off road 4×) |
-| | Brake pads: 3,000 RWF when the pads are below 50% |
+| | Crash repair: 800 RWF |
+| | Garage service: 3,500 RWF (petrol), 2,000 RWF (electric) |
+| | Brake pads at the garage: 3,000 RWF when the pads are below 70% |
 | | Daily rent: 6,000 RWF (petrol and electric) |
 | | Loan payment: 2,400 RWF per day for 10 days, if you took the loan |
 
 - **Jobs.** Take a job (1, 2 or 3). Ride to the green marker and stop. Then ride to the white marker and stop. Potholes, hard speed bumps, crashes and hard braking cost passenger comfort (and so the tip) and damage fragile cargo. A passenger or cargo makes the bike heavier.
 - **Speed limits.** Outside a zone the limit is 60 km/h. The market zone is 30 km/h. The city centre, the roundabout and the bottom of the steep east ramp are 40 km/h. Four cameras fine you when you pass more than 5 km/h over the limit. The HUD limit sign flashes when you are too fast.
-- **Off road.** Grass is off road. Each metre there counts 4 times for the service bill (cobblestone 1.3×, dry murram 1.5×, wet murram 1.8×). Off road riding also costs passenger comfort and damages fragile cargo. The HUD shows "OFF ROAD: 4× wear".
+- **Off road.** Grass is off road. Each metre there counts 4 times on the service meter (cobblestone 1.3×, dry murram 1.5×, wet murram 1.8×). Off road riding also costs passenger comfort and damages fragile cargo. The HUD shows "OFF ROAD: 4× wear".
+- **Service meter and garage.** The SERVICE meter on the HUD fills as you ride. One game km on tarmac adds 1 km; bad roads add more (see above), the petrol red zone adds 3×, and each pothole (2 km), hard speed bump (1.5 km) and crash (4 km) adds more. A service is due every 150 km (petrol) or 600 km (electric). At 80% the HUD warns you. From 100%, the bike loses up to 30% power and uses up to 30% more energy. At 150%, it breaks down: push it to the garage (south road) and press F. A service takes 20 s. After a breakdown, the mechanic repairs on credit if you have too little cash.
 - **Passengers and cargo show on the bike.** A passenger with a helmet rides behind you; cargo sacks ride on the rear rack. A person waves at a passenger pickup; sacks wait at a cargo pickup.
 - **Empty tank or battery.** Hold throttle to push the bike at walking speed to a station.
 - **Out of cash.** The game checks your cash at the end of each day, after the rent. Below zero, you can take one loan of 20,000 RWF (you pay back 2,400 RWF each day for 10 days). If you already had the loan, or your debt is larger than the loan, the game is over.
@@ -120,7 +121,8 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `HAZARDS` | Pothole and speed bump effects |
 | `LOAD` | Mass of bike and rider (a load changes pull and braking) |
 | `DAY` | Day length and hours |
-| `MONEY` | Start cash, rent, fuel, swaps, repairs, service, brake pads |
+| `MONEY` | Start cash, rent, fuel, swaps, crash repair, brake pads, loan |
+| `MAINTENANCE` | Service interval, wear from red zone and hits, overdue penalties, breakdown, garage price |
 | `JOBS` | Fares, tips, cargo pay, comfort and damage rules, game km scale |
 | `LAW` | Default speed limit, camera tolerance and fines |
 
@@ -145,6 +147,7 @@ src/
     economy.js           Wallet, fuel and swaps, repairs, day end bill
     jobs.js              Job offers, pickup and drop off, fares and tips
     law.js               Speed limit zones and speed cameras
+    maintenance.js       Service meter, wear, breakdown, garage quote
   audio/engine-sound.js  Engine and horn with Web Audio
   scenes/
     RideScene.js         World, bike, camera, smoke, occlusion

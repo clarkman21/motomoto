@@ -12,6 +12,7 @@
 //   =  speed bump (on tarmac) t  tree (solid)
 //   M  roundabout monument    2-9  building, height in levels (solid)
 //   F  fuel station (solid)   S  Ampersand swap station (solid)
+//   G  garage (solid)
 
 export const TEST_MAP = {
   name: 'Test hills',
@@ -52,7 +53,7 @@ export const TEST_MAP = {
     '..##...##..##......ww...............##..',
     '..##...######......ww....t..........##..',
     '..##.....==...t....ww........t...t..##..',
-    '..##..t..##.....t..ww...............##..',
+    '..##..t..##.....t..ww.....GG........##..',
     '..##.....##........ww...t...........##..',
     '..########=######################=####..',
     '..########=######################=####..',
@@ -73,6 +74,7 @@ export const TEST_MAP = {
     { id: 'eastHill', name: 'East hill road', x: 33.5, y: 20, tags: [] },
     { id: 'fuel', name: 'Fuel station', x: 3, y: 11.5, tags: ['fuel'] },
     { id: 'swap', name: 'Ampersand swap station', x: 37, y: 13.5, tags: ['swap'] },
+    { id: 'garage', name: 'Garage', x: 27, y: 36.3, tags: ['garage'] },
   ],
   // Speed limit zones (tiles, x0 <= x < x1). Outside a zone, LAW.defaultLimitKmh applies.
   zones: [

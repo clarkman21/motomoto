@@ -2,10 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { World } from '../src/world/world.js';
 import { TEST_MAP } from '../src/world/map-data.js';
 import { createBike, stepBike } from '../src/sim/bike.js';
-import { createWallet, earn, buyFuel, swapBattery, fuelFillCost, repairCost, endDay, takeLoan, canTakeLoan, loanPayment } from '../src/sim/economy.js';
+import { createWallet, earn, buyFuel, swapBattery, fuelFillCost, repairCost, endDay, takeLoan, canTakeLoan, loanPayment, payGarage } from '../src/sim/economy.js';
 import { speedLimitAt, checkCameras, createCameraState, cameraFine } from '../src/sim/law.js';
 import { createJobBoard, acceptOffer, updateJob, updateBoard, jobTarget, makeOffer, mulberry32 } from '../src/sim/jobs.js';
-import { MONEY, LAW, JOBS, WORLD } from '../src/config.js';
+import { MONEY, LAW, JOBS, WORLD, MAINTENANCE } from '../src/config.js';
+import { serviceDue, garageQuote, rideWearKm } from '../src/sim/maintenance.js';
+import { BIKES, SURFACES } from '../src/config.js';
 
 const T = WORLD.tileMetres;
 const world = new World(TEST_MAP);
@@ -81,36 +83,25 @@ describe('money', () => {
     expect(bike.energy).toBe(1);
   });
 
-  it('charges repairs for real hits only', () => {
-    expect(repairCost({ type: 'pothole' })).toBe(MONEY.repairs.pothole);
+  it('only a crash costs money at once', () => {
     expect(repairCost({ type: 'wall', speed: 2 })).toBe(0);
     expect(repairCost({ type: 'wall', speed: 10 })).toBe(MONEY.repairs.wall);
-    expect(repairCost({ type: 'bumpSoft' })).toBe(0);
+    expect(repairCost({ type: 'pothole' })).toBe(0);
+    expect(repairCost({ type: 'bumpHard' })).toBe(0);
   });
 
-  it('the day end bill has service, pads when worn, and rent', () => {
+  it('the day end bill is the rent; service and pads are paid at the garage', () => {
     const wallet = createWallet(20000);
     const bike = createBike(world, 'petrol');
     earn(wallet, 'fares', 9000);
-    bike.odometer = bike.wearMetres = 40 * JOBS.gameKmMetres; // 40 game km on tarmac
-    bike.brakePads = 0.4;
+    bike.odometer = 40 * JOBS.gameKmMetres;
     const s = endDay(wallet, bike);
-    expect(s.costs.service).toBe(40 * MONEY.servicePerGameKm.petrol);
-    expect(s.costs.pads).toBe(MONEY.brakePads);
     expect(s.costs.rent).toBe(MONEY.dailyRent.petrol);
-    expect(s.profit).toBe(9000 - s.totalCosts);
-    expect(bike.brakePads).toBe(1);
+    expect(s.totalCosts).toBe(MONEY.dailyRent.petrol);
+    expect(s.profit).toBe(9000 - MONEY.dailyRent.petrol);
     expect(bike.odometer).toBe(0);
-    expect(bike.wearMetres).toBe(0);
     expect(wallet.day).toBe(2);
     expect(wallet.ledger.income.fares).toBe(0);
-  });
-
-  it('electric servicing costs less than petrol for the same distance', () => {
-    const p = createBike(world, 'petrol');
-    const e = createBike(world, 'electric');
-    p.wearMetres = e.wearMetres = 4000;
-    expect(endDay(createWallet(), e).costs.service).toBeLessThan(endDay(createWallet(), p).costs.service);
   });
 
   it('reports the money that regen saved today', () => {
@@ -236,30 +227,113 @@ describe('out of cash and the loan', () => {
   });
 });
 
-describe('off road', () => {
-  const ride = (ch, metres) => {
-    const flat = new World({ name: 'f', start: { x: 1.5, y: 1.5, headingDeg: 0 }, rows: [ch.repeat(100), ch.repeat(100), ch.repeat(100)], hills: [] });
-    const bike = createBike(flat, 'petrol');
+describe('maintenance and the garage', () => {
+  const ride = (ch, metres, type = 'petrol', setup = () => {}) => {
+    const flat = new World({ name: 'f', start: { x: 1.5, y: 1.5, headingDeg: 0 }, rows: [ch.repeat(500), ch.repeat(500), ch.repeat(500)], hills: [] });
+    const bike = createBike(flat, type);
     bike.vx = 8;
+    bike.gear = 2; // 3rd gear at 29 km/h: normal revs, no red zone
+    setup(bike);
     const events = [];
-    while (bike.odometer < metres) events.push(...stepBike(bike, { throttle: 0.5, brake: 0, steer: 0 }, flat, 1 / 120));
+    // Ride until the distance is done (with a time limit, so a stuck bike cannot hang the test).
+    for (let t = 0; bike.odometer < metres && t < 600; t += 1 / 120) events.push(...stepBike(bike, { throttle: 0.5, brake: 0, steer: 0 }, flat, 1 / 120));
     return { bike, events };
   };
+  const km = (bike) => bike.serviceWear;
 
-  it('off road wears the bike 4 times faster, so the service bill is higher', () => {
-    const road = ride('#', 200).bike;
-    const off = ride('.', 200).bike;
-    expect(off.wearMetres / off.odometer).toBeCloseTo(4, 1);
-    expect(road.wearMetres / road.odometer).toBeCloseTo(1, 1);
-    expect(off.offRoadMetres).toBeGreaterThan(190);
-    const billRoad = endDay(createWallet(), road).costs.service;
-    const billOff = endDay(createWallet(), off).costs.service;
-    expect(billOff).toBeGreaterThan(billRoad * 3.5);
+  it('the service meter fills by distance × surface wear: off road 4×, murram 1.5×', () => {
+    const calm = { revs: 0.5 };
+    const tenKm = 10 * JOBS.gameKmMetres;
+    expect(rideWearKm(calm, BIKES.petrol, SURFACES.tarmac, tenKm)).toBeCloseTo(10);
+    expect(rideWearKm(calm, BIKES.petrol, SURFACES.grass, tenKm)).toBeCloseTo(40);
+    expect(rideWearKm(calm, BIKES.petrol, SURFACES.murram, tenKm)).toBeCloseTo(15);
   });
 
-  it('warns the rider once when the bike leaves the road', () => {
-    const { events } = ride('.', 100);
-    expect(events.filter((e) => e.type === 'offRoad')).toHaveLength(1);
+  it('the petrol red zone fills the meter 3 times faster; electric has no red zone', () => {
+    const d = JOBS.gameKmMetres;
+    expect(rideWearKm({ revs: 0.95 }, BIKES.petrol, SURFACES.tarmac, d)).toBeCloseTo(MAINTENANCE.redlineWearFactor);
+    expect(rideWearKm({ revs: 0.95 }, BIKES.electric, SURFACES.tarmac, d)).toBeCloseTo(1);
+  });
+
+  it('riding fills the meter (integrated)', () => {
+    const { bike } = ride('#', 4 * JOBS.gameKmMetres);
+    expect(km(bike)).toBeGreaterThan(3.9);
+  });
+
+  it('a pothole adds wear', () => {
+    const flat = new World({ name: 'p', start: { x: 1.5, y: 1.5, headingDeg: 0 }, rows: ['#'.repeat(10), '###o######', '#'.repeat(10)], hills: [] });
+    const bike = createBike(flat);
+    bike.vx = 10;
+    for (let t = 0; t < 0.8; t += 1 / 120) stepBike(bike, { throttle: 0, brake: 0, steer: 0 }, flat, 1 / 120);
+    expect(km(bike)).toBeGreaterThan(MAINTENANCE.hazardWearKm.pothole);
+  });
+
+  it('warns at 80% and 100%, and breaks down at 150%', () => {
+    const interval = MAINTENANCE.intervalKm.petrol;
+    const { bike, events } = ride('#', 20, 'petrol', (b) => { b.serviceWear = interval * 0.8 - 0.1; });
+    expect(events.some((e) => e.type === 'serviceSoon')).toBe(true);
+    bike.serviceWear = interval - 0.01;
+    const due = ride('#', 20, 'petrol', (b) => { b.serviceWear = interval - 0.1; });
+    expect(due.events.some((e) => e.type === 'serviceDue')).toBe(true);
+    const broken = ride('#', 20, 'petrol', (b) => { b.serviceWear = interval * 1.5 - 0.1; });
+    expect(broken.events.some((e) => e.type === 'breakdown')).toBe(true);
+    expect(broken.bike.brokenDown).toBe(true);
+  });
+
+  it('an overdue bike is slower and uses more fuel', () => {
+    const interval = MAINTENANCE.intervalKm.petrol;
+    const good = ride('#', 3 * JOBS.gameKmMetres, 'petrol', (b) => { b.gear = 2; }).bike;
+    const tired = ride('#', 3 * JOBS.gameKmMetres, 'petrol', (b) => { b.gear = 2; b.serviceWear = interval * 1.45; }).bike;
+    expect(1 - tired.energy).toBeGreaterThan((1 - good.energy) * 1.15);
+  });
+
+  it('a broken down bike can only be pushed', () => {
+    const flat = new World({ name: 'f', start: { x: 1.5, y: 1.5, headingDeg: 0 }, rows: ['#'.repeat(100), '#'.repeat(100), '#'.repeat(100)], hills: [] });
+    const bike = createBike(flat, 'petrol');
+    bike.brokenDown = true;
+    for (let t = 0; t < 5; t += 1 / 120) stepBike(bike, { throttle: 1, brake: 0, steer: 0 }, flat, 1 / 120);
+    expect(bike.vx * 3.6).toBeLessThanOrEqual(4.1);
+    expect(bike.pushing).toBe(true);
+  });
+
+  it('the garage resets the meter, fixes a breakdown and replaces worn pads', () => {
+    const wallet = createWallet(10000);
+    const bike = createBike(world, 'petrol');
+    bike.serviceWear = 200;
+    bike.brokenDown = true;
+    bike.brakePads = 0.5;
+    const r = payGarage(wallet, bike);
+    expect(r).toEqual({ ok: true, cost: MAINTENANCE.serviceCost.petrol + MONEY.brakePads, pads: true });
+    expect(wallet.cash).toBe(10000 - r.cost);
+    expect(wallet.ledger.costs.garage).toBe(r.cost);
+    expect(serviceDue(bike)).toBe(0);
+    expect(bike.brokenDown).toBe(false);
+    expect(bike.brakePads).toBe(1);
+  });
+
+  it('the garage has nothing to do on a new bike, and needs enough cash', () => {
+    const bike = createBike(world, 'electric');
+    expect(garageQuote(bike).nothing).toBe(true);
+    bike.serviceWear = 100;
+    expect(payGarage(createWallet(500), bike)).toEqual({ ok: false, cost: MAINTENANCE.serviceCost.electric, reason: 'cash' });
+  });
+
+  it('after a breakdown, the garage repairs on credit so you are never stuck', () => {
+    const wallet = createWallet(1000);
+    const bike = createBike(world, 'petrol');
+    bike.serviceWear = 300;
+    bike.brokenDown = true;
+    const r = payGarage(wallet, bike);
+    expect(r.ok).toBe(true);
+    expect(wallet.cash).toBe(1000 - MAINTENANCE.serviceCost.petrol);
+    expect(bike.brokenDown).toBe(false);
+  });
+
+  it('an electric moto needs a service 4 times less often', () => {
+    const p = createBike(world, 'petrol');
+    const e = createBike(world, 'electric');
+    p.serviceWear = e.serviceWear = 60;
+    expect(serviceDue(e)).toBeCloseTo(serviceDue(p) / 4);
   });
 
   it('an off road ride lowers passenger comfort', () => {
