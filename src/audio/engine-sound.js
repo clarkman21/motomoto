@@ -46,6 +46,11 @@ export class EngineSound {
     for (const o of [this.petrolOsc, this.wobble, this.elecOsc]) o.start();
   }
 
+  /** Stop all sound for a while (the pause menu). start() makes it play again. */
+  pause() {
+    if (this.ctx && this.ctx.state === 'running') this.ctx.suspend();
+  }
+
   setEnabled(on) {
     this.enabled = on;
     if (this.master) this.master.gain.setTargetAtTime(on ? 0.5 : 0, this.ctx.currentTime, 0.05);

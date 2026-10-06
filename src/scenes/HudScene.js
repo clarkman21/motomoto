@@ -74,6 +74,10 @@ export class HudScene extends Phaser.Scene {
       this.flash.setAlpha(e.fine ? 0.75 : 0.2); // a small flash when you pass a camera; the fine shows as a money pop up
     });
 
+    // Pause button (mouse and touch). Keyboard: Esc or P.
+    this.pauseBtn = this.add.text(0, 0, 'II', { fontFamily: FONT_LABEL, fontSize: '22px', fontStyle: '600', color: '#ffffff', backgroundColor: '#000000a0', padding: { x: 12, y: 6 } })
+      .setOrigin(0, 0).setInteractive({ useHandCursor: true });
+    this.pauseBtn.on('pointerdown', (p) => { p.hitButton = true; this.ride.openPause(); });
     this.isTouch = this.sys.game.device.input.touch;
     if (this.isTouch) this.#createTouchControls();
 
@@ -100,6 +104,7 @@ export class HudScene extends Phaser.Scene {
     this.barkText.setFontSize(px(28));
     const x = 16 * s, y = 16 * s;
     this.panel.clear().fillStyle(0x000000, 0.62).fillRoundedRect(x, y, 300 * s, 188 * s, 8 * s);
+    this.pauseBtn.setFontSize(px(22)).setPosition(x + 308 * s, y);
     this.speedText.setPosition(x + 14 * s, y + 4 * s);
     this.unitText.setPosition(x + 90 * s, y + 26 * s);
     this.gearLabel.setPosition(x + 252 * s, y + 6 * s);
@@ -118,7 +123,7 @@ export class HudScene extends Phaser.Scene {
     this.helpText.setText(
       this.isTouch
         ? 'Stick: steer · GO: throttle · STOP: brake · + −: shift'
-        : 'W/↑ throttle · S/↓ brake · A D/← → steer · E/Q shift · G auto shift · 1–4 take job · F fuel/swap/garage · H horn · C steering · B bike · R reset · V sound',
+        : 'W/↑ throttle · S/↓ brake · A D/← → steer · E/Q shift · G auto shift · 1–4 take job · F fuel/swap/garage · H horn · R reset · Esc menu',
     );
     this.helpText.setVisible(width > 1000 || this.isTouch);
     this.barkText.setPosition(width / 2, 24 * s);

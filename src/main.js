@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { MenuScene } from './scenes/MenuScene.js';
 import { RideScene } from './scenes/RideScene.js';
 import { HudScene } from './scenes/HudScene.js';
 import { DayEndScene } from './scenes/DayEndScene.js';
@@ -33,7 +34,8 @@ async function boot() {
       height: window.innerHeight,
     },
     input: { activePointers: 3 },
-    scene: [RideScene, HudScene, DayEndScene],
+    // The welcome menu starts first; it starts the ride scene behind it.
+    scene: [MenuScene, RideScene, HudScene, DayEndScene],
   });
   window.motoGame = game; // for debugging in the browser console
 }

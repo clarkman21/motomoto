@@ -25,7 +25,7 @@ import { createPeople, stepPeople, hailInReach, insidePerson, busArrivalHails } 
 import { startRace, chaseHail, stepRivals, cancelMission } from '../sim/rivals.js';
 import { PeopleView } from './PeopleView.js';
 import { levelSettings, milestoneReady, buyMilestone, restartLevel, streakMultiplier, updateStreak, savingsTarget } from '../sim/levels.js';
-import { loadGame, saveGame, clearSave } from './save.js';
+import { loadGame, saveGame, clearSave, loadSettings, saveSettings } from './save.js';
 import { LightsView } from './LightsView.js';
 import { BarrierView } from './BarrierView.js';
 import { daylight } from '../sim/daylight.js';
@@ -53,7 +53,9 @@ export class RideScene extends Phaser.Scene {
     super('ride');
   }
 
-  create() {
+  /** data.menu: the welcome menu is on top. The ride waits (the city moves behind the menu) until startGame(). */
+  create(data = {}) {
+    this.started = !data.menu;
     this.world = new World(buildKigaliMap());
     this.cameras.main.setBackgroundColor('#1d2a33');
     this.cameras.main.setRoundPixels(false); // smooth sub pixel camera; textures stay sharp (antialias off)
@@ -121,6 +123,14 @@ export class RideScene extends Phaser.Scene {
     this.engineSound = new EngineSound();
     this.occluded = false;
 
+    // Settings from an earlier visit (sound, steering, gears).
+    const settings = loadSettings();
+    if (settings) {
+      this.engineSound.setEnabled(settings.sound !== false);
+      if (STEERING_MODES.includes(settings.steering)) this.steeringMode = settings.steering;
+      this.bike.autoShift = !!settings.autoShift;
+    }
+
     this.chunks.update(this.bike.x, this.bike.y);
     this.#setupKeys();
     this.#updateZoom();
@@ -129,8 +139,98 @@ export class RideScene extends Phaser.Scene {
     const s = this.bikeScreen;
     this.cameras.main.centerOn(s.x, s.y);
     this.camPos = { x: s.x, y: s.y };
+    this.attractTime = 0;
 
-    this.scene.launch('hud');
+    this.#snapshotShift();
+    if (this.started) this.scene.launch('hud');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Menus: start, pause, restart the shift, back to the main menu (see MenuScene.js)
+  // ---------------------------------------------------------------------------
+
+  /** From the welcome menu. how: 'continue' (the saved or paused game) or 'new' (a new game). */
+  startGame(how) {
+    if (how === 'new') this.#startDay('newGame'); // also saves the start of the shift for "Restart shift"
+    this.started = true;
+    this.#snapCamera();
+    this.resumeGame();
+  }
+
+  /** Close the menu and play on. */
+  resumeGame() {
+    this.scene.resume();
+    if (this.scene.isPaused('hud')) this.scene.resume('hud');
+    else if (!this.scene.isActive('hud')) this.scene.launch('hud');
+    this.scene.setVisible(true, 'hud');
+    this.engineSound.start();
+  }
+
+  /** Esc, P or the pause button: stop the game and show the pause menu. */
+  openPause() {
+    if (!this.started || this.scene.isActive('dayEnd') || this.scene.isPaused()) return;
+    this.scene.pause();
+    if (this.scene.isActive('hud')) this.scene.pause('hud');
+    this.engineSound.pause();
+    this.scene.launch('menu', { mode: 'pause' });
+  }
+
+  /** From the pause menu: the welcome menu (Continue goes back to this game). */
+  toMainMenu() {
+    this.scene.setVisible(false, 'hud');
+    this.scene.get('menu').scene.restart({ mode: 'welcome' });
+  }
+
+  /** Start this shift again: the money, the bike and the clock go back to the start of the shift. */
+  restartShift() {
+    const snap = this.shiftStart;
+    if (this.board.active) cancelJob(this.board, this.bike);
+    cancelMission(this.raceRival);
+    this.wallet = structuredClone(snap.wallet);
+    this.bike = structuredClone(snap.bike);
+    this.dayTime = 0;
+    this.dayOver = false;
+    this.refuel = null;
+    this.raceRival = null;
+    this.#applyLevel();
+    this.cameraState = createCameraState(this.world);
+    this.#snapCamera();
+    this.events.emit('bark', 'The shift starts again');
+    this.resumeGame();
+  }
+
+  #snapshotShift() {
+    this.shiftStart = { wallet: structuredClone(this.wallet), bike: structuredClone(this.bike) };
+  }
+
+  #snapCamera() {
+    this.chunks.update(this.bike.x, this.bike.y);
+    this.#placeBike();
+    this.camPos = { x: this.bikeScreen.x, y: this.bikeScreen.y - 10 };
+    this.cameras.main.centerOn(this.camPos.x, this.camPos.y);
+  }
+
+  #saveSettings() {
+    saveSettings({ sound: this.engineSound.enabled, steering: this.steeringMode, autoShift: !!this.bike.autoShift });
+  }
+
+  /** Behind the welcome menu: the camera moves slowly over Nyabugogo at dusk, and the traffic drives. */
+  #attract(dt) {
+    const T = WORLD.tileMetres;
+    this.attractTime = (this.attractTime + dt) % 160;
+    const x = 22 * T + this.attractTime * 2.4, y = 16 * T + this.attractTime * 0.5;
+    const s = toScreen(x, y, this.world.heightAt(x, y));
+    this.cameras.main.centerOn(s.x, s.y);
+    this.chunks.update(x, y);
+    const view = this.cameras.main.worldView;
+    this.chunks.cull(view);
+    stepTraffic(this.traffic, this.world, [], Math.min(dt, 0.05));
+    this.trafficView.update(this.world, view);
+    this.peopleView.update(this.world, view, this.time.now);
+    this.daylight = daylight(19);
+    this.chunks.night = this.daylight.night;
+    for (const bs of this.chunks.blockSprites) bs.glow?.setAlpha(this.chunks.night);
+    this.lights.update(this.daylight, view, this.bike, false);
   }
 
   #setupKeys() {
@@ -142,8 +242,10 @@ export class RideScene extends Phaser.Scene {
     });
     this.input.keyboard.addCapture([K.UP, K.DOWN, K.LEFT, K.RIGHT, K.SPACE]);
     this.input.keyboard.on('keydown', (e) => {
+      if (!this.started) return; // the welcome menu has the keyboard
       this.engineSound.start();
       switch (e.code) {
+        case 'Escape': case 'KeyP': this.openPause(); break;
         case 'KeyC': this.toggleSteering(); break;
         case 'KeyB': this.toggleBike(); break;
         case 'KeyR': this.resetBike(); break;
@@ -164,6 +266,7 @@ export class RideScene extends Phaser.Scene {
     const i = STEERING_MODES.indexOf(this.steeringMode);
     this.steeringMode = STEERING_MODES[(i + 1) % STEERING_MODES.length];
     this.events.emit('bark', STEERING_LABELS[this.steeringMode]);
+    this.#saveSettings();
   }
 
   toggleBike() {
@@ -187,6 +290,7 @@ export class RideScene extends Phaser.Scene {
   toggleAutoShift() {
     this.bike.autoShift = !this.bike.autoShift;
     this.events.emit('bark', this.bike.autoShift ? 'Auto shift on' : 'Manual shift');
+    this.#saveSettings();
   }
 
   resetBike() {
@@ -416,6 +520,7 @@ export class RideScene extends Phaser.Scene {
     this.#applyLevel();
     this.#placeBike();
     this.#save();
+    this.#snapshotShift();
     this.scene.resume();
   }
 
@@ -449,6 +554,7 @@ export class RideScene extends Phaser.Scene {
   toggleSound() {
     this.engineSound.setEnabled(!this.engineSound.enabled);
     this.events.emit('bark', this.engineSound.enabled ? 'Sound on' : 'Sound off');
+    this.#saveSettings();
   }
 
   #updateZoom() {
@@ -478,6 +584,10 @@ export class RideScene extends Phaser.Scene {
 
   update(_time, deltaMs) {
     const dt = Math.min(0.1, deltaMs / 1000);
+    if (!this.started) {
+      this.#attract(dt);
+      return;
+    }
     this.accumulator += dt;
     const raw = this.#rawInput();
     this.#updateTraffic(dt);

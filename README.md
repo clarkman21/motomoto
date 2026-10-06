@@ -40,6 +40,7 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | People on pavements and in the market; customers who wave (street hails) | Done |
 | Rival riders who race you to pickups and take street hails | Done |
 | Levels 1–4: savings goals, milestones (phone, electric moto), streak bonus, save game | Done |
+| Welcome menu, How to play, Settings, pause menu with Restart shift | Done |
 | Day and night: fast clock, night colour, sunset, street lamps, lit windows, headlights and tail lights | Done |
 | Levels 5–10, police helmet checks, hired riders, traffic lights | Later milestones |
 
@@ -56,8 +57,12 @@ npm run build    # makes a static build in dist/
 
 ## Controls
 
+The game opens with the welcome menu: Continue (your saved game), New game, How to play and Settings (sound, steering, gears).
+In the game, Esc, P or the II button opens the pause menu: Resume, Restart shift, How to play, Settings and Main menu.
+
 | Action | Keyboard | Touch |
 | --- | --- | --- |
+| Pause menu | Esc or P | II button |
 | Throttle | W or ↑ (also Space) | GO button |
 | Brake | S or ↓ (also Shift) | STOP button |
 | Turn left and right | A and D, or ← and → | Left side: virtual stick |
@@ -185,6 +190,7 @@ src/
     daylight.js          Light and colour at each hour of the day
   audio/engine-sound.js  Engine and horn with Web Audio
   scenes/
+    MenuScene.js         Welcome menu, pause menu, How to play, Settings
     RideScene.js         World, bike, camera, smoke, occlusion
     HudScene.js          HUD, jobs, money and touch controls
     DayEndScene.js       Day end summary
