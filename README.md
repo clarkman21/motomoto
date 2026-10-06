@@ -69,7 +69,7 @@ npm run build    # makes a static build in dist/
 
 The petrol moto has a manual 4-speed gearbox. The electric moto has no gearbox.
 
-- **Each gear has a top speed** (22, 38, 54 and 70 km/h). At the rev limit, the engine stops pulling. Shift up.
+- **Each gear has a top speed** (22, 38, 54 and 70 km/h). First gear pulls hardest, so a loaded bike can still crawl up the 37% ramp. At the rev limit, the engine stops pulling. Shift up.
 - **A gear that is too high pulls weakly** (the engine lugs). A start in third gear is slow.
 - **High revs use more fuel.** An early upshift saves fuel. Fuel use goes from 0.6× at low revs to 1.3× at the rev limit.
 - **Engine braking.** When you close the throttle, a low gear slows the bike. It uses no fuel and does not wear the brakes. The game refuses a downshift that would over-rev the engine.
@@ -88,13 +88,15 @@ The game is about money. You earn from jobs. You spend on energy, fines and the 
 | Tip: up to 30% of the fare, from passenger comfort | Battery swap: 2,500 RWF flat (electric) |
 | Cargo: 400 RWF + 160 RWF per game km + 12 RWF per kg, less damage | Speed camera fine: 5,000 RWF, or 10,000 RWF when more than 15 km/h over |
 | | Damage: pothole 300, hard speed bump 500, crash 800 RWF |
-| | Service at day end: 25 RWF per game km (petrol), 5 RWF (electric) |
+| | Service at day end: 25 RWF per game km (petrol), 5 RWF (electric), × the surface wear factor (off road 4×) |
 | | Brake pads: 3,000 RWF when the pads are below 50% |
 | | Daily rent: 6,000 RWF (petrol and electric) |
 | | Loan payment: 2,400 RWF per day for 10 days, if you took the loan |
 
 - **Jobs.** Take a job (1, 2 or 3). Ride to the green marker and stop. Then ride to the white marker and stop. Potholes, hard speed bumps, crashes and hard braking cost passenger comfort (and so the tip) and damage fragile cargo. A passenger or cargo makes the bike heavier.
 - **Speed limits.** Outside a zone the limit is 60 km/h. The market zone is 30 km/h. The city centre, the roundabout and the bottom of the steep east ramp are 40 km/h. Four cameras fine you when you pass more than 5 km/h over the limit. The HUD limit sign flashes when you are too fast.
+- **Off road.** Grass is off road. Each metre there counts 4 times for the service bill (cobblestone 1.3×, dry murram 1.5×, wet murram 1.8×). Off road riding also costs passenger comfort and damages fragile cargo. The HUD shows "OFF ROAD: 4× wear".
+- **Passengers and cargo show on the bike.** A passenger with a helmet rides behind you; cargo sacks ride on the rear rack. A person waves at a passenger pickup; sacks wait at a cargo pickup.
 - **Empty tank or battery.** Hold throttle to push the bike at walking speed to a station.
 - **Out of cash.** The game checks your cash at the end of each day, after the rent. Below zero, you can take one loan of 20,000 RWF (you pay back 2,400 RWF each day for 10 days). If you already had the loan, or your debt is larger than the loan, the game is over.
 - **Regen.** The electric moto charges its battery when it brakes and when it rolls downhill. The day end summary shows how much regen saved.

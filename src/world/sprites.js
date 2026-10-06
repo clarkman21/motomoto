@@ -21,8 +21,12 @@ export function bikeFrameForHeading(heading) {
   return ((Math.round(heading / step) % BIKE_DIRECTIONS) + BIKE_DIRECTIONS) % BIKE_DIRECTIONS;
 }
 
-/** Draw one frame of a bike with rider. type is 'petrol' or 'electric'. */
-export function drawBike(type, frame) {
+/** Load shown on the bike: none, a passenger behind the rider, or cargo on the rear rack. */
+export const BIKE_LOADS = ['none', 'passenger', 'cargo'];
+const PASSENGER = { shirt: 0x3b6fb6, trousers: 0x4a3a2a, helmet: 0xe8e8e8 };
+
+/** Draw one frame of a bike with rider. type is 'petrol' or 'electric'. load is one of BIKE_LOADS. */
+export function drawBike(type, frame, load = 'none') {
   const look = BIKE_LOOKS[type];
   const heading = (frame / BIKE_DIRECTIONS) * Math.PI * 2;
   const c = new PixelCanvas(BIKE_CANVAS.width, BIKE_CANVAS.height, -BIKE_CANVAS.groundX, -BIKE_CANVAS.groundY);
@@ -70,6 +74,22 @@ export function drawBike(type, frame) {
   seg([-0.15, 0, 0.9], [0.05, 0, 1.42], 4.6, look.vest, 0.02); // torso
   blob([0.08, 0, 1.68], 2.6, look.helmet, 0.03); // helmet
   blob([0.16, 0, 1.66], 1.1, 0x9fd3f0, 0.04); // visor
+
+  if (load === 'passenger') {
+    // Passenger on the back seat, with a helmet (the law in Kigali), holding the rider.
+    for (const side of [-1, 1]) {
+      seg([-0.48, 0.12 * side, 0.9], [-0.22, 0.2 * side, 0.74], 2.6, PASSENGER.trousers); // thigh
+      seg([-0.22, 0.2 * side, 0.74], [-0.32, 0.24 * side, 0.44], 2.2, PASSENGER.trousers); // shin to the foot peg
+      seg([-0.36, 0.18 * side, 1.36], [-0.08, 0.16 * side, 1.12], 2, SKIN); // arm round the rider
+    }
+    seg([-0.5, 0, 0.92], [-0.38, 0, 1.4], 4.4, PASSENGER.shirt, -0.02); // torso
+    blob([-0.36, 0, 1.64], 2.5, PASSENGER.helmet, -0.01); // helmet
+  } else if (load === 'cargo') {
+    // Sacks tied on the rear rack.
+    seg([-0.8, 0, 0.92], [-0.42, 0, 0.92], 6, 0x8a6a3a, -0.02);
+    seg([-0.74, 0, 1.12], [-0.48, 0, 1.12], 5, 0xa5844f, -0.01);
+    seg([-0.61, -0.2, 0.86], [-0.61, -0.2, 1.2], 1, 0x3a2a1a, 0.05); // strap
+  }
 
   parts.sort((a, b) => a.depth - b.depth);
   for (const p of parts) p.draw();
@@ -360,6 +380,31 @@ export function drawArrow() {
     const half = Math.floor((11 - x) / 2.2);
     for (let y = 5 - half; y <= 5 + half; y++) c.setPixel(x + 1, y, 0xf6f5ec);
   }
+  c.outline(0x161616);
+  return c;
+}
+
+/** A person who waits for a moto at a pickup, with one arm up. Origin = ground point (bottom centre). */
+export function drawWaitingPassenger() {
+  const c = new PixelCanvas(PROP_CANVAS.width, PROP_CANVAS.height);
+  const gx = PROP_CANVAS.groundX, gy = PROP_CANVAS.groundY;
+  c.line(gx - 1.5, gy - 1, gx - 1, gy - 9, 2.4, 0x2a3550); // legs
+  c.line(gx + 1.5, gy - 1, gx + 1, gy - 9, 2.4, 0x2a3550);
+  c.line(gx, gy - 10, gx, gy - 17, 5, 0xc0392b); // body (red shirt)
+  c.line(gx + 2, gy - 16, gx + 5, gy - 24, 1.8, SKIN); // arm up: waving at you
+  c.line(gx - 2, gy - 16, gx - 3, gy - 11, 1.8, SKIN);
+  c.fillDisc(gx + 0.5, gy - 20.5, 2.6, SKIN); // head
+  c.outline(0x161616);
+  return c;
+}
+
+/** Sacks and a crate that wait at a cargo pickup. Origin = ground point (bottom centre). */
+export function drawCargoPile() {
+  const c = new PixelCanvas(PROP_CANVAS.width, PROP_CANVAS.height);
+  const gx = PROP_CANVAS.groundX, gy = PROP_CANVAS.groundY;
+  for (let y = gy - 8; y < gy; y++) for (let x = gx + 1; x < gx + 8; x++) c.setPixel(x, y, y === gy - 8 ? 0xc9a36a : 0xa5844f); // crate
+  c.line(gx - 4, gy - 3, gx + 1, gy - 3, 6, 0x8a6a3a); // sack
+  c.line(gx - 3, gy - 9, gx + 1, gy - 9, 5, 0x9a7a4a); // sack on top
   c.outline(0x161616);
   return c;
 }

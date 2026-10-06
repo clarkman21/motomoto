@@ -7,6 +7,7 @@ import { renderTerrain } from '../world/terrain-render.js';
 import {
   drawBike, drawBlock, drawShadow, drawGlow, drawPuff, bikeFrameForHeading, BIKE_CANVAS, BIKE_DIRECTIONS,
   drawCamera, drawSpeedSign, drawMarkerRing, drawMarkerPin, drawArrow, PROP_CANVAS,
+  BIKE_LOADS, drawWaitingPassenger, drawCargoPile,
 } from '../world/sprites.js';
 import { createBike, stepBike, forwardSpeed, shiftGear, bestGear } from '../sim/bike.js';
 import { readControls, STEERING_MODES } from '../sim/controls.js';
@@ -25,6 +26,7 @@ const BARKS = {
   noGears: 'Electric moto: no gears',
   brakesWorn: 'Brakes worn! Downshift or use regen',
   lugging: 'Shift down!',
+  offRoad: 'Off road! The bike wears 4 times faster',
 };
 const REPAIR_LABELS = { pothole: 'Pothole damage', bumpHard: 'Speed bump damage', wall: 'Crash damage' };
 const STATION_RANGE_METRES = 6;
@@ -54,7 +56,9 @@ export class RideScene extends Phaser.Scene {
 
     // Bike frames, shadow, glow and smoke.
     for (const type of Object.keys(BIKES)) {
-      for (let f = 0; f < BIKE_DIRECTIONS; f++) addCanvasTexture(this, `bike-${type}-${f}`, drawBike(type, f));
+      for (const load of BIKE_LOADS) {
+        for (let f = 0; f < BIKE_DIRECTIONS; f++) addCanvasTexture(this, `bike-${type}-${load}-${f}`, drawBike(type, f, load));
+      }
     }
     addCanvasTexture(this, 'shadow', drawShadow());
     addCanvasTexture(this, 'glow', drawGlow());
@@ -63,9 +67,9 @@ export class RideScene extends Phaser.Scene {
     const oy = BIKE_CANVAS.groundY / BIKE_CANVAS.height;
     this.shadow = this.add.image(0, 0, 'shadow');
     this.glow = this.add.image(0, 0, 'glow').setVisible(false);
-    this.bikeSprite = this.add.image(0, 0, 'bike-petrol-0').setOrigin(ox, oy);
+    this.bikeSprite = this.add.image(0, 0, 'bike-petrol-none-0').setOrigin(ox, oy);
     // The "ghost" is the bike outline that shows when a building or tree hides the bike.
-    this.ghost = this.add.image(0, 0, 'bike-petrol-0').setOrigin(ox, oy).setTintFill(0xffffff).setAlpha(0.5).setDepth(1e6).setVisible(false);
+    this.ghost = this.add.image(0, 0, 'bike-petrol-none-0').setOrigin(ox, oy).setTintFill(0xffffff).setAlpha(0.5).setDepth(1e6).setVisible(false);
     this.puffs = [];
     this.puffTimer = 0;
 
@@ -368,6 +372,9 @@ export class RideScene extends Phaser.Scene {
     addCanvasTexture(this, 'pin-pickup', drawMarkerPin(0x44bc9d));
     addCanvasTexture(this, 'pin-dropoff', drawMarkerPin(0xf6f5ec));
     addCanvasTexture(this, 'arrow', drawArrow());
+    addCanvasTexture(this, 'waiting-passenger', drawWaitingPassenger());
+    addCanvasTexture(this, 'waiting-cargo', drawCargoPile());
+    this.waiting = this.add.image(0, 0, 'waiting-passenger').setOrigin(ox, oy).setVisible(false);
     this.markerRing = this.add.image(0, 0, 'ring-pickup').setVisible(false);
     this.markerPin = this.add.image(0, 0, 'pin-pickup').setOrigin(0.5, 1).setDepth(1e5).setVisible(false);
     this.arrow = this.add.image(0, 0, 'arrow').setDepth(1e6).setVisible(false);
@@ -380,6 +387,7 @@ export class RideScene extends Phaser.Scene {
     this.markerRing.setVisible(visible);
     this.markerPin.setVisible(visible);
     this.arrow.setVisible(visible);
+    this.waiting.setVisible(!!job && job.stage === 'toPickup');
     if (!job) return;
     const kind = job.stage === 'toPickup' ? 'pickup' : 'dropoff';
     const t = jobTarget(job);
@@ -387,7 +395,10 @@ export class RideScene extends Phaser.Scene {
     const s = toScreen(wx, wy, this.world.heightAt(wx, wy));
     const pulse = 1 + 0.12 * Math.sin(this.time.now / 160);
     this.markerRing.setTexture(`ring-${kind}`).setPosition(s.x, s.y).setScale(pulse).setDepth((wx + wy) / WORLD.tileMetres - 0.5);
-    this.markerPin.setTexture(`pin-${kind}`).setPosition(s.x, s.y - 26 - 3 * Math.sin(this.time.now / 220));
+    this.markerPin.setTexture(`pin-${kind}`).setPosition(s.x, s.y - 30 - 3 * Math.sin(this.time.now / 220));
+    // The passenger (or the cargo) waits beside the marker.
+    this.waiting.setTexture(job.type === 'passenger' ? 'waiting-passenger' : 'waiting-cargo')
+      .setPosition(s.x + 12, s.y - 2).setDepth((wx + wy) / WORLD.tileMetres + 0.3);
     const dx = s.x - this.bikeScreen.x, dy = s.y - this.bikeScreen.y;
     const d = Math.hypot(dx, dy);
     this.arrow.setVisible(d > 40);
@@ -400,7 +411,7 @@ export class RideScene extends Phaser.Scene {
     const s = toScreen(b.x, b.y, b.z);
     const bounce = b.bump > 0 ? Math.sin((b.bump / 0.3) * Math.PI) * 2 : 0;
     const depth = (b.x + b.y) / WORLD.tileMetres;
-    const key = `bike-${b.type}-${bikeFrameForHeading(b.heading)}`;
+    const key = `bike-${b.type}-${b.loadType ?? 'none'}-${bikeFrameForHeading(b.heading)}`;
     this.bikeScreen = s;
     this.bikeDepth = depth;
     this.bikeSprite.setTexture(key).setPosition(s.x, s.y - bounce).setDepth(depth);

@@ -167,9 +167,9 @@ export class HudScene extends Phaser.Scene {
 
     const grade = Math.round(bike.grade * 100);
     const gradeText = grade === 0 ? 'Flat' : `${grade > 0 ? 'Uphill' : 'Downhill'} ${Math.abs(grade)}%`;
-    this.infoText.setText(
-      `${gradeText} · ${bike.surface.name}\n${spec.name} [B] · ${STEERING_LABELS[ride.steeringMode]} [C]`,
-    );
+    const surface = bike.surface.offRoad ? 'OFF ROAD: 4× wear' : bike.surface.name;
+    this.infoText.setText(`${gradeText} · ${surface}\n${spec.name} [B] · ${STEERING_LABELS[ride.steeringMode]} [C]`);
+    this.infoText.setColor(bike.surface.offRoad ? '#ec5825' : '#ffffff');
 
     this.#updateMoney();
     this.#updateJobs();

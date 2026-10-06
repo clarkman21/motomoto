@@ -30,7 +30,10 @@ export function createBike(world, type = 'petrol') {
     brakePads: 1, // 1 = new, 0 = fully worn
     brakesWarned: false,
     loadKg: 0, // passenger or cargo
-    odometer: 0, // metres ridden (for the service bill)
+    odometer: 0, // metres ridden today
+    wearMetres: 0, // metres ridden today × surface wear factor (for the service bill)
+    offRoadMetres: 0, // metres ridden off road today
+    offRoad: false,
     pushing: false, // true when you push an empty bike
     regenToday: 0, // energy that regen put back today, as a fraction of a full battery
   };
@@ -217,7 +220,15 @@ export function stepBike(bike, input, world, dt) {
       break;
     }
   }
-  bike.odometer += Math.hypot(bike.x - x0, bike.y - y0);
+  const moved = Math.hypot(bike.x - x0, bike.y - y0);
+  bike.odometer += moved;
+  bike.wearMetres += moved * (surface.wearFactor ?? 1);
+  if (surface.offRoad) bike.offRoadMetres += moved;
+  // Tell the rider once each time the bike leaves the road.
+  const offRoad = !!surface.offRoad && Math.abs(v) > 1;
+  if (offRoad && !bike.offRoad) events.push({ type: 'offRoad' });
+  if (!surface.offRoad) bike.offRoad = false;
+  else if (offRoad) bike.offRoad = true;
   bike.z = world.heightAt(bike.x, bike.y);
 
   // Hazards trigger once when you enter their tile.

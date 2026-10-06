@@ -297,3 +297,28 @@ describe('hills and dirt make the engine work harder', () => {
     expect(1 - hill.bike.energy).toBeGreaterThan((1 - flat.bike.energy) * 1.6);
   });
 });
+
+describe('climbing with a load', () => {
+  const steep = () =>
+    new World({ name: 'steep', start: { x: 1.5, y: 1.5, headingDeg: 0 }, rows: ['#'.repeat(400), '#'.repeat(400), '#'.repeat(400)],
+      hills: [{ x0: 2000, y0: -10, x1: 3000, y1: 20, level: 2000, run: { west: 1, east: 1, north: 1, south: 1 } }] });
+
+  it('a petrol moto with a passenger still climbs a 37% ramp in 1st gear, slowly', () => {
+    const world = steep();
+    const bike = createBike(world, 'petrol');
+    bike.loadKg = 65;
+    run(bike, world, { throttle: 1 }, 10);
+    expect(kmh(bike)).toBeGreaterThan(3);
+    expect(kmh(bike)).toBeLessThan(22);
+  });
+
+  it('an electric moto with a passenger climbs the same ramp faster', () => {
+    const world = steep();
+    const p = createBike(world, 'petrol');
+    const e = createBike(world, 'electric');
+    p.loadKg = e.loadKg = 65;
+    run(p, world, { throttle: 1 }, 6);
+    run(e, world, { throttle: 1 }, 6);
+    expect(e.x).toBeGreaterThan(p.x + 4);
+  });
+});

@@ -9,7 +9,7 @@ export const COSTS = {
   swaps: 'Battery swaps',
   fines: 'Speed camera fines',
   repairs: 'Damage repairs',
-  service: 'Service (per km)',
+  service: 'Service (per km, more off road)',
   pads: 'Brake pads',
   rent: 'Daily bike rent',
   loan: 'Loan payment',
@@ -102,7 +102,8 @@ export function repairCost(event) {
  */
 export function endDay(wallet, bike) {
   const gameKm = bike.odometer / JOBS.gameKmMetres;
-  spend(wallet, 'service', round10(gameKm * MONEY.servicePerGameKm[bike.type]));
+  // Service: each metre counts by its surface wear factor, so off road riding costs more.
+  spend(wallet, 'service', round10((bike.wearMetres / JOBS.gameKmMetres) * MONEY.servicePerGameKm[bike.type]));
   let padsReplaced = false;
   if (bike.brakePads < MONEY.replacePadsBelow) {
     spend(wallet, 'pads', MONEY.brakePads);
@@ -124,6 +125,7 @@ export function endDay(wallet, bike) {
     day: wallet.day,
     bikeType: bike.type,
     gameKm,
+    offRoadKm: bike.offRoadMetres / JOBS.gameKmMetres,
     income: { ...income },
     costs: { ...costs },
     totalIncome,
@@ -143,6 +145,8 @@ export function endDay(wallet, bike) {
   wallet.ledger = emptyLedger();
   wallet.day += 1;
   bike.odometer = 0;
+  bike.wearMetres = 0;
+  bike.offRoadMetres = 0;
   bike.regenToday = 0;
   return summary;
 }

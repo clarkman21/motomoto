@@ -30,7 +30,8 @@ export class DayEndScene extends Phaser.Scene {
     const panel = this.add.graphics(); // filled at the end, when the content height is known
     this.add.text(x + 20 * s, y + 16 * s, summary.outOfCash === 'gameOver' ? `Game over · day ${summary.day}` : `End of day ${summary.day}`, { fontFamily: FONT_LABEL, fontSize: `${Math.round(32 * s)}px`, fontStyle: '600', color: '#ffffff' });
     const bikeName = summary.bikeType === 'electric' ? 'Electric moto' : 'Petrol moto';
-    this.add.text(x + 20 * s, y + 56 * s, `${bikeName} · ${summary.gameKm.toFixed(1)} km ridden · brake pads ${Math.round(summary.brakePads * 100)}%${summary.padsReplaced ? ' (new)' : ''}`, {
+    const offRoad = summary.offRoadKm >= 0.05 ? ` (${summary.offRoadKm.toFixed(1)} off road)` : '';
+    this.add.text(x + 20 * s, y + 56 * s, `${bikeName} · ${summary.gameKm.toFixed(1)} km ridden${offRoad} · brake pads ${Math.round(summary.brakePads * 100)}%${summary.padsReplaced ? ' (new)' : ''}`, {
       fontFamily: FONT_BODY, fontSize: `${Math.round(14 * s)}px`, color: '#9e9e9e', wordWrap: { width: w - 40 * s },
     });
     let ly = y + 92 * s;

@@ -44,7 +44,7 @@ export const BIKES = {
     // Manual gearbox (guess: a 4-speed 125–150 cc moto taxi). Each gear has a top speed
     // (the rev limit) and a pull factor (fraction of accelMs2).
     gears: [
-      { topKmh: 22, pull: 1.0 },
+      { topKmh: 22, pull: 1.25 }, // low gear torque: enough to climb a 37% ramp with a passenger
       { topKmh: 38, pull: 0.7 },
       { topKmh: 54, pull: 0.52 },
       { topKmh: 70, pull: 0.42 },
@@ -106,11 +106,13 @@ export const PHYSICS = {
 export const SURFACES = {
   // rollingMs2: rolling resistance (deceleration) that always works against motion. It makes the
   // engine work harder, so you need a lower gear (petrol) or more energy (electric). Arcade guesses.
-  tarmac: { name: 'Tarmac', grip: 1.0, speedFactor: 1.0, energyFactor: 1.0, rollingMs2: 0.25 },
-  cobble: { name: 'Cobblestone', grip: 0.85, speedFactor: 0.9, energyFactor: 1.1, rollingMs2: 0.45 },
-  murram: { name: 'Murram, dry', grip: 0.7, speedFactor: 0.75, energyFactor: 1.25, rollingMs2: 0.9 },
-  murramWet: { name: 'Murram, wet', grip: 0.45, speedFactor: 0.6, energyFactor: 1.4, rollingMs2: 1.3 },
-  grass: { name: 'Grass verge', grip: 0.6, speedFactor: 0.45, energyFactor: 1.5, rollingMs2: 1.6 }, // guess, not in spec
+  // wearFactor: how much each metre on this surface counts for the service bill (wear on tyres,
+  // chain, suspension). Off road (grass) wears the bike 4 times faster than tarmac. Guesses.
+  tarmac: { name: 'Tarmac', grip: 1.0, speedFactor: 1.0, energyFactor: 1.0, rollingMs2: 0.25, wearFactor: 1.0 },
+  cobble: { name: 'Cobblestone', grip: 0.85, speedFactor: 0.9, energyFactor: 1.1, rollingMs2: 0.45, wearFactor: 1.3 },
+  murram: { name: 'Murram, dry', grip: 0.7, speedFactor: 0.75, energyFactor: 1.25, rollingMs2: 0.9, wearFactor: 1.5 },
+  murramWet: { name: 'Murram, wet', grip: 0.45, speedFactor: 0.6, energyFactor: 1.4, rollingMs2: 1.3, wearFactor: 1.8 },
+  grass: { name: 'Off road', grip: 0.6, speedFactor: 0.45, energyFactor: 1.5, rollingMs2: 1.6, wearFactor: 4.0, offRoad: true }, // guess, not in spec
 };
 
 // ---------------------------------------------------------------------------
@@ -186,7 +188,7 @@ export const MONEY = {
   swapSeconds: 15, // spec
   brakePads: 3000, // new pads — guess
   replacePadsBelow: 0.5, // the mechanic replaces pads below this level at day end
-  servicePerGameKm: { petrol: 25, electric: 5 }, // oil, chain, engine wear — guess
+  servicePerGameKm: { petrol: 25, electric: 5 }, // oil, chain, engine wear, per game km of tarmac; × the surface wearFactor — guess
   repairs: { pothole: 300, bumpHard: 500, wall: 800 }, // damage — guess
   // Out of cash at day end = game over, or one loan. The loan makes the next days harder. All guesses.
   loan: { amount: 20000, days: 10, interest: 0.2 }, // repay 2,400 RWF per day for 10 days
@@ -207,8 +209,8 @@ export const JOBS = {
   passenger: { base: 500, perGameKm: 200, maxTipFraction: 0.3, kg: 65 },
   cargo: { base: 400, perGameKm: 160, perKg: 12, kgMin: 20, kgMax: 80, fragileChance: 0.4 },
   // Passenger comfort lost (0..100) and cargo damage (fraction of pay, fragile cargo only).
-  comfortLoss: { pothole: 20, bumpHard: 15, wall: 35, hardBrakePerSecond: 25 },
-  cargoDamage: { pothole: 0.1, bumpHard: 0.1, wall: 0.3 },
+  comfortLoss: { pothole: 20, bumpHard: 15, wall: 35, hardBrakePerSecond: 25, offRoadPerSecond: 10 },
+  cargoDamage: { pothole: 0.1, bumpHard: 0.1, wall: 0.3, offRoadPerSecond: 0.03 },
   hardBrakeMs2: 5, // braking harder than this upsets the passenger
 };
 

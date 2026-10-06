@@ -77,6 +77,7 @@ export function acceptOffer(board, index) {
 export function cancelJob(board, bike) {
   board.active = null;
   bike.loadKg = 0;
+  bike.loadType = null;
 }
 
 /** The place the rider must go to now. */
@@ -99,6 +100,11 @@ export function updateJob(board, bike, bikeEvents, dt) {
       else if (job.fragile) job.damage += JOBS.cargoDamage[e.type] ?? 0;
     }
     if (job.type === 'passenger' && (bike.netAccel ?? 0) < -JOBS.hardBrakeMs2) job.comfort -= JOBS.comfortLoss.hardBrakePerSecond * dt;
+    // Off road is a rough ride: the passenger is unhappy and fragile cargo gets damaged.
+    if (bike.offRoad) {
+      if (job.type === 'passenger') job.comfort -= JOBS.comfortLoss.offRoadPerSecond * dt;
+      else if (job.fragile) job.damage += JOBS.cargoDamage.offRoadPerSecond * dt;
+    }
     job.comfort = Math.max(0, Math.min(100, job.comfort));
     job.damage = Math.max(0, Math.min(1, job.damage));
   }
@@ -109,10 +115,12 @@ export function updateJob(board, bike, bikeEvents, dt) {
   if (job.stage === 'toPickup') {
     job.stage = 'toDropoff';
     bike.loadKg = job.kg;
+    bike.loadType = job.type;
     return [{ type: 'pickup', job }];
   }
   board.active = null;
   bike.loadKg = 0;
+  bike.loadType = null;
   if (job.type === 'passenger') {
     const tip = round10(job.pay * JOBS.passenger.maxTipFraction * (job.comfort / 100));
     return [{ type: 'delivered', job, fare: job.pay, tip }];

@@ -92,7 +92,7 @@ describe('money', () => {
     const wallet = createWallet(20000);
     const bike = createBike(world, 'petrol');
     earn(wallet, 'fares', 9000);
-    bike.odometer = 40 * JOBS.gameKmMetres; // 40 game km
+    bike.odometer = bike.wearMetres = 40 * JOBS.gameKmMetres; // 40 game km on tarmac
     bike.brakePads = 0.4;
     const s = endDay(wallet, bike);
     expect(s.costs.service).toBe(40 * MONEY.servicePerGameKm.petrol);
@@ -101,6 +101,7 @@ describe('money', () => {
     expect(s.profit).toBe(9000 - s.totalCosts);
     expect(bike.brakePads).toBe(1);
     expect(bike.odometer).toBe(0);
+    expect(bike.wearMetres).toBe(0);
     expect(wallet.day).toBe(2);
     expect(wallet.ledger.income.fares).toBe(0);
   });
@@ -108,7 +109,7 @@ describe('money', () => {
   it('electric servicing costs less than petrol for the same distance', () => {
     const p = createBike(world, 'petrol');
     const e = createBike(world, 'electric');
-    p.odometer = e.odometer = 4000;
+    p.wearMetres = e.wearMetres = 4000;
     expect(endDay(createWallet(), e).costs.service).toBeLessThan(endDay(createWallet(), p).costs.service);
   });
 
@@ -151,6 +152,7 @@ describe('jobs', () => {
     bike.y = p.y * T;
     expect(updateJob(board, bike, [], 0.01)[0].type).toBe('pickup');
     expect(bike.loadKg).toBe(65);
+    expect(bike.loadType).toBe('passenger');
     // A pothole on the way costs comfort.
     updateJob(board, bike, [{ type: 'pothole' }], 0.01);
     expect(job.comfort).toBe(100 - JOBS.comfortLoss.pothole);
@@ -231,5 +233,43 @@ describe('out of cash and the loan', () => {
   it('no loan when the debt is larger than the loan', () => {
     const wallet = createWallet(-MONEY.loan.amount - 100);
     expect(canTakeLoan(wallet)).toBe(false);
+  });
+});
+
+describe('off road', () => {
+  const ride = (ch, metres) => {
+    const flat = new World({ name: 'f', start: { x: 1.5, y: 1.5, headingDeg: 0 }, rows: [ch.repeat(100), ch.repeat(100), ch.repeat(100)], hills: [] });
+    const bike = createBike(flat, 'petrol');
+    bike.vx = 8;
+    const events = [];
+    while (bike.odometer < metres) events.push(...stepBike(bike, { throttle: 0.5, brake: 0, steer: 0 }, flat, 1 / 120));
+    return { bike, events };
+  };
+
+  it('off road wears the bike 4 times faster, so the service bill is higher', () => {
+    const road = ride('#', 200).bike;
+    const off = ride('.', 200).bike;
+    expect(off.wearMetres / off.odometer).toBeCloseTo(4, 1);
+    expect(road.wearMetres / road.odometer).toBeCloseTo(1, 1);
+    expect(off.offRoadMetres).toBeGreaterThan(190);
+    const billRoad = endDay(createWallet(), road).costs.service;
+    const billOff = endDay(createWallet(), off).costs.service;
+    expect(billOff).toBeGreaterThan(billRoad * 3.5);
+  });
+
+  it('warns the rider once when the bike leaves the road', () => {
+    const { events } = ride('.', 100);
+    expect(events.filter((e) => e.type === 'offRoad')).toHaveLength(1);
+  });
+
+  it('an off road ride lowers passenger comfort', () => {
+    const board = createJobBoard(world, 1);
+    const job = acceptOffer(board, 0);
+    job.stage = 'toDropoff';
+    job.type = 'passenger';
+    const bike = createBike(world);
+    bike.offRoad = true;
+    for (let t = 0; t < 2; t += 0.01) updateJob(board, bike, [], 0.01);
+    expect(job.comfort).toBeCloseTo(100 - JOBS.comfortLoss.offRoadPerSecond * 2, 0);
   });
 });
