@@ -81,9 +81,10 @@ describe('level settings in the game rules', () => {
   it('level 1 offers Nyabugogo jobs only; the map grows with the levels', () => {
     expect(districtsForLevel(1)).toEqual(['nyabugogo']);
     expect(districtsForLevel(2)).toEqual(['nyabugogo', 'town']);
-    expect(districtsForLevel(3)).toHaveLength(4);
-    expect(districtsForLevel(4)).toContain('kicukiro');
-    expect(districtsForLevel(5)).toHaveLength(6);
+    // One new district at each level: the map grows slowly.
+    for (let n = 1; n <= 6; n++) expect(districtsForLevel(n)).toHaveLength(n);
+    expect(districtsForLevel(5)).toContain('kicukiro');
+    expect(districtsForLevel(5)).not.toContain('nyarutarama');
     const rng = mulberry32(3);
     const valley = Array.from({ length: 40 }, (_, i) => makeOffer(world, rng, i, { districts: districtsForLevel(1) }));
     for (const o of valley) {

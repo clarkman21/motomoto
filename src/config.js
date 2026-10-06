@@ -322,21 +322,21 @@ export const LEVELS = [
     shift: { start: 6, end: 22, realSeconds: 360 }, rent: 6000,
     traffic: 0.8, rivals: 6, raceChance: 0.35, offerLife: [20, 45], hailEvery: 1,
     fare: 1.0, petrol: 1.1, cameras: true,
-    news: 'Kacyiru and Kimihurura open: offices, the hospital and the Convention Centre. Full day shift, speed cameras on, petrol +10%.',
+    news: 'Kacyiru opens: offices, the police headquarters and the hospital. Full day shift, speed cameras on, petrol +10%.',
   },
   {
     n: 4, name: 'Rush hour', goal: 60000, milestone: 'Down payment on an Ampersand electric moto', kind: 'asset', effect: 'electric',
     shift: { start: 6, end: 22, realSeconds: 360 }, rent: 6000,
     traffic: 1.0, rivals: 10, raceChance: 0.45, offerLife: [15, 40], hailEvery: 1,
     fare: 1.1, petrol: 1.2, cameras: true,
-    news: 'Kicukiro opens: busy junctions, workshops and trucks. Heavy traffic, 10 rivals. Petrol +20%.',
+    news: 'Kimihurura opens: the Convention Centre, Parliament and cobblestone lanes. Rush hour: heavy traffic, 10 rivals. Petrol +20%.',
   },
   {
     n: 5, name: 'Electric rider', goal: 80000, milestone: 'A plot of land', kind: 'life', freePlay: true,
     shift: { start: 6, end: 22, realSeconds: 360 }, rent: 6000,
     traffic: 1.0, rivals: 12, raceChance: 0.5, offerLife: [15, 40], hailEvery: 1,
     fare: 1.2, petrol: 1.3, cameras: true,
-    news: 'You ride electric now, and Nyarutarama opens: villas, the golf course, the best tips. Levels 5 to 10 come in the next build: free play.',
+    news: 'You ride electric now, and Kicukiro opens: busy junctions, workshops and trucks. Levels 6 to 10 (and Nyarutarama) come in the next build: free play.',
   },
 ];
 
@@ -372,7 +372,8 @@ export const LIGHTS = {
 
 // ---------------------------------------------------------------------------
 // Districts (spec: Districts and the growing map). The map is 6 districts of 64 × 64 tiles
-// (256 m × 256 m each). A district opens at its unlock level; before that, barriers close its roads.
+// (256 m × 256 m each). The map grows slowly: one new district at each level. Before its level,
+// barriers close the roads into a district. Planned next (spec): Remera 7, Kimironko 8, Nyamirambo 9, Kanombe 10.
 // fuelPrice multiplies the fuel price at its stations. fares multiplies the fares that start there.
 // The geometry (hills, roads, landmarks) is in src/world/maps/kigali.js. All values are guesses.
 // ---------------------------------------------------------------------------
@@ -380,9 +381,9 @@ export const DISTRICTS = {
   nyabugogo: { name: 'Nyabugogo', unlockLevel: 1, fuelPrice: 0.95, fares: 1.0 },
   town: { name: 'Kigali town', unlockLevel: 2, fuelPrice: 1.0, fares: 1.1 },
   kacyiru: { name: 'Kacyiru', unlockLevel: 3, fuelPrice: 1.0, fares: 1.15 },
-  kimihurura: { name: 'Kimihurura', unlockLevel: 3, fuelPrice: 1.05, fares: 1.2 },
-  kicukiro: { name: 'Kicukiro', unlockLevel: 4, fuelPrice: 0.95, fares: 1.0 },
-  nyarutarama: { name: 'Nyarutarama', unlockLevel: 5, fuelPrice: 1.15, fares: 1.35 },
+  kimihurura: { name: 'Kimihurura', unlockLevel: 4, fuelPrice: 1.05, fares: 1.2 },
+  kicukiro: { name: 'Kicukiro', unlockLevel: 5, fuelPrice: 0.95, fares: 1.0 },
+  nyarutarama: { name: 'Nyarutarama', unlockLevel: 6, fuelPrice: 1.15, fares: 1.35 },
 };
 
 // Intercity buses arrive at the Nyabugogo bus park and their passengers want rides.
