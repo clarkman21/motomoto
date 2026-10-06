@@ -11,7 +11,7 @@ import {
 import { createBike, stepBike, forwardSpeed, shiftGear, bestGear } from '../sim/bike.js';
 import { readControls, STEERING_MODES } from '../sim/controls.js';
 import { EngineSound } from '../audio/engine-sound.js';
-import { createWallet, earn, spend, buyFuel, swapBattery, fuelFillCost, repairCost, endDay } from '../sim/economy.js';
+import { createWallet, earn, spend, buyFuel, swapBattery, fuelFillCost, repairCost, endDay, takeLoan } from '../sim/economy.js';
 import { createJobBoard, updateBoard, acceptOffer, cancelJob, updateJob, jobTarget } from '../sim/jobs.js';
 import { createCameraState, checkCameras, speedLimitAt } from '../sim/law.js';
 
@@ -258,15 +258,22 @@ export class RideScene extends Phaser.Scene {
     const summary = endDay(this.wallet, this.bike);
     this.dayOver = true;
     this.scene.pause();
-    this.scene.launch('dayEnd', { summary, onContinue: () => this.#startDay() });
+    this.scene.launch('dayEnd', { summary, onContinue: (choice) => this.#startDay(choice) });
   }
 
-  #startDay() {
+  /** choice: 'next' (next day), 'loan' (take the loan, then the next day) or 'restart' (new game after game over). */
+  #startDay(choice = 'next') {
     this.dayTime = 0;
     this.dayOver = false;
     const { type, autoShift, energy, brakePads, brakesWarned } = this.bike;
     this.bike = createBike(this.world, type);
-    Object.assign(this.bike, { autoShift, energy, brakePads, brakesWarned });
+    if (choice === 'restart') {
+      this.wallet = createWallet();
+      this.bike.autoShift = autoShift;
+    } else {
+      if (choice === 'loan') takeLoan(this.wallet);
+      Object.assign(this.bike, { autoShift, energy, brakePads, brakesWarned });
+    }
     this.board = createJobBoard(this.world, Date.now() & 0xffff);
     this.#placeBike();
     this.scene.resume();

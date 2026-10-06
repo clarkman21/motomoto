@@ -178,7 +178,7 @@ export const DAY = {
 // ---------------------------------------------------------------------------
 export const MONEY = {
   startCash: 5000, // spec
-  dailyRent: { petrol: 6000, electric: 6000 }, // spec gives petrol; electric lease is a guess
+  dailyRent: { petrol: 6000, electric: 6000 }, // spec: the electric lease is the same as the petrol rent
   fuelFullTank: 4000, // spec; you pay only for the part of the tank that you fill
   fuelSeconds: 10, // spec: 10 s plus queue
   fuelQueueMaxSeconds: 8, // random queue 0..8 s — guess
@@ -188,6 +188,8 @@ export const MONEY = {
   replacePadsBelow: 0.5, // the mechanic replaces pads below this level at day end
   servicePerGameKm: { petrol: 25, electric: 5 }, // oil, chain, engine wear — guess
   repairs: { pothole: 300, bumpHard: 500, wall: 800 }, // damage — guess
+  // Out of cash at day end = game over, or one loan. The loan makes the next days harder. All guesses.
+  loan: { amount: 20000, days: 10, interest: 0.2 }, // repay 2,400 RWF per day for 10 days
 };
 
 // ---------------------------------------------------------------------------

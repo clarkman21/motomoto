@@ -12,6 +12,7 @@ export const COSTS = {
   service: 'Service (per km)',
   pads: 'Brake pads',
   rent: 'Daily bike rent',
+  loan: 'Loan payment',
 };
 
 const emptyLedger = () => ({
@@ -23,13 +24,34 @@ const emptyLedger = () => ({
 export const round10 = (x) => Math.round(x / 10) * 10;
 
 export function createWallet(cash = MONEY.startCash) {
-  return { cash, day: 1, ledger: emptyLedger() };
+  return { cash, day: 1, ledger: emptyLedger(), loan: null, loansTaken: 0, totalIncome: 0 };
 }
 
 export function earn(wallet, category, amount) {
   wallet.cash += amount;
   wallet.ledger.income[category] += amount;
+  wallet.totalIncome += amount;
   return amount;
+}
+
+/** Daily payment of a new loan. */
+export function loanPayment() {
+  const { amount, days, interest } = MONEY.loan;
+  return round10((amount * (1 + interest)) / days);
+}
+
+/** You can take one loan, and only when it brings your cash back to zero or more. */
+export function canTakeLoan(wallet) {
+  return !wallet.loan && wallet.loansTaken === 0 && wallet.cash + MONEY.loan.amount >= 0;
+}
+
+/** Take the loan: the cash comes now, the payments come at each day end. */
+export function takeLoan(wallet) {
+  if (!canTakeLoan(wallet)) return false;
+  wallet.cash += MONEY.loan.amount;
+  wallet.loan = { payment: loanPayment(), daysLeft: MONEY.loan.days };
+  wallet.loansTaken += 1;
+  return true;
 }
 
 /** Spend money. Fines, repairs and rent can take the cash below zero (debt). */
@@ -89,6 +111,11 @@ export function endDay(wallet, bike) {
     padsReplaced = true;
   }
   spend(wallet, 'rent', MONEY.dailyRent[bike.type]);
+  if (wallet.loan) {
+    spend(wallet, 'loan', wallet.loan.payment);
+    wallet.loan.daysLeft -= 1;
+    if (wallet.loan.daysLeft <= 0) wallet.loan = null;
+  }
 
   const { income, costs } = wallet.ledger;
   const totalIncome = Object.values(income).reduce((a, b) => a + b, 0);
@@ -108,6 +135,10 @@ export function endDay(wallet, bike) {
     // Regen: energy put back into the battery. A full battery costs one swap, so this is the money saved.
     regenFraction: bike.regenToday,
     regenSaved: bike.type === 'electric' ? round10(bike.regenToday * MONEY.swapFee) : 0,
+    loan: wallet.loan ? { ...wallet.loan } : null,
+    // Out of cash: 'loan' = you can choose a loan or game over; 'gameOver' = no choice.
+    outOfCash: wallet.cash < 0 ? (canTakeLoan(wallet) ? 'loan' : 'gameOver') : null,
+    totalIncomeAllDays: wallet.totalIncome,
   };
   wallet.ledger = emptyLedger();
   wallet.day += 1;

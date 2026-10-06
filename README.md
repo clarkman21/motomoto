@@ -29,6 +29,7 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Speed limit zones, signs and speed cameras with fines | Done |
 | Damage repairs, servicing, brake pads, daily rent | Done |
 | Day clock (06:00–22:00 in 6 min) and day end summary | Done |
+| Out of cash: one loan, then game over | Done |
 | Story, other districts, police helmet checks, upgrades | Later milestones |
 
 ## Run the game
@@ -89,11 +90,13 @@ The game is about money. You earn from jobs. You spend on energy, fines and the 
 | | Damage: pothole 300, hard speed bump 500, crash 800 RWF |
 | | Service at day end: 25 RWF per game km (petrol), 5 RWF (electric) |
 | | Brake pads: 3,000 RWF when the pads are below 50% |
-| | Daily rent: 6,000 RWF |
+| | Daily rent: 6,000 RWF (petrol and electric) |
+| | Loan payment: 2,400 RWF per day for 10 days, if you took the loan |
 
 - **Jobs.** Take a job (1, 2 or 3). Ride to the green marker and stop. Then ride to the white marker and stop. Potholes, hard speed bumps, crashes and hard braking cost passenger comfort (and so the tip) and damage fragile cargo. A passenger or cargo makes the bike heavier.
 - **Speed limits.** Outside a zone the limit is 60 km/h. The market zone is 30 km/h. The city centre, the roundabout and the bottom of the steep east ramp are 40 km/h. Four cameras fine you when you pass more than 5 km/h over the limit. The HUD limit sign flashes when you are too fast.
 - **Empty tank or battery.** Hold throttle to push the bike at walking speed to a station.
+- **Out of cash.** The game checks your cash at the end of each day, after the rent. Below zero, you can take one loan of 20,000 RWF (you pay back 2,400 RWF each day for 10 days). If you already had the loan, or your debt is larger than the loan, the game is over.
 - **Regen.** The electric moto charges its battery when it brakes and when it rolls downhill. The day end summary shows how much regen saved.
 - **Distance.** The test map is small, so 40 m of map counts as 1 game km.
 
