@@ -1,0 +1,89 @@
+// Engine and horn sounds made with Web Audio, so the prototype needs no audio files.
+// Petrol: a rough, low sawtooth. Electric: a quiet, high hum.
+// Browsers start audio only after the first key press or tap.
+
+export class EngineSound {
+  constructor() {
+    this.ctx = null;
+    this.enabled = true;
+  }
+
+  /** Call from a user input handler. */
+  start() {
+    if (this.ctx) {
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      return;
+    }
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = (this.ctx = new AudioCtx());
+    this.master = ctx.createGain();
+    this.master.gain.value = this.enabled ? 0.5 : 0;
+    this.master.connect(ctx.destination);
+
+    // Petrol engine: sawtooth through a low pass filter, with a wobble for roughness.
+    this.petrolOsc = ctx.createOscillator();
+    this.petrolOsc.type = 'sawtooth';
+    this.petrolFilter = ctx.createBiquadFilter();
+    this.petrolFilter.type = 'lowpass';
+    this.petrolFilter.frequency.value = 400;
+    this.petrolGain = ctx.createGain();
+    this.petrolGain.gain.value = 0;
+    this.wobble = ctx.createOscillator();
+    this.wobble.frequency.value = 9;
+    const wobbleDepth = ctx.createGain();
+    wobbleDepth.gain.value = 6;
+    this.wobble.connect(wobbleDepth).connect(this.petrolOsc.frequency);
+    this.petrolOsc.connect(this.petrolFilter).connect(this.petrolGain).connect(this.master);
+
+    // Electric motor: sine whine.
+    this.elecOsc = ctx.createOscillator();
+    this.elecOsc.type = 'sine';
+    this.elecGain = ctx.createGain();
+    this.elecGain.gain.value = 0;
+    this.elecOsc.connect(this.elecGain).connect(this.master);
+
+    for (const o of [this.petrolOsc, this.wobble, this.elecOsc]) o.start();
+  }
+
+  setEnabled(on) {
+    this.enabled = on;
+    if (this.master) this.master.gain.setTargetAtTime(on ? 0.5 : 0, this.ctx.currentTime, 0.05);
+  }
+
+  /** speedFrac 0..1, throttle 0..1 */
+  update(type, speedFrac, throttle) {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const k = 0.08;
+    if (type === 'petrol') {
+      this.petrolOsc.frequency.setTargetAtTime(38 + speedFrac * 70 + throttle * 14, t, k);
+      this.petrolFilter.frequency.setTargetAtTime(300 + throttle * 500 + speedFrac * 400, t, k);
+      this.petrolGain.gain.setTargetAtTime(0.1 + throttle * 0.12, t, k);
+      this.elecGain.gain.setTargetAtTime(0, t, k);
+    } else {
+      this.elecOsc.frequency.setTargetAtTime(180 + speedFrac * 520, t, k);
+      this.elecGain.gain.setTargetAtTime(speedFrac > 0.01 || throttle > 0 ? 0.03 + throttle * 0.04 : 0, t, k);
+      this.petrolGain.gain.setTargetAtTime(0, t, k);
+    }
+  }
+
+  horn() {
+    if (!this.ctx || !this.enabled) return;
+    const t = this.ctx.currentTime;
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.12, t + 0.02);
+    gain.gain.setValueAtTime(0.12, t + 0.28);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.34);
+    gain.connect(this.master);
+    for (const f of [415, 523]) {
+      const o = this.ctx.createOscillator();
+      o.type = 'square';
+      o.frequency.value = f;
+      o.connect(gain);
+      o.start(t);
+      o.stop(t + 0.36);
+    }
+  }
+}

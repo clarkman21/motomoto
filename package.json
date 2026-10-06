@@ -1,0 +1,20 @@
+{
+  "name": "moto-kigali",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Moto Kigali: isometric moto taxi game prototype (milestone 1: ride feel)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "phaser": "^3.90.0"
+  },
+  "devDependencies": {
+    "vite": "^8.3.3",
+    "vitest": "^5.0.3"
+  }
+}
