@@ -75,7 +75,31 @@ export function drawMinimap(world, f = MINIMAP.pxPerTile) {
       c.setPixel(px, py, rgb);
     }
   }
+  stampPadlocks(world, c, f);
   return c;
+}
+
+// A small padlock (7 × 9 px): '#' dark outline, 'o' light metal, 'k' the key hole.
+const PADLOCK = [
+  '.#####.', '#ooooo#', '#o###o#', '#o#.#o#', '#######', '#ooooo#', '#oo#oo#', '#ooooo#', '#######',
+];
+const PADLOCK_COLOURS = { '#': 0x14181c, o: 0xa8acb0, k: 0x3a3a3a };
+
+/** Padlocks spread over the closed districts, so you see that an area is locked from any side. */
+function stampPadlocks(world, c, f) {
+  const step = MINIMAP.padlockSpacing;
+  const closedAt = (px, py) => {
+    const a = (px + 0.5) / f - world.height, b = ((py + 0.5) * 2) / f;
+    const t = world.tile(Math.floor((a + b) / 2), Math.floor((b - a) / 2));
+    return t && world.isClosedTile(t);
+  };
+  for (let row = 0, y = step / 2; y < c.height - 9; y += step / 2, row++) {
+    for (let x = (row % 2) * (step / 2) + step / 4; x < c.width - 7; x += step) {
+      const x0 = Math.round(x), y0 = Math.round(y);
+      if (![[0, 0], [6, 0], [0, 8], [6, 8], [3, 4]].every(([dx, dy]) => closedAt(x0 + dx, y0 + dy))) continue;
+      PADLOCK.forEach((line, dy) => [...line].forEach((ch, dx) => ch !== '.' && c.setPixel(x0 + dx, y0 + dy, PADLOCK_COLOURS[ch])));
+    }
+  }
 }
 
 /** The label point (minimap pixels) and the name of each district. */

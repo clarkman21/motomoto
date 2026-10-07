@@ -49,3 +49,23 @@ describe('minimap', () => {
     world.setOpenDistricts(world.districts.map((d) => d.id));
   });
 });
+
+describe('minimap padlocks', () => {
+  it('puts padlocks on closed districts only', () => {
+    world.setOpenDistricts(['nyabugogo']);
+    const c = drawMinimap(world, 2.5);
+    let dark = 0, metal = 0;
+    for (let i = 0; i < c.data.length; i += 4) {
+      const rgb = (c.data[i] << 16) | (c.data[i + 1] << 8) | c.data[i + 2];
+      if (rgb === 0xa8acb0) metal++;
+      if (rgb === 0x14181c) dark++;
+    }
+    expect(metal).toBeGreaterThan(100);
+    expect(dark).toBeGreaterThan(100);
+    world.setOpenDistricts(world.districts.map((d) => d.id));
+    const open = drawMinimap(world, 2.5);
+    let none = 0;
+    for (let i = 0; i < open.data.length; i += 4) if (((open.data[i] << 16) | (open.data[i + 1] << 8) | open.data[i + 2]) === 0xa8acb0) none++;
+    expect(none).toBe(0);
+  });
+});
