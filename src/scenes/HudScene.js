@@ -5,7 +5,7 @@ import { serviceDue } from '../sim/maintenance.js';
 import { wrapRetro, RETRO_CELL } from '../world/retro-font.js';
 import { MinimapView } from './MinimapView.js';
 import { textBit, textWidth } from '../world/garage-sprites.js';
-import { UI, pixelScale, ensureRetroFont, ensureIcons, retroLabel, retroWidth, drawWindow, drawSegBar } from './retro-ui.js';
+import { UI, pixelScale, ensureRetroFont, ensureIcons, retroLabel, retroWidth, drawWindow, drawSegBar, smallLabel, wrapSmall, SMALL_LINE } from './retro-ui.js';
 
 // The HUD in a retro 16-bit console style, like the menus: everything is drawn at a low
 // resolution (about 480 × 270 virtual pixels, like the game view) with the pixel font, pixel icons, blue windows and
@@ -13,7 +13,7 @@ import { UI, pixelScale, ensureRetroFont, ensureIcons, retroLabel, retroWidth, d
 // writes the touch controls back.
 
 const PANEL_W = 150;
-const JOBS_W = 162;
+const JOBS_W = 144;
 const LINE = RETRO_CELL.height + 1; // virtual pixels between text lines
 const PETROL_RED = 0xec5825;
 const money = (n) => `${Math.round(n).toLocaleString('en')}`;
@@ -71,9 +71,11 @@ export class HudScene extends Phaser.Scene {
 
     // Jobs window: a title and up to four cards. Each card has an icon and up to four lines.
     this.jobIcon = icon('pin');
-    this.jobTitle = label(UI.dim);
+    // The job cards use the small 3 × 5 font, so the window takes less of the screen.
+    const small = (tint = UI.white) => add(smallLabel(this, tint));
+    this.jobTitle = small(UI.dim);
     this.cards = [0, 1, 2, 3].map((i) => {
-      const card = { icon: icon('person'), lines: [0, 1, 2, 3].map(() => label()), y: 0, h: 0 };
+      const card = { icon: icon('person'), lines: [0, 1, 2, 3].map(() => small()), y: 0, h: 0 };
       this.#zone(() => this.ride.acceptJob(i), (z) => (card.zone = z));
       return card;
     });
@@ -265,20 +267,20 @@ export class HudScene extends Phaser.Scene {
 
   #updateJobs(g) {
     const ride = this.ride, bike = ride.bike, job = ride.board.active, box = this.jobBox;
-    const n = Math.floor((box.w - 22) / RETRO_CELL.width); // characters on a line
+    const textW = box.w - 22; // virtual pixels on a line
     const iconOf = (j) => (j.type === 'passenger' ? 'person' : j.goods === 'bananas' ? 'bananas' : 'sack');
     const what = (j) => (j.type === 'passenger' ? 'PASSENGER' : j.goods === 'bananas' ? `BANANAS ${j.kg}KG` : `RICE ${j.kg}KG`);
     const fuel = (j) => (j.fuel === undefined ? '' : ` · FUEL ${Math.max(1, Math.round(j.fuel * 100))}%`);
     const short = (j) => j.fuel !== undefined && j.fuel > bike.energy;
-    let y = box.y + 18;
+    let y = box.y + 15;
     const fill = (card, i, lines, tints, tap) => {
-      card.icon.setVisible(true).setPosition(box.x + 6, y);
-      card.lines.forEach((l, li) => l.setText(lines[li] ?? '').setTint(tints[li] ?? UI.white).setPosition(box.x + 18, y + li * LINE).setVisible(li < lines.length));
+      card.icon.setVisible(true).setPosition(box.x + 6, y - 1);
+      card.lines.forEach((l, li) => l.setText(lines[li] ?? '').setTint(tints[li] ?? UI.white).setPosition(box.x + 18, y + li * SMALL_LINE).setVisible(li < lines.length));
       card.y = y;
-      card.h = lines.length * LINE;
+      card.h = Math.max(9, lines.length * SMALL_LINE);
       card.zone.setPosition(box.x + 2, y - 1).setSize(box.w - 4, card.h + 2);
       card.zone.input.enabled = tap;
-      y += card.h + 4;
+      y += card.h + 3;
     };
     const hide = (card) => {
       card.icon.setVisible(false);
@@ -295,7 +297,7 @@ export class HudScene extends Phaser.Scene {
         job.stage !== 'toDropoff' ? 'STOP AT THE GREEN MARKER' :
         job.type === 'passenger' ? `COMFORT ${Math.round(job.comfort)}%` :
         job.fragile ? `DAMAGE ${Math.round(job.damage * 100)}%` : 'STOP AT THE WHITE MARKER';
-      const route = wrapRetro(`${job.from.name} → ${job.to.name}`, n).slice(0, 2);
+      const route = wrapSmall(`${job.from.name} → ${job.to.name}`, textW).slice(0, 2);
       const card = this.cards[0];
       card.icon.setFrame(iconOf(job));
       const lines = [`${what(job)} · ${money(job.pay)}`, ...route, `${dist} M${fuel(job)}`];
@@ -305,9 +307,9 @@ export class HudScene extends Phaser.Scene {
       q.icon.setVisible(false);
       q.lines.forEach((l, li) => l.setVisible(li === 0 || (li === 1 && !this.isTouch)));
       q.lines[0].setText(quality).setTint(racing ? UI.red : UI.gold).setPosition(box.x + 6, y);
-      q.lines[1].setText('BACKSPACE: CANCEL').setTint(UI.grey).setPosition(box.x + 6, y + LINE);
+      q.lines[1].setText('BACKSPACE: CANCEL').setTint(UI.grey).setPosition(box.x + 6, y + SMALL_LINE);
       q.zone.input.enabled = false;
-      y += (this.isTouch ? 1 : 2) * LINE + 2;
+      y += (this.isTouch ? 1 : 2) * SMALL_LINE + 2;
       hide(this.cards[2]);
       hide(this.cards[3]);
     } else {
@@ -319,9 +321,9 @@ export class HudScene extends Phaser.Scene {
         if (!o) return hide(card);
         card.icon.setFrame(iconOf(o));
         // On a short screen (a phone): one line for the route, and only the cards that fit.
-        const route = wrapRetro(`${o.from.name} → ${o.to.name}`, n).slice(0, this.vh < 240 ? 1 : 2);
+        const route = wrapSmall(`${o.from.name} → ${o.to.name}`, textW).slice(0, this.vh < 240 ? 1 : 2);
         const lines = [`${i + 1} ${what(o)} · ${money(o.pay)}`, ...route, `${o.gameKm.toFixed(1)} KM${fuel(o)}${short(o) ? ' LOW!' : ''}`];
-        if (y + lines.length * LINE > this.vh - 6) return hide(card);
+        if (y + lines.length * SMALL_LINE > this.vh - 6) return hide(card);
         fill(card, i, lines, lines.map((_, li) => (li === 0 ? UI.white : li === lines.length - 1 && short(o) ? UI.red : UI.dim)), true);
       });
     }
@@ -330,7 +332,7 @@ export class HudScene extends Phaser.Scene {
     this.jobWindow = { x: box.x, y: box.y, w: box.w, h };
     this.#jobWindowGfx().clear();
     drawWindow(this.#jobWindowGfx(), box.x, box.y, box.w, h);
-    this.jobIcon.setPosition(box.x + 6, box.y + 5);
+    this.jobIcon.setPosition(box.x + 6, box.y + 3);
     this.jobTitle.setPosition(box.x + 18, box.y + 5);
   }
 

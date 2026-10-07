@@ -37,7 +37,12 @@ const PASSENGER = { shirt: 0x3b6fb6, trousers: 0x4a3a2a, helmet: 0xe8e8e8 };
  * Draw one frame of a bike with rider. type is a key of BIKE_LOOKS. load is one of BIKE_LOADS.
  * rider: false draws a parked bike with nobody on it (for example at the garage).
  */
-export function drawBike(type, frame, load = 'none', rider = true) {
+/**
+ * The bike in one of 16 directions. load: 'none', 'passenger', 'bananas' or 'rice'.
+ * rider: false for a parked bike. pose: 'ride', or 'push0' / 'push1' (the two steps of a rider who
+ * walks beside the bike and pushes it, when it is out of fuel or broken down).
+ */
+export function drawBike(type, frame, load = 'none', rider = true, pose = 'ride') {
   const look = BIKE_LOOKS[type];
   const heading = (frame / BIKE_DIRECTIONS) * Math.PI * 2;
   const c = new PixelCanvas(BIKE_CANVAS.width, BIKE_CANVAS.height, -BIKE_CANVAS.groundX, -BIKE_CANVAS.groundY);
@@ -77,6 +82,26 @@ export function drawBike(type, frame, load = 'none', rider = true) {
   seg([-0.45, 0, 0.8], [0.05, 0, 0.84], 3, look.seat); // seat
   seg([0.42, -0.32, 0.98], [0.42, 0.32, 0.98], 1.5, 0x333333); // handlebar
   blob([0.52, 0, 0.84], 1.1, 0xfff2b0, 0.05); // headlight
+  if (pose !== 'ride') {
+    // The rider walks on the left of the bike, leans on it, one hand on the handlebar, one on
+    // the seat. The legs take long steps. A drop of sweat on the second step.
+    const step = pose === 'push1' ? 1 : -1;
+    const hip = [0.12, 0.62, 0.86], shoulder = [0.3, 0.55, 1.36];
+    seg(hip, [0.12 + 0.24 * step, 0.64, 0.02], 2.4, look.trousers); // front leg
+    seg(hip, [0.12 - 0.24 * step, 0.6, 0.02], 2.4, look.trousers, -0.01); // back leg
+    seg(hip, shoulder, 4.6, look.vest, 0.02); // torso, leaning forward
+    seg([0.2, 0.6, 1.08], [0.22, 0.6, 1.13], 4.8, VEST.stripe, 0.021);
+    seg(shoulder, [0.42, 0.34, 0.98], 2, SKIN, 0.03); // hand on the handlebar
+    seg([0.24, 0.5, 1.3], [-0.12, 0.2, 0.86], 2, SKIN, 0.03); // hand on the seat
+    blob([0.36, 0.56, 1.6], 2.6, look.helmet, 0.04); // helmet
+    blob([0.44, 0.54, 1.58], 1.1, 0x9fd3f0, 0.05); // visor
+    if (step > 0) blob([0.3, 0.75, 1.82], 0.9, 0x9fd3f0, 0.06); // sweat
+    if (load === 'bananas' || load === 'rice') return drawBikeLoad(c, parts, P, seg, blob, load);
+    parts.sort((a, b) => a.depth - b.depth);
+    for (const p of parts) p.draw();
+    c.outline(0x161616);
+    return c;
+  }
   if (!rider) {
     parts.sort((a, b) => a.depth - b.depth);
     for (const p of parts) p.draw();
@@ -102,7 +127,19 @@ export function drawBike(type, frame, load = 'none', rider = true) {
     }
     seg([-0.5, 0, 0.92], [-0.38, 0, 1.4], 4.4, PASSENGER.shirt, -0.02); // torso
     blob([-0.36, 0, 1.64], 2.5, PASSENGER.helmet, -0.01); // helmet
-  } else if (load === 'bananas') {
+  } else if (load === 'bananas' || load === 'rice') {
+    return drawBikeLoad(c, parts, P, seg, blob, load);
+  }
+
+  parts.sort((a, b) => a.depth - b.depth);
+  for (const p of parts) p.draw();
+  c.outline(0x161616);
+  return c;
+}
+
+/** Cargo on the rear rack (bananas or a rice sack), then draw all the parts. */
+function drawBikeLoad(c, parts, P, seg, blob, load) {
+  if (load === 'bananas') {
     // A big bunch of green bananas (matoke) tied on the rear rack.
     seg([-0.62, 0, 0.86], [-0.62, 0, 1.5], 1.4, 0x6b4a2a, -0.03); // stem
     const greens = [0x5f9a32, 0x4f8a2a, 0x76b23e];

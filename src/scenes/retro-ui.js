@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { drawRetroFontSheet, RETRO_CHARS, RETRO_CELL, RETRO_PER_ROW, retroText } from '../world/retro-font.js';
 import { drawIconSheet } from '../world/hud-icons.js';
+import { drawText, textWidth } from '../world/garage-sprites.js';
+import { PixelCanvas } from '../world/pixel-canvas.js';
 import { addCanvasTexture } from './textures.js';
 
 // Shared parts of the retro 16-bit look (menus, HUD, end of day): the pixel font, the icons,
@@ -88,4 +90,50 @@ export function drawSegBar(g, x, y, w, h, frac, colour, segments = 10, empty = 0
     g.fillStyle(col, 1).fillRect(x0, y + 1, Math.max(1, x1 - x0), h - 2);
     if (on) g.fillStyle(0xffffff, 0.35).fillRect(x0, y + 1, Math.max(1, x1 - x0), 1); // shine on top
   }
+}
+
+// ---------------------------------------------------------------------------
+// Small text: the 3 × 5 pixel font of the painted signs (letters of different widths), with a
+// dark shadow. For places with a lot of words, like the job cards. Each label has its own
+// small texture, drawn again only when its text changes.
+// ---------------------------------------------------------------------------
+
+export const SMALL_LINE = 7; // virtual pixels between lines of small text
+let smallId = 0;
+
+/** A small text label (an image). Use label.setText(text); tint it like other labels. */
+export function smallLabel(scene, tint = UI.white) {
+  const key = `small-text-${smallId++}`;
+  const img = scene.add.image(0, 0, '__DEFAULT').setOrigin(0).setTint(tint);
+  img.textValue = null;
+  img.setText = (value) => {
+    const text = String(value ?? '');
+    if (text === img.textValue) return img;
+    img.textValue = text;
+    const c = new PixelCanvas(Math.max(1, smallWidth(text) + 1), 6);
+    drawText(c, text, 1, 1, 0x0a0a28); // the shadow
+    drawText(c, text, 0, 0, 0xffffff);
+    addCanvasTexture(scene, key, c);
+    img.setTexture(key);
+    return img;
+  };
+  return img;
+}
+
+/** Width in virtual pixels of a small text. */
+export const smallWidth = (text) => (text ? Math.max(0, textWidth(String(text))) : 0);
+
+/** Wrap a text to lines of small text not wider than maxW virtual pixels (at spaces). */
+export function wrapSmall(text, maxW) {
+  const lines = [];
+  let line = '';
+  for (const word of String(text).split(' ')) {
+    const next = line ? `${line} ${word}` : word;
+    if (line && smallWidth(next) > maxW) {
+      lines.push(line);
+      line = word;
+    } else line = next;
+  }
+  if (line) lines.push(line);
+  return lines;
 }

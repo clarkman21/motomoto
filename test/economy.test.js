@@ -399,3 +399,18 @@ describe('the service at the garage', () => {
     }
   });
 });
+
+describe('a passenger who waits', () => {
+  it('loses comfort (and so tip) at a station stop and each second of the wait', async () => {
+    const { passengerWaits } = await import('../src/sim/jobs.js');
+    const { JOBS } = await import('../src/config.js');
+    const board = { active: { type: 'passenger', stage: 'toDropoff', comfort: 100 } };
+    expect(passengerWaits(board, 0, true)).toBe(true);
+    expect(board.active.comfort).toBe(100 - JOBS.waitComfort.atStop);
+    passengerWaits(board, 10);
+    expect(board.active.comfort).toBeCloseTo(100 - JOBS.waitComfort.atStop - 10 * JOBS.waitComfort.perSecond);
+    // No passenger on the bike yet (on the way to the pickup), or cargo: nothing changes.
+    expect(passengerWaits({ active: { type: 'passenger', stage: 'toPickup', comfort: 100 } }, 5)).toBe(false);
+    expect(passengerWaits({ active: { type: 'cargo', stage: 'toDropoff', comfort: 100 } }, 5)).toBe(false);
+  });
+});

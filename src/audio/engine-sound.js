@@ -244,4 +244,110 @@ export class EngineSound {
       }
     });
   }
+
+  /**
+   * Another vehicle honks: car (two tones), bus (a low long horn), truck (very low), moto (two
+   * short high beeps), cyclist (the bell rings twice). volume 0..1 (for example from the distance).
+   */
+  honk(kind = 'car', volume = 1) {
+    if (!this.ctx || !this.enabled) return;
+    const ctx = this.ctx, t0 = ctx.currentTime;
+    const v = 0.09 * Math.max(0.2, Math.min(1, volume));
+    if (kind === 'cyclist') {
+      for (const dt of [0, 0.16]) {
+        for (const f of [2100, 2650]) {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.type = 'sine';
+          o.frequency.value = f;
+          g.gain.setValueAtTime(v * 0.9, t0 + dt);
+          g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + 0.35);
+          o.connect(g).connect(this.master);
+          o.start(t0 + dt);
+          o.stop(t0 + dt + 0.36);
+        }
+      }
+      return;
+    }
+    const sets = {
+      car: { notes: [[392, 494]], beeps: [[0, 0.32]] },
+      bus: { notes: [[294, 370]], beeps: [[0, 0.55]] },
+      truck: { notes: [[175, 220]], beeps: [[0, 0.7]] },
+      moto: { notes: [[620, 780]], beeps: [[0, 0.11], [0.16, 0.11]] },
+    };
+    const k = sets[kind] ?? sets.car;
+    for (const [dt, len] of k.beeps) {
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t0 + dt);
+      g.gain.exponentialRampToValueAtTime(v, t0 + dt + 0.02);
+      g.gain.setValueAtTime(v, t0 + dt + len - 0.04);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + len);
+      g.connect(this.master);
+      for (const f of k.notes[0]) {
+        const o = ctx.createOscillator();
+        o.type = 'square';
+        o.frequency.value = f;
+        o.connect(g);
+        o.start(t0 + dt);
+        o.stop(t0 + dt + len + 0.02);
+      }
+    }
+  }
+
+  /**
+   * A tired rider who pushes the bike: a short, low voice ("uff", "aah", "ooh") with breath.
+   * variant 0..3 changes the vowel and the pitch.
+   */
+  grunt(variant = 0) {
+    if (!this.ctx || !this.enabled) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    const vowels = [[700, 1100], [800, 1200], [450, 800], [600, 1700]]; // uff, aah, ooh, eeh (formants, Hz)
+    const [f1, f2] = vowels[variant % vowels.length];
+    const len = 0.28 + (variant % 2) * 0.18;
+    const out = ctx.createGain();
+    out.gain.setValueAtTime(0.0001, t);
+    out.gain.exponentialRampToValueAtTime(0.5, t + 0.04);
+    out.gain.exponentialRampToValueAtTime(0.0001, t + len);
+    out.connect(this.master);
+    // The voice: a low sawtooth that falls in pitch, through two vowel filters.
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(150 + variant * 12, t);
+    o.frequency.exponentialRampToValueAtTime(105, t + len);
+    for (const [f, q] of [[f1, 5], [f2, 7]]) {
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = f;
+      bp.Q.value = q;
+      o.connect(bp).connect(out);
+    }
+    o.start(t);
+    o.stop(t + len + 0.02);
+    // Breath: a little noise at the start.
+    const breath = this.#noise(0.18), hp = ctx.createBiquadFilter(), bg = ctx.createGain();
+    hp.type = 'highpass';
+    hp.frequency.value = 1500;
+    bg.gain.setValueAtTime(0.05, t);
+    bg.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+    breath.connect(hp).connect(bg).connect(this.master);
+  }
+
+  /** A grumpy passenger: "hm-hmph", low and through the nose. */
+  grumble() {
+    if (!this.ctx || !this.enabled) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    [[0, 0.12, 190], [0.17, 0.22, 165]].forEach(([dt, len, f0]) => {
+      const o = ctx.createOscillator(), g = ctx.createGain(), lp = ctx.createBiquadFilter();
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(f0, t + dt);
+      o.frequency.exponentialRampToValueAtTime(f0 * 0.85, t + dt + len);
+      lp.type = 'lowpass';
+      lp.frequency.value = 600; // the mouth is closed: "mm"
+      g.gain.setValueAtTime(0.0001, t + dt);
+      g.gain.exponentialRampToValueAtTime(0.35, t + dt + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dt + len);
+      o.connect(lp).connect(g).connect(this.master);
+      o.start(t + dt);
+      o.stop(t + dt + len + 0.02);
+    });
+  }
 }

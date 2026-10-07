@@ -25,6 +25,10 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Touch controls (virtual stick, GO and STOP buttons) | Done (basic) |
 | Engine sound and horn (synthesized); crash sound; people yell (a cute voice and a word) when you pass too close | Done |
 | The horn makes people in front of you step aside | Done |
+| Traffic behind you honks when you stand in the road (each vehicle type has its own horn; cyclists ring the bell) | Done |
+| Out of fuel or charge: the rider walks beside the bike and pushes it, with tired sounds (UFF! AAH...) | Done |
+| A passenger loses patience at a station stop or while you push: the tip goes down, and they complain | Done |
+| Job cards in a small 3 × 5 pixel font, so the jobs window takes less of the screen | Done |
 | Passenger and cargo jobs, cash, fares and tips | Done |
 | Fuel station (pay per litre) and Ampersand swap station (flat fee) | Done |
 | Speed limit zones, signs and speed cameras with fines | Done |
@@ -208,6 +212,7 @@ src/
     law.js               Speed limit zones and speed cameras
     roads.js             Road graph from the map's road list, lanes, shortest path
     traffic.js           Vehicles: lane following, gaps, junctions, bus stops, hills
+    honk.js              Traffic that waits behind a stopped bike honks
     people.js            Walkers, dodging, street hail customers
     rivals.js            Rival riders who race you to customers
     collide.js           Collisions of the bike with vehicles, people and poles (by mass)

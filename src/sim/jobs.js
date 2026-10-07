@@ -124,6 +124,17 @@ export function cancelJob(board, bike) {
 }
 
 /** The place the rider must go to now. */
+/**
+ * The passenger waits on the bike (a station stop, or you push the bike): comfort goes down.
+ * start: true at the start of a stop. Returns true if a passenger is on the bike.
+ */
+export function passengerWaits(board, dt, start = false) {
+  const job = board.active;
+  if (!job || job.type !== 'passenger' || job.stage !== 'toDropoff') return false;
+  job.comfort = Math.max(0, job.comfort - (start ? JOBS.waitComfort.atStop : JOBS.waitComfort.perSecond * dt));
+  return true;
+}
+
 export function jobTarget(job) {
   return job.stage === 'toPickup' ? job.from : job.to;
 }

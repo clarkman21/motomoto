@@ -15,7 +15,7 @@ import { readControls, STEERING_MODES, STEERING_LABELS } from '../sim/controls.j
 import { EngineSound } from '../audio/engine-sound.js';
 import { createWallet, earn, spend, buyFuel, swapBattery, fuelFillCost, fuelChoices, repairCost, endDay, takeLoan, payGarage } from '../sim/economy.js';
 import { garageQuote, serviceDue } from '../sim/maintenance.js';
-import { createJobBoard, updateBoard, acceptOffer, cancelJob, updateJob, jobTarget, acceptHail, tripMetres } from '../sim/jobs.js';
+import { createJobBoard, updateBoard, acceptOffer, cancelJob, updateJob, jobTarget, acceptHail, tripMetres, passengerWaits } from '../sim/jobs.js';
 import { createCameraState, checkCameras, speedLimitAt } from '../sim/law.js';
 import { buildRoadGraph, openRoads } from '../sim/roads.js';
 import { createTraffic, stepTraffic, insideVehicle, sendBusToPark } from '../sim/traffic.js';
@@ -25,6 +25,7 @@ import { createPeople, stepPeople, hailInReach, insidePerson, busArrivalHails, h
 import { startRace, chaseHail, stepRivals, cancelMission } from '../sim/rivals.js';
 import { PeopleView } from './PeopleView.js';
 import { PERSON_LOOKS } from '../world/vehicle-sprites.js';
+import { trafficHonks } from '../sim/honk.js';
 import { levelSettings, milestoneReady, buyMilestone, restartLevel, streakMultiplier, updateStreak, savingsTarget } from '../sim/levels.js';
 import { loadGame, saveGame, clearSave, loadSettings, saveSettings } from './save.js';
 import { deliveryLine } from '../sim/family.js';
@@ -75,6 +76,9 @@ export class RideScene extends Phaser.Scene {
     for (const type of Object.keys(BIKES)) {
       for (const load of BIKE_LOADS) {
         for (let f = 0; f < BIKE_DIRECTIONS; f++) addCanvasTexture(this, `bike-${type}-${load}-${f}`, drawBike(type, f, load));
+        // The rider walks and pushes the bike (out of fuel or broken down). A passenger gets off.
+        if (load === 'passenger') continue;
+        for (let f = 0; f < BIKE_DIRECTIONS; f++) for (const step of [0, 1]) addCanvasTexture(this, `push-${type}-${load}-${f}-${step}`, drawBike(type, f, load, true, `push${step}`));
       }
     }
     addCanvasTexture(this, 'shadow', drawShadow());
@@ -439,6 +443,7 @@ export class RideScene extends Phaser.Scene {
       this.station === 'fuel' ? MONEY.fuelSeconds + Math.random() * MONEY.fuelQueueMaxSeconds :
       this.station === 'garage' ? MAINTENANCE.serviceSeconds : MONEY.swapSeconds;
     this.refuel = { kind: this.station, timeLeft: total, total };
+    this.#passengerAtStop();
   }
 
   /** Buy fuel choice i (0: the next job, 1: the next two jobs, 2: a full tank). */
@@ -457,6 +462,7 @@ export class RideScene extends Phaser.Scene {
     // A small amount is quick to pump; the queue is the same.
     const total = MONEY.fuelSeconds * Math.max(0.3, c.upTo - this.bike.energy) + Math.random() * MONEY.fuelQueueMaxSeconds;
     this.refuel = { kind: 'fuel', timeLeft: total, total, upTo: c.upTo };
+    this.#passengerAtStop();
   }
 
   /** Fuel (tank fraction) of the next jobs, with their weight and hills: the active job first, then the cheapest offers. */
@@ -626,6 +632,7 @@ export class RideScene extends Phaser.Scene {
     this.dayTime = 0;
     this.dayOver = false;
     this.officeHint = false;
+    this.honkBarked = false;
     const { autoShift, energy, serviceWear, brokenDown, brakeWearKm } = this.bike;
     if (choice === 'newGame') {
       clearSave();
@@ -762,6 +769,7 @@ export class RideScene extends Phaser.Scene {
       this.#economyStep(events);
       this.accumulator -= FIXED_DT;
     }
+    if (this.refuel || this.bike.engineDead) this.#passengerWaiting(dt);
     if (this.refuel && (this.refuel.timeLeft -= dt) <= 0) this.#finishRefuel();
     this.#updateStation();
     updateBoard(this.board, this.world, dt);
@@ -784,13 +792,17 @@ export class RideScene extends Phaser.Scene {
     this.chunks.night = this.daylight.night;
     this.lights.update(this.daylight, this.cameras.main.worldView, this.bike, this.controls.brake > 0.1);
     this.#updateRivalPin();
+    this.#updateHonks(dt);
     // Level 4: when you saved enough, the showroom waits for you (once a day is enough).
     if (this.level.buyAt === 'office' && !this.officeHint && milestoneReady(this.wallet)) {
       this.officeHint = true;
       this.events.emit('bark', 'You saved enough! Ride to the Ampersand showroom on Kacyiru boulevard to buy your electric moto');
       this.engineSound.jingle('reward');
     }
-    this.engineSound.update(this.bike.type, Math.min(1, this.bike.revs), this.controls.throttle);
+    if (this.bike.engineDead) {
+      this.engineSound.silence(); // no engine sound: you push the bike
+      this.#updatePushing(dt);
+    } else this.engineSound.update(this.bike.type, Math.min(1, this.bike.revs), this.controls.throttle);
     this.dayTime += dt;
     if (this.dayTime >= this.level.shift.realSeconds) this.#endDay();
   }
@@ -843,12 +855,69 @@ export class RideScene extends Phaser.Scene {
     // Mamas and some others have higher voices; each person has their own pitch.
     const pitch = (look.kitenge !== undefined ? 1.2 : 0.9) + ((person.id * 37) % 10) / 40;
     this.engineSound.yell(pitch);
+    this.#bubble(person.x, person.y, 34, word, 0xfff2c8);
+  }
+
+  /** A word in the pixel font that floats over a point in the world (metres), then fades. */
+  #bubble(x, y, above, word, tint) {
     if (!this.cache.bitmapFont.exists('retro')) return;
-    const s = toScreen(person.x, person.y, this.world.heightAt(person.x, person.y));
-    const text = this.add.bitmapText(Math.round(s.x), Math.round(s.y - 34), 'retro', word).setOrigin(0.5, 1)
-      .setTint(0xfff2c8).setDepth(100000);
+    const s = toScreen(x, y, this.world.heightAt(x, y));
+    const text = this.add.bitmapText(Math.round(s.x), Math.round(s.y - above), 'retro', word).setOrigin(0.5, 1)
+      .setTint(tint).setDepth(100000);
     text.noAmbient = true;
     this.tweens.add({ targets: text, y: text.y - 10, alpha: 0, delay: 600, duration: 700, onComplete: () => text.destroy() });
+  }
+
+  /** A stop at a station with a passenger on the bike: the passenger is not happy. */
+  #passengerAtStop() {
+    if (!passengerWaits(this.board, 0, true)) return;
+    this.events.emit('bark', 'Your passenger is in a hurry! The tip goes down while you wait');
+    this.#grumble();
+    this.grumbleTimer = 4;
+  }
+
+  /** The passenger waits (a station stop, or you push the bike): the tip goes down, and they complain. */
+  #passengerWaiting(dt) {
+    if (!passengerWaits(this.board, dt)) return;
+    this.grumbleTimer = (this.grumbleTimer ?? 2) - dt;
+    if (this.grumbleTimer > 0) return;
+    this.grumbleTimer = 3.5 + this.rng() * 2.5;
+    this.#grumble();
+  }
+
+  #grumble() {
+    this.engineSound.grumble();
+    const words = ['HMPH!', 'NDAKERERWE!', 'TWIHUTE!', 'EH! TIME!', 'MANA WE...', 'ME, I AM LATE!'];
+    this.#bubble(this.bike.x - 0.6, this.bike.y - 0.6, 44, words[Math.floor(this.rng() * words.length)], 0xffa080);
+  }
+
+  /** Pushing the bike: the steps of the walk, and now and then a tired sound and word. */
+  #updatePushing(dt) {
+    const v = Math.abs(forwardSpeed(this.bike));
+    this.pushMetres = (this.pushMetres ?? 0) + v * dt;
+    if (v < 0.3) return;
+    this.gruntTimer = (this.gruntTimer ?? 1) - dt;
+    if (this.gruntTimer > 0) return;
+    this.gruntTimer = 1.4 + this.rng() * 1.4;
+    const i = Math.floor(this.rng() * 4);
+    this.engineSound.grunt(i);
+    this.#bubble(this.bike.x, this.bike.y, 40, ['UFF!', 'AAH...', 'OOH!', 'EEH!'][i], 0xd8e0ff);
+  }
+
+  /** Traffic behind a bike that stands in the road honks (a cyclist rings the bell). */
+  #updateHonks(dt) {
+    if (this.refuel || !this.traffic) return;
+    const b = this.bike;
+    const honks = trafficHonks(this.traffic, { x: b.x, y: b.y, speed: Math.abs(forwardSpeed(b)) }, dt, this.rng);
+    const words = { car: 'BEEP BEEP!', bus: 'POOOO!', truck: 'BWAAAP!', moto: 'BIP BIP!', cyclist: 'TRING TRING!' };
+    for (const v of honks) {
+      this.engineSound.honk(v.kind, 1 - Math.hypot(v.x - b.x, v.y - b.y) / 20);
+      this.#bubble(v.x, v.y, v.kind === 'bus' || v.kind === 'truck' ? 40 : 28, words[v.kind] ?? 'BEEP!', 0xffe080);
+      if (!this.honkBarked) {
+        this.honkBarked = true;
+        this.events.emit('bark', 'You block the road! Traffic is waiting behind you');
+      }
+    }
   }
 
   /** At the edge of a closed district: tell the rider when it opens. Returns true if the bike is there. */
@@ -1037,7 +1106,11 @@ export class RideScene extends Phaser.Scene {
     const s = toScreen(b.x, b.y, b.z);
     const bounce = b.bump > 0 ? Math.sin((b.bump / 0.3) * Math.PI) * 2 : 0;
     const depth = (b.x + b.y) / WORLD.tileMetres;
-    const key = `bike-${b.type}-${b.loadType ?? 'none'}-${bikeFrameForHeading(b.heading)}`;
+    // Out of fuel or charge, or broken down: the rider walks beside the bike and pushes it.
+    const load = b.loadType ?? 'none';
+    const key = b.engineDead && !(b.crashed > 0)
+      ? `push-${b.type}-${load === 'passenger' ? 'none' : load}-${bikeFrameForHeading(b.heading)}-${Math.floor((this.pushMetres ?? 0) / 0.7) % 2}`
+      : `bike-${b.type}-${load}-${bikeFrameForHeading(b.heading)}`;
     this.bikeScreen = s;
     this.bikeDepth = depth;
     // After a crash the bike and the rider lie on the ground.

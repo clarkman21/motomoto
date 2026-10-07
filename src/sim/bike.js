@@ -132,6 +132,7 @@ export function stepBike(bike, input, world, dt) {
   const vmax = topSpeed * surface.speedFactor;
   const hasEnergy = bike.energy > 0;
   const engineRuns = hasEnergy && !bike.brokenDown;
+  bike.engineDead = !engineRuns; // out of fuel or charge, or broken down: you push the bike
   const throttle = engineRuns ? clamp(input.throttle, 0, 1) : 0;
   const brake = clamp(input.brake, 0, 1);
   bike.shiftTimer = Math.max(0, bike.shiftTimer - dt);

@@ -214,6 +214,8 @@ export const JOBS = {
   cargo: { base: 400, perGameKm: 160, perKg: 12, kgMin: 20, kgMax: 80, fragileChance: 0.4 },
   // Passenger comfort lost (0..100) and cargo damage (fraction of pay, fragile cargo only).
   comfortLoss: { pothole: 20, bumpHard: 15, wall: 35, crash: 50, hardBrakePerSecond: 25, offRoadPerSecond: 10 },
+  // A passenger on the bike waits while you fill up, swap, see the mechanic or push the bike: the tip goes down.
+  waitComfort: { atStop: 8, perSecond: 1.5 }, // guesses
   cargoDamage: { pothole: 0.1, bumpHard: 0.1, wall: 0.3, crash: 0.4, offRoadPerSecond: 0.03 },
   hardBrakeMs2: 5, // braking harder than this upsets the passenger
 };
@@ -273,6 +275,15 @@ export const TRAFFIC = {
   },
   turnKmh: 18,
   busStopSeconds: 5,
+  // Vehicles that wait behind a bike that stands in the road honk (cyclists ring the bell).
+  honk: {
+    range: 12, // metres behind the bike
+    ahead: 0.85, // how straight in front of the vehicle the bike must be (cosine of the angle)
+    bikeStillMs: 0.6, // the bike stands still below this speed (m/s)
+    vehicleStillMs: 1.0, // the vehicle waits below this speed (m/s)
+    afterSeconds: 2.5, // the first honk after this long
+    everySeconds: [2.5, 4.5], // then again after this long (a random time in the range)
+  },
   // Drivers slow down for speed bumps (to HAZARDS.speedBump.safeSpeedKmh) and potholes (to this speed).
   potholeKmh: 25,
   hazardLookMetres: 12,
