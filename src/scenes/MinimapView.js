@@ -1,6 +1,8 @@
 import { COLOURS, MINIMAP, WORLD, DISTRICTS } from '../config.js';
 import { drawMinimap, minimapSize, minimapPoint, minimapDirection, districtLabels } from '../world/minimap.js';
 import { jobTarget } from '../sim/jobs.js';
+import { textBit } from '../world/garage-sprites.js';
+import { FUEL_BRAND } from '../world/sprites.js';
 import { addCanvasTexture } from './textures.js';
 
 // The minimap in the lower left corner of the HUD: the whole map, the district names, the
@@ -61,6 +63,13 @@ export class MinimapView {
       for (const p of world.placesWithTag(tag)) {
         if (world.isClosedTile(world.tile(Math.floor(p.x), Math.floor(p.y)))) continue;
         const m = this.#point(p.x * WORLD.tileMetres, p.y * WORLD.tileMetres);
+        if (tag === 'fuel') {
+          // A small red badge with "SP" in white, like the sign at the station.
+          const x0 = Math.round(m.x) - 5, y0 = Math.round(m.y) - 4;
+          g.fillStyle(0x000000, 1).fillRect(x0 - 1, y0 - 1, 11, 9).fillStyle(rgb, 1).fillRect(x0, y0, 9, 7).fillStyle(0xffffff, 1);
+          for (let y = 0; y < 5; y++) for (let x = 0; x < 7; x++) if (textBit(FUEL_BRAND, x, y)) g.fillRect(x0 + 1 + x, y0 + 1 + y, 1, 1);
+          continue;
+        }
         g.fillStyle(0x000000, 1).fillRect(m.x - 3, m.y - 3, 7, 7).fillStyle(rgb, 1).fillRect(m.x - 2, m.y - 2, 5, 5);
       }
     };
@@ -69,7 +78,7 @@ export class MinimapView {
     // Legend under the map: a small square and a word for each mark.
     const lx = this.origin.x, ly = this.box.y + this.box.h - PAD - 14 * this.s;
     const lg = this.legendIcons.clear();
-    const items = [[electric ? COLOURS.ampersandYellow : FUEL, electric ? 'Swap' : 'Fuel'], [GARAGE, 'Garage'], [0x44bc9d, 'Job']];
+    const items = [[electric ? COLOURS.ampersandYellow : FUEL, electric ? 'Swap' : 'SP fuel'], [GARAGE, 'Garage'], [0x44bc9d, 'Job']];
     let x = lx;
     items.forEach(([rgb, word], i) => {
       lg.fillStyle(0x000000, 1).fillRect(x - 1, ly + 3, 7, 7).fillStyle(rgb, 1).fillRect(x, ly + 4, 5, 5);

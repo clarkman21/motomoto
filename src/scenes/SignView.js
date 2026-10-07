@@ -1,7 +1,8 @@
 import { WORLD } from '../config.js';
 import { BUILDING_STYLES } from '../world/world.js';
 import { toScreen } from '../world/iso.js';
-import { drawBuildingSign } from '../world/garage-sprites.js';
+import { drawBuildingSign, drawFuelSign } from '../world/garage-sprites.js';
+import { FUEL_BRAND } from '../world/sprites.js';
 import { addCanvasTexture } from './textures.js';
 
 // The names on landmark buildings: big letters on the roof of a tower (lit at night), and a
@@ -10,6 +11,7 @@ import { addCanvasTexture } from './textures.js';
 export class SignView {
   constructor(scene, world) {
     const T = WORLD.tileMetres, L = WORLD.levelMetres;
+    this.#fuelSigns(scene, world);
     for (const lm of world.landmarks) {
       if (!lm.sign) continue;
       const blocks = world.blocks.filter((b) => b.tx >= lm.x0 && b.tx <= lm.x1 && b.ty >= lm.y0 && b.ty <= lm.y1);
@@ -39,6 +41,22 @@ export class SignView {
           .setOrigin(door.groundX / door.canvas.width, door.groundY / door.canvas.height)
           .setDepth((lm.x0 + lm.x1 + 1) / 2 + lm.y1 + 1.6);
       }
+    }
+  }
+
+  /** The SP price sign at the corner of each fuel station (the tile at the far end of the pumps). */
+  #fuelSigns(scene, world) {
+    const T = WORLD.tileMetres;
+    if (!scene.textures.exists('fuel-sign')) addCanvasTexture(scene, 'fuel-sign', drawFuelSign(FUEL_BRAND).canvas);
+    const sign = drawFuelSign(FUEL_BRAND);
+    const isFuel = (x, y) => world.blockAt(x, y)?.kind === 'fuel';
+    for (const b of world.blocks) {
+      if (b.kind !== 'fuel' || isFuel(b.tx + 1, b.ty) || isFuel(b.tx, b.ty + 1)) continue; // the pump tile, not the shop
+      const x = (b.tx + 0.91) * T, y = (b.ty + 0.89) * T;
+      const p = toScreen(x, y, world.heightAt(x, y));
+      const img = scene.add.image(p.x, p.y, 'fuel-sign')
+        .setOrigin(sign.groundX / sign.canvas.width, sign.groundY / sign.canvas.height).setDepth((x + y) / T + 0.05);
+      img.noAmbient = true; // the sign is lit at night
     }
   }
 }

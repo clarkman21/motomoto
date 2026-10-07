@@ -27,6 +27,17 @@ const glyphWidth = (ch) => (FONT[ch] ? FONT[ch][0].length : 3);
 /** Width in pixels of a text in the pixel font. */
 export const textWidth = (text) => [...text.toUpperCase()].reduce((w, ch) => w + glyphWidth(ch) + 1, 0) - 1;
 
+/** True if the pixel (x, y) of a text in the pixel font is set (x, y from the top left). */
+export function textBit(text, x, y) {
+  if (y < 0 || y > 4 || x < 0) return false;
+  for (const ch of text.toUpperCase()) {
+    const w = glyphWidth(ch);
+    if (x < w) return FONT[ch]?.[y][x] === '1';
+    x -= w + 1;
+  }
+  return false;
+}
+
 /** Draw a text in the pixel font, top left at (x, y). */
 export function drawText(c, text, x, y, rgb) {
   for (const ch of text.toUpperCase()) {
@@ -151,3 +162,21 @@ export function drawBuildingSign(text, line2 = '', kind = 'wall') {
 }
 
 const retroWidth = (text) => text.length * 6;
+
+/**
+ * The price sign of a fuel station: a red panel on a tall pole, with the brand name in big white
+ * letters and two lit price bars. The canvas origin is at the foot of the pole.
+ */
+export function drawFuelSign(brand) {
+  const w = Math.max(17, retroWidth(brand) + 6), panel = 24, pole = 30;
+  const c = new PixelCanvas(w + 2, panel + pole + 2);
+  const cx = Math.floor((w + 2) / 2);
+  for (let y = panel; y < panel + pole; y++) for (const dx of [-1, 0]) c.setPixel(cx + dx, y, dx ? 0x8a8a8a : 0x6a6a6a);
+  for (let y = 1; y <= panel; y++) {
+    for (let x = 1; x <= w; x++) c.setPixel(x, y, y === 1 || y === panel || x === 1 || x === w ? 0xf2efe6 : 0xc0392b);
+  }
+  drawRetroText(c, brand, Math.round((w + 2 - retroWidth(brand)) / 2) + 1, 4, 0xffffff, 0x7a1f18);
+  for (const y of [15, 19]) for (let x = 4; x <= w - 3; x++) c.setPixel(x, y, x < w - 7 ? 0xf2efe6 : 0x202020);
+  c.outline(0x161616);
+  return { canvas: c, groundX: cx, groundY: panel + pole };
+}

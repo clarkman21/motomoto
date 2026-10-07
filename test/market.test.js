@@ -4,6 +4,7 @@ import { buildKigaliMap } from '../src/world/maps/kigali.js';
 import { marketSpots } from '../src/world/market.js';
 import { drawVendor, drawGoat, drawSheep, KITENGE, MARKET_GOODS } from '../src/world/market-sprites.js';
 import { drawPerson, PERSON_LOOKS } from '../src/world/vehicle-sprites.js';
+import { drawFuelSign } from '../src/world/garage-sprites.js';
 import { WORLD, PEOPLE, COLOURS } from '../src/config.js';
 
 const T = WORLD.tileMetres;
@@ -46,5 +47,12 @@ describe('market life', () => {
   it('does not use Surge Yellow (only for Ampersand)', () => {
     for (const k of KITENGE) for (const v of Object.values(k)) expect(v).not.toBe(COLOURS.ampersandYellow);
     expect(hasColour(drawVendor('pineapples', 2, 1, 2), COLOURS.ampersandYellow)).toBe(false);
+  });
+
+  it('draws the SP fuel sign: white letters on a red panel', () => {
+    const { canvas } = drawFuelSign('SP');
+    expect(hasColour(canvas, 0xc0392b)).toBe(true);
+    expect(hasColour(canvas, 0xffffff)).toBe(true);
+    expect(canvas.height).toBeGreaterThan(50);
   });
 });

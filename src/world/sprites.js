@@ -472,6 +472,7 @@ function drawMonument(c, block, pt, world) {
 // under it, a small shop with a glass front, and a tall price sign. Two tiles: the first tile
 // (smaller x + y) has the shop, the second has the pumps and the sign.
 const FUEL_RED = 0xc0392b;
+export const FUEL_BRAND = 'SP'; // the name on the fuel stations (a simple look, not the real logo)
 function drawFuelStation(c, block, pt, world, glow) {
   const { tx, ty } = block;
   const base = block.floorLevel ?? block.baseLevel;
@@ -511,16 +512,7 @@ function drawFuelStation(c, block, pt, world, glow) {
       };
       box(px0, py0, px0 + 0.12, py0 + 0.16, 0.16, 0.9, flat(FUEL_RED), pump(0.72), pump(0.88));
     }
-    // The price sign: a tall pole with a red panel and white bars.
-    box(0.88, 0.86, 0.94, 0.92, 0.06, 3.4, flat(0x7a7a7a), wall(0x8a8a8a, 0.72), wall(0x8a8a8a, 0.88));
-    const sign = (k) => (along, z, px, py) => {
-      const zl = z - base;
-      const bar = (zl > 3.65 && zl < 3.8) || (zl > 3.95 && zl < 4.1) || (zl > 4.25 && zl < 4.4);
-      const col = bar ? 0xffffff : FUEL_RED;
-      if (glow) glow.setPixel(px, py, shadeColour(col, k), 230);
-      return shadeColour(col, k);
-    };
-    box(0.72, 0.86, 1.0, 0.92, 3.4, 4.6, flat(0x8a2a20), sign(0.72), sign(0.88));
+    // The SP price sign stands at the corner (SignView draws it, so the letters are upright).
   }
   // Pillars at the corners, then the canopy on top.
   for (const [x, y] of [[0.08, 0.08], [0.86, 0.08], [0.08, 0.86], [0.86, 0.86]]) {
