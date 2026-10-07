@@ -28,6 +28,7 @@ const PALETTE = {
   bumpLight: 0xe8e4d8,
   bumpDark: 0x2b2b2b,
   curb: 0xb8b2a2,
+  laneLine: 0xe8e6dc, // the white dashed line between the two lanes
   flowers: [0xd04a6a, 0x9a5ad0, 0xf0f0f0],
   soil: [0x6b3a22, 0x9a4a27, 0x7d3b20],
   pavement: [0xb3ada2, 0xa59f94, 0xbfb9ae],
@@ -149,6 +150,37 @@ function drawSkirt(canvas, topA, topB, botB, botA, light) {
 }
 
 /** Facts about a tile and its neighbours that the pixel shader needs. */
+/**
+ * Lane markings: for each tile of a road (2 tiles wide), which side of the tile the centre line
+ * is on. A road along x has its centre line between its two rows of tiles. Tiles where two roads
+ * cross (junctions) get no line. Returns a Map 'tx,ty' → { alongX, edge: 'high' | 'low' }.
+ */
+export function laneMarkings(world) {
+  if (world.laneMarks) return world.laneMarks;
+  const marks = new Map(), count = new Map();
+  const put = (tx, ty, m) => {
+    const key = `${tx},${ty}`;
+    count.set(key, (count.get(key) ?? 0) + 1);
+    marks.set(key, m);
+  };
+  for (const r of world.roads ?? []) {
+    if (r.y !== undefined) {
+      for (let x = r.x0; x <= r.x1; x++) {
+        put(x, r.y, { alongX: true, edge: 'high' }); // the line on the south edge of the north row
+        put(x, r.y + 1, { alongX: true, edge: 'low' });
+      }
+    } else {
+      for (let y = r.y0; y <= r.y1; y++) {
+        put(r.x, y, { alongX: false, edge: 'high' });
+        put(r.x + 1, y, { alongX: false, edge: 'low' });
+      }
+    }
+  }
+  for (const [key, n] of count) if (n > 1) marks.delete(key); // a junction: no line
+  world.laneMarks = marks;
+  return marks;
+}
+
 function tileContext(world, tile) {
   const n = (dx, dy) => world.tile(tile.tx + dx, tile.ty + dy);
   const isRoad = (t) => t && t.surface !== 'grass' && !t.block;
@@ -161,7 +193,14 @@ function tileContext(world, tile) {
   // A speed bump band runs across the road. Bump tiles in a column mean the road runs along x.
   const bumpN = n(0, -1)?.hazard === 'speedBump' || n(0, 1)?.hazard === 'speedBump';
   const nearMonument = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, 1], [-1, 1], [1, -1]].some(([dx, dy]) => n(dx, dy)?.block === 'monument');
-  return { tile, curbs, bumpAcrossX: bumpN, nearMonument };
+  // The lane line: only on tarmac, not on a speed bump, and not next to a junction (a gap before it).
+  const mark = laneMarkings(world).get(`${tile.tx},${tile.ty}`);
+  const marks = laneMarkings(world);
+  const besideJunction = mark && (mark.alongX
+    ? !marks.has(`${tile.tx - 1},${tile.ty}`) || !marks.has(`${tile.tx + 1},${tile.ty}`)
+    : !marks.has(`${tile.tx},${tile.ty - 1}`) || !marks.has(`${tile.tx},${tile.ty + 1}`));
+  const lane = tile.surface === 'tarmac' && !tile.hazard && !besideJunction ? mark ?? null : null;
+  return { tile, curbs, bumpAcrossX: bumpN, nearMonument, lane };
 }
 
 function surfaceColour(ctx, u, v, sx, sy) {
@@ -211,6 +250,14 @@ function surfaceColour(ctx, u, v, sx, sy) {
       const c = ctx.curbs;
       const e = 0.07;
       if ((c.west && u < e) || (c.east && u > 1 - e) || (c.north && v < e) || (c.south && v > 1 - e)) col = PALETTE.curb;
+      // The dashed centre line: 1 m dashes with 1 m gaps (two dashes on each 4 m tile).
+      const L = ctx.lane;
+      if (L) {
+        const across = L.alongX ? v : u, along = L.alongX ? wu : wv;
+        const w = 0.045;
+        const onLine = L.edge === 'high' ? across > 1 - w : across < w;
+        if (onLine && (along * 2) % 1 < 0.5) col = PALETTE.laneLine;
+      }
       if (tile.hazard === 'pothole') {
         const wob = 0.04 * Math.sin(Math.atan2(v - 0.5, u - 0.5) * 3 + tile.tx);
         const d = Math.hypot((u - 0.5) * 1.1, v - 0.5) + wob;

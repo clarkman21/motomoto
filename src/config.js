@@ -93,6 +93,7 @@ export const PHYSICS = {
   // It uses no fuel and does not wear the brakes, so a downshift is a free brake.
   engineBrakeMs2: 2.4,
   pushSpeedKmh: 4, // with no fuel or charge left, you push the bike at walking speed
+  pushMs2: 1.2, // how fast you get to walking speed (on top of the ground resistance and the slope)
   // Hard limit on how far one physics step can move, for collision safety.
   maxStepMetres: 0.5,
   // Speed lost when you hit a wall or a building, as a fraction of speed.

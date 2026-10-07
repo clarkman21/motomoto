@@ -88,3 +88,15 @@ describe('HUD icons', () => {
     }
   });
 });
+
+describe('lane markings', () => {
+  it('mark both rows of a road, but not the tiles where two roads cross', async () => {
+    const { laneMarkings } = await import('../src/world/terrain-render.js');
+    const world = { roads: [{ y: 5, x0: 0, x1: 20 }, { x: 10, y0: 0, y1: 20 }] };
+    const m = laneMarkings(world);
+    expect(m.get('3,5')).toEqual({ alongX: true, edge: 'high' });
+    expect(m.get('3,6')).toEqual({ alongX: true, edge: 'low' });
+    expect(m.get('10,2')).toEqual({ alongX: false, edge: 'high' });
+    for (const k of ['10,5', '11,5', '10,6', '11,6']) expect(m.has(k)).toBe(false);
+  });
+});

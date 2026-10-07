@@ -351,3 +351,40 @@ describe('standing at a station', () => {
     expect(bike.x).toBeLessThan(x0 - 0.3);
   });
 });
+
+describe('pushing the bike (no fuel)', () => {
+  const pushOn = (ch, hills = []) => {
+    const world = straight(ch, hills);
+    const bike = createBike(world, 'petrol');
+    bike.energy = 0;
+    const x0 = bike.x;
+    run(bike, world, { throttle: 1 }, 6);
+    return { moved: bike.x - x0, kmh: kmh(bike) };
+  };
+
+  it('works on tarmac, grass and wet murram, at walking speed', () => {
+    for (const ch of ['#', '.', 'w']) {
+      const { moved, kmh: k } = pushOn(ch);
+      expect(moved).toBeGreaterThan(3);
+      expect(k).toBeLessThan(5);
+    }
+  });
+
+  it('works up a gentle hill, a little slower', () => {
+    const flat = pushOn('#').moved;
+    // A ramp of 1.5 m over 8 m (about 19%) that starts under the bike.
+    const hills = [{ x0: 3, y0: 0, x1: 300, y1: 3, level: 1, run: { west: 2 } }];
+    const world = straight('#', hills);
+    const probe = createBike(world, 'petrol');
+    probe.x = 2 * 4;
+    run(probe, world, {}, 0.05);
+    expect(probe.grade).toBeGreaterThan(0.1);
+    const bike = createBike(world, 'petrol');
+    Object.assign(bike, { x: 1.8 * 4, energy: 0 });
+    const x0 = bike.x;
+    run(bike, world, { throttle: 1 }, 6);
+    const up = { moved: bike.x - x0 };
+    expect(up.moved).toBeGreaterThan(2);
+    expect(up.moved).toBeLessThanOrEqual(flat + 0.01);
+  });
+});

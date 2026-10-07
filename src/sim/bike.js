@@ -149,7 +149,12 @@ export function stepBike(bike, input, world, dt) {
   if (throttle > 0) accel += (throttle * enginePull(spec, bike, v) * powerFactor(bike)) / massFactor;
   // No energy left, or a breakdown: you can only push the bike at walking speed.
   bike.pushing = !engineRuns && input.throttle > 0;
-  if (bike.pushing && v < PHYSICS.pushSpeedKmh * KMH) accel += 1.2;
+  // Pushing: you walk the bike at walking speed on any ground (grass and sand too) and up moderate
+  // hills (slower uphill). The push beats the rolling resistance and the slope.
+  if (bike.pushing) {
+    const target = PHYSICS.pushSpeedKmh * KMH * Math.max(0.4, Math.min(1, 1 - grade * 2));
+    if (v < target) accel += surface.rollingMs2 + Math.max(0, -slopeAccel) + PHYSICS.pushMs2;
+  }
   if (v > vmax) accel -= (v - vmax) * 1.5; // never faster than top speed; a slow surface pulls you down to its limit
 
   // Brakes. Electric: regen brakes first and charges the battery. Friction brakes do the rest and wear.
