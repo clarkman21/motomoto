@@ -73,12 +73,13 @@ export class MinimapView {
     });
     // Stations for your bike (petrol: SP fuel; electric: swap) and the garages, in open districts only.
     const electric = ride.bike.type === 'electric';
-    for (const tag of [electric ? 'swap' : 'fuel', 'garage']) {
+    for (const tag of [electric ? 'swap' : 'fuel', 'garage', 'office']) {
       for (const p of world.placesWithTag(tag)) {
         if (world.isClosedTile(world.tile(Math.floor(p.x), Math.floor(p.y)))) continue;
         const m = minimapPoint(world, f, p.x * WORLD.tileMetres, p.y * WORLD.tileMetres);
         const x0 = Math.round(m.x), y0 = Math.round(m.y);
         if (tag === 'fuel') drawSpBadge(g, x0, y0);
+        else if (tag === 'office') drawAmpersandBadge(g, x0, y0);
         else g.fillStyle(0x000000, 1).fillRect(x0 - 3, y0 - 3, 7, 7).fillStyle(tag === 'swap' ? COLOURS.ampersandYellow : GARAGE, 1).fillRect(x0 - 2, y0 - 2, 5, 5);
       }
     }
@@ -139,6 +140,12 @@ export class MinimapView {
     g.lineStyle(3, 0x000000, 1).strokeTriangle(tip.x, tip.y, l.x, l.y, rr.x, rr.y);
     g.fillStyle(0xffffff, 1).fillTriangle(tip.x, tip.y, l.x, l.y, rr.x, rr.y);
   }
+}
+
+/** The Ampersand showroom: a black badge with a yellow "&". (x, y): the centre. */
+function drawAmpersandBadge(g, x, y) {
+  g.fillStyle(COLOURS.ampersandYellow, 1).fillRect(x - 4, y - 4, 9, 9).fillStyle(0x0a0a0a, 1).fillRect(x - 3, y - 3, 7, 7).fillStyle(COLOURS.ampersandYellow, 1);
+  for (let py = 0; py < 5; py++) for (let px = 0; px < 3; px++) if (textBit('&', px, py)) g.fillRect(x - 1 + px, y - 2 + py, 1, 1);
 }
 
 /** A small blue badge with "SP" in yellow, like the sign at the station. (x, y): the centre. */

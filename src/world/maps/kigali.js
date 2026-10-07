@@ -232,6 +232,8 @@ export function buildKigaliMap(seed = 7) {
   landmark(112, 51, 118, 53, '2', 'c', { sign: 'G.S. KACYIRU', sign2: 'WE STRIVE FOR SUCCESS' });
   landmark(89, 104, 94, 109, '4', 'g', { sign: 'INTEKO ISHINGA AMATEGEKO', sign2: 'PARLIAMENT' });
   landmark(116, 84, 119, 88, '9', 't', { levels: 11, sign: 'KIGALI HEIGHTS' });
+  // The Ampersand office and e-moto showroom on Kacyiru boulevard: you buy your electric moto here (level 4).
+  landmark(114, 32, 121, 34, '3', 'o', { sign: 'AMPERSAND', sign2: 'E-MOTO SHOWROOM', brand: true });
   landmark(140, 8, 143, 12, '7', 't', { levels: 10 }); // MTN Centre
   landmark(136, 27, 139, 29, '2', 'v'); // golf club house
   landmark(181, 87, 187, 93, '4', 'g', { sign: "IBIRO BY'AKARERE", sign2: 'KA KICUKIRO' });
@@ -353,12 +355,14 @@ export function buildKigaliMap(seed = 7) {
     }
   }
 
+  for (let x = 114; x <= 121; x++) set(x, 35, 'p'); // the Ampersand showroom: a paved forecourt, no trees
   const rows = g.map((r) => r.join(''));
   const styles = st.map((r) => r.join(''));
 
   // Job places. weight: how often jobs start here (the bus park makes many fares).
   const P = (id, name, x, y, tags = [], weight = 1) => places.push({ id, name, x, y, tags, weight });
   P('busPark', 'Nyabugogo bus park', 29, 15, ['market'], 5);
+  P('ampersandOffice', 'Ampersand showroom, Kacyiru boulevard', 116.5, 35.5, ['office']);
   P('market', 'Nyabugogo market', 52, 13.5, ['market'], 3);
   P('riverRoad', 'River road', 12, 6, []);
   P('gakinjiro', 'Gakinjiro workshops', 30, 33, ['market']);

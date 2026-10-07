@@ -71,9 +71,12 @@ export class DayEndScene extends Phaser.Scene {
     if (gameOver) {
       notes.push('', `GAME OVER. You are out of cash.`, `You restart level ${summary.level.n} (${summary.level.name}) with ${money(MONEY.startCash)}. Your earlier milestones stay.`);
     }
-    const ready = summary.milestoneReady;
+    const atOffice = summary.level.buyAt === 'office';
+    const ready = summary.milestoneReady && !atOffice; // the electric moto: you buy it at the showroom
     if (!gameOver && !loanOffer) {
-      notes.push(ready
+      notes.push(summary.milestoneReady && atOffice
+        ? `You saved enough for: ${summary.level.milestone}! Tomorrow, ride to the Ampersand showroom on Kacyiru boulevard and press F to buy it.`
+        : ready
         ? `You saved enough for: ${summary.level.milestone} (${money(summary.level.goal)}).`
         : `Level ${summary.level.n} goal: ${summary.level.milestone}. Save ${money(summary.savingsTarget)} (goal + ${money(summary.savingsTarget - summary.level.goal)} working money).`);
     }

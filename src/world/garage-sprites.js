@@ -151,6 +151,16 @@ export function drawBuildingSign(text, line2 = '', kind = 'wall') {
     for (const px of [3, w - 2]) for (let y = h + 1; y <= h + 5; y++) c.setPixel(px, y, 0x5a5e62); // the frame on the roof
     return { canvas: c, groundX: (w + 2) / 2, groundY: h + 5 };
   }
+  if (kind === 'brand') {
+    // Ampersand: black board, big Surge Yellow letters (the retro font), white second line.
+    const w = Math.max(retroWidth(text), textWidth(line2)) + 10, h = line2 ? 20 : 13;
+    const c = new PixelCanvas(w + 2, h + 2);
+    for (let y = 1; y <= h; y++) for (let x = 1; x <= w; x++) c.setPixel(x, y, y === 1 || y === h || x === 1 || x === w ? COLOURS.ampersandYellow : 0x0a0a0a);
+    drawRetroText(c, text, Math.round((w + 2 - retroWidth(text)) / 2) + 1, 3, COLOURS.ampersandYellow, 0x3a3200);
+    if (line2) drawText(c, line2, Math.round((w + 2 - textWidth(line2)) / 2), 13, 0xffffff);
+    c.outline(0x161616);
+    return { canvas: c, groundX: (w + 2) / 2, groundY: h + 1 };
+  }
   const w = Math.max(textWidth(text), textWidth(line2)) + 8;
   const h = line2 ? 16 : 10;
   const c = new PixelCanvas(w + 2, h + 2);

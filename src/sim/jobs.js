@@ -22,7 +22,7 @@ export function tripMetres(a, b) {
   return (Math.abs(a.x - b.x) + Math.abs(a.y - b.y)) * WORLD.tileMetres;
 }
 
-const SERVICE_TAGS = ['fuel', 'swap', 'garage'];
+const SERVICE_TAGS = ['fuel', 'swap', 'garage', 'office'];
 // Places for jobs. opts.districts limits them to the districts of the level (places without a district always count).
 const jobPlaces = (world, opts = {}) =>
   world.places.filter((p) => !p.tags.some((t) => SERVICE_TAGS.includes(t)) && (!opts.districts || !p.district || opts.districts.includes(p.district)));

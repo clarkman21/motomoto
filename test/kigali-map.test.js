@@ -120,3 +120,16 @@ describe('block atlas packing', () => {
     }
   });
 });
+
+describe('Ampersand showroom', () => {
+  it('stands on Kacyiru boulevard, and level 4 sells the electric moto there', async () => {
+    const { LEVELS } = await import('../src/config.js');
+    const office = world.placesWithTag('office');
+    expect(office).toHaveLength(1);
+    expect(world.tile(Math.floor(office[0].x), Math.floor(office[0].y)).district).toBe('kacyiru');
+    expect(world.tileAt(office[0].x * T, office[0].y * T).block).toBeNull();
+    const lv = LEVELS.find((l) => l.buyAt === 'office');
+    expect(lv.effect).toBe('electric');
+    expect(world.landmarks.find((l) => l.brand).sign).toBe('AMPERSAND');
+  });
+});

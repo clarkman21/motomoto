@@ -1,8 +1,8 @@
-import { WORLD } from '../config.js';
+import { WORLD, COLLISION } from '../config.js';
 import { BUILDING_STYLES } from '../world/world.js';
 import { toScreen } from '../world/iso.js';
 import { drawBuildingSign, drawFuelSign } from '../world/garage-sprites.js';
-import { FUEL_BRAND } from '../world/sprites.js';
+import { FUEL_BRAND, drawBike, BIKE_CANVAS } from '../world/sprites.js';
 import { addCanvasTexture } from './textures.js';
 
 // The names on landmark buildings: big letters on the roof of a tower (lit at night), and a
@@ -14,11 +14,12 @@ export class SignView {
     this.#fuelSigns(scene, world);
     for (const lm of world.landmarks) {
       if (!lm.sign) continue;
+      if (lm.brand) this.#showroomMoto(scene, world, lm);
       const blocks = world.blocks.filter((b) => b.tx >= lm.x0 && b.tx <= lm.x1 && b.ty >= lm.y0 && b.ty <= lm.y1);
       if (!blocks.length) continue;
       const top = Math.max(...blocks.map((b) => b.topLevel));
       const roof = BUILDING_STYLES[lm.style] === 'tower';
-      const sign = drawBuildingSign(lm.sign, lm.sign2 ?? '', roof ? 'roof' : 'wall');
+      const sign = drawBuildingSign(lm.sign, lm.sign2 ?? '', roof ? 'roof' : lm.brand ? 'brand' : 'wall');
       const key = `sign-${lm.x0}-${lm.y0}`;
       if (!scene.textures.exists(key)) addCanvasTexture(scene, key, sign.canvas);
       // A tower: on the roof near the front edge. Others: on the front (south) wall, under the roof edge.
@@ -42,6 +43,16 @@ export class SignView {
           .setDepth((lm.x0 + lm.x1 + 1) / 2 + lm.y1 + 1.6);
       }
     }
+  }
+
+  /** A new Ampersand electric moto on show in front of the showroom (you can bump into it). */
+  #showroomMoto(scene, world, lm) {
+    const T = WORLD.tileMetres;
+    if (!scene.textures.exists('showroom-moto')) addCanvasTexture(scene, 'showroom-moto', drawBike('electric', 2, 'none', false));
+    const x = (lm.x0 + 4.5) * T, y = (lm.y1 + 1.45) * T;
+    const p = toScreen(x, y, world.heightAt(x, y));
+    scene.add.image(p.x, p.y, 'showroom-moto').setOrigin(BIKE_CANVAS.groundX / BIKE_CANVAS.width, BIKE_CANVAS.groundY / BIKE_CANVAS.height).setDepth((x + y) / T);
+    world.poles.push({ kind: 'pole', x, y, radius: COLLISION.bikeRadius + 0.2 });
   }
 
   /** The SP price sign at the corner of each fuel station (the tile at the far end of the pumps). */

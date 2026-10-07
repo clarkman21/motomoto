@@ -352,7 +352,8 @@ export const LEVELS = [
   },
   {
     n: 4, name: 'Rush hour', goal: 60000, milestone: 'Down payment on an Ampersand electric moto', kind: 'asset', effect: 'electric',
-    story: 'You sign for your own Ampersand electric moto. No more petrol queues and no more smoke. The whole family comes to see it at the swap station.',
+    buyAt: 'office', // you buy it at the Ampersand showroom, not at the end of the day
+    story: 'You sign for your own Ampersand electric moto at the showroom. No more petrol queues and no more smoke. The whole family comes to see it.',
     shift: { start: 6, end: 22, realSeconds: 360 }, rent: 6000,
     traffic: 1.0, rivals: 10, cyclists: 2, raceChance: 0.45, offerLife: [15, 40], hailEvery: 1,
     fare: 1.1, petrol: 1.2, cameras: true,

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL } from '../config.js';
+import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS } from '../config.js';
 import { World } from '../world/world.js';
 import { buildKigaliMap } from '../world/maps/kigali.js';
 import { ChunkStreamer } from './chunks.js';
@@ -370,6 +370,7 @@ export class RideScene extends Phaser.Scene {
       if (this.wallet.cash < q.cost) return { ok: false, text: `${list} = ${q.cost.toLocaleString('en')} RWF. Not enough cash.` };
       return { ok: true, text: `F: Service (meter ${meter}%): ${list} = ${q.cost.toLocaleString('en')} RWF, ${MAINTENANCE.serviceSeconds} s` };
     }
+    if (kind === 'office') return this.#officeOffer();
     if (kind === 'fuel' && type !== 'petrol') return { ok: false, text: 'Fuel station. Your electric moto needs a swap station.' };
     if (kind === 'swap' && type !== 'electric') return { ok: false, text: 'Swap station. Your petrol moto needs a fuel station.' };
     if (kind === 'fuel') {
@@ -383,11 +384,48 @@ export class RideScene extends Phaser.Scene {
     return { ok: true, text: `F: Swap battery (${MONEY.swapFee.toLocaleString('en')} RWF, ${MONEY.swapSeconds} s)` };
   }
 
+  /** At the Ampersand showroom: buy the electric moto (the level 4 milestone) when you saved enough. */
+  #officeOffer() {
+    const L = this.level, money = (n) => `${n.toLocaleString('en')} RWF`;
+    if (this.wallet.perks.electric) return { ok: false, text: 'Ampersand showroom. Murakaza neza! Swap your battery at any Ampersand station.' };
+    if (L.buyAt !== 'office') {
+      const e = LEVELS.find((l) => l.buyAt === 'office');
+      return { ok: false, text: `Ampersand showroom. Electric motos are for sale from level ${e.n}. Keep saving!` };
+    }
+    if (this.board.active) return { ok: false, text: 'Ampersand showroom. Finish your job first, then come back to buy your moto.' };
+    if (!milestoneReady(this.wallet)) return { ok: false, text: `Ampersand showroom. Save ${money(savingsTarget(this.wallet))} to buy your electric moto (you have ${money(this.wallet.cash)}).` };
+    return { ok: true, text: `F: Buy your Ampersand electric moto (${money(L.goal)} down payment)` };
+  }
+
+  /** Buy the electric moto at the showroom: you ride away on it, and the next level starts now. */
+  #buyElectric() {
+    const offer = this.#officeOffer();
+    if (!offer.ok) return;
+    const bought = buyMilestone(this.wallet);
+    if (!bought) return;
+    const { x, y, heading, autoShift } = this.bike;
+    this.bike = createBike(this.world, levelSettings(this.wallet).bikeType);
+    Object.assign(this.bike, { x, y, heading, autoShift, z: this.world.heightAt(x, y) });
+    this.station = null;
+    const shift = this.level.shift; // today's shift goes on; the new level's shift starts tomorrow
+    this.#applyLevel();
+    this.level.shift = shift;
+    this.#placeBike();
+    this.#save();
+    this.engineSound.jingle('levelUp');
+    this.scene.pause();
+    this.scene.launch('dayEnd', { levelUp: { bought, next: this.level }, onContinue: () => this.scene.resume() });
+  }
+
   startRefuel() {
     const offer = this.stationOffer();
     if (!offer) return;
     if (!offer.ok) {
       this.events.emit('bark', offer.text);
+      return;
+    }
+    if (this.station === 'office') {
+      this.#buyElectric();
       return;
     }
     // At a fuel station you choose how much to buy (see chooseFuel).
@@ -509,7 +547,7 @@ export class RideScene extends Phaser.Scene {
       this.fuelChoice = null;
       return;
     }
-    for (const kind of ['fuel', 'swap', 'garage']) {
+    for (const kind of ['fuel', 'swap', 'garage', 'office']) {
       for (const p of this.world.placesWithTag(kind)) {
         if (Math.hypot(b.x - p.x * WORLD.tileMetres, b.y - p.y * WORLD.tileMetres) < STATION_RANGE_METRES) {
           this.station = kind;
@@ -585,6 +623,7 @@ export class RideScene extends Phaser.Scene {
     }
     this.dayTime = 0;
     this.dayOver = false;
+    this.officeHint = false;
     const { autoShift, energy, serviceWear, brokenDown, brakeWearKm } = this.bike;
     if (choice === 'newGame') {
       clearSave();
@@ -742,6 +781,12 @@ export class RideScene extends Phaser.Scene {
     this.chunks.night = this.daylight.night;
     this.lights.update(this.daylight, this.cameras.main.worldView, this.bike, this.controls.brake > 0.1);
     this.#updateRivalPin();
+    // Level 4: when you saved enough, the showroom waits for you (once a day is enough).
+    if (this.level.buyAt === 'office' && !this.officeHint && milestoneReady(this.wallet)) {
+      this.officeHint = true;
+      this.events.emit('bark', 'You saved enough! Ride to the Ampersand showroom on Kacyiru boulevard to buy your electric moto');
+      this.engineSound.jingle('reward');
+    }
     this.engineSound.update(this.bike.type, Math.min(1, this.bike.revs), this.controls.throttle);
     this.dayTime += dt;
     if (this.dayTime >= this.level.shift.realSeconds) this.#endDay();
