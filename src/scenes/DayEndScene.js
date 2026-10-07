@@ -34,7 +34,7 @@ export class DayEndScene extends Phaser.Scene {
     this.add.text(x + 20 * s, y + 16 * s, summary.outOfCash === 'gameOver' ? `Game over · day ${summary.day}` : `End of day ${summary.day}`, { fontFamily: FONT_LABEL, fontSize: `${Math.round(32 * s)}px`, fontStyle: '600', color: '#ffffff' });
     const bikeName = summary.bikeType === 'electric' ? 'Electric moto' : 'Petrol moto';
     const offRoad = summary.offRoadKm >= 0.05 ? ` (${summary.offRoadKm.toFixed(1)} off road)` : '';
-    this.add.text(x + 20 * s, y + 56 * s, `${bikeName} · ${summary.gameKm.toFixed(1)} km ridden${offRoad} · service meter ${Math.round(summary.serviceDue * 100)}% · brake pads ${Math.round(summary.brakePads * 100)}%`, {
+    this.add.text(x + 20 * s, y + 56 * s, `${bikeName} · ${summary.gameKm.toFixed(1)} km ridden${offRoad} · moto service ${Math.round(summary.serviceDue * 100)}%`, {
       fontFamily: FONT_BODY, fontSize: `${Math.round(14 * s)}px`, color: '#9e9e9e', wordWrap: { width: w - 40 * s },
     });
     // The family card: what today's money means at home.

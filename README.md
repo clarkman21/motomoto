@@ -19,11 +19,12 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Energy bar, uphill and downhill cost, electric regen | Done (placeholder values) |
 | Bike relative steering (default) and screen relative steering | Done |
 | Petrol 4-speed manual gearbox, engine braking, auto shift option | Done |
-| Brake pad wear; electric regen braking | Done |
+| Brake wear (part of the moto service meter); electric regen braking | Done |
 | Hills hide things: buildings fade, bike outline shows | Done |
 | Camera that looks ahead in the direction of travel | Done |
 | Touch controls (virtual stick, GO and STOP buttons) | Done (basic) |
-| Engine sound and horn (synthesized) | Done (basic) |
+| Engine sound and horn (synthesized); crash sound; people yell (a cute voice and a word) when you pass too close | Done |
+| The horn makes people in front of you step aside | Done |
 | Passenger and cargo jobs, cash, fares and tips | Done |
 | Fuel station (pay per litre) and Ampersand swap station (flat fee) | Done |
 | Speed limit zones, signs and speed cameras with fines | Done |
@@ -45,13 +46,14 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Family rewards: what the money means at home after each job, each shift and each milestone | Done |
 | Sounds: the engine stops at the end of a shift; short tunes for shift end, milestone, game over, delivery | Done |
 | Hi-vis vests for all moto riders; banana and rice cargo; cyclists from level 3; detailed fuel stations | Done |
-| Buy the bare minimum of fuel (next job, next two jobs, or full); itemized service with oil change and brake pads | Done |
+| Buy the bare minimum of fuel (next job, next two jobs, or full); itemized service (oil change, brake pads, check) | Done |
+| One MOTO SERVICE meter: engine oil, brake pads, chain and tyres; the bike breaks down if you do not service it | Done |
 | Fuel estimate on each job card, from the distance, the climb and the load | Done |
 | Moto garages (Kazi ni Kazi, Sonatubes): open workshop, motos, mechanics, oil stains, painted sign | Done |
 | Building types: houses, shops, offices, glass towers, government offices, schools, warehouses, villas; roof water tanks, AC units, flags | Done |
 | Named landmarks with signs: Kigali City Tower, KPC, Chic, Kigali Heights, IBIRO offices (Kinyarwanda), schools (WE STRIVE FOR SUCCESS) | Done |
 | Traffic slows for speed bumps and potholes and bounces over them | Done |
-| Minimap: districts (closed ones striped), fuel or swap stations, garages, the job target and you | Done |
+| Minimap like GTA: a zoomed view that moves with you; districts, locked areas (stripes and padlocks), SP fuel or swap stations, garages, the job target and you | Done |
 | Market life: mamas in kitenge who sell goods on mats, umbrellas, goats and sheep; kitenge walkers | Done |
 | Trees: acacia, jacaranda, avocado and fig, mixed by district | Done |
 | Day and night: fast clock, night colour, sunset, street lamps, lit windows, headlights and tail lights | Done |
@@ -104,10 +106,8 @@ The petrol moto has a manual 4-speed gearbox. The electric moto has no gearbox.
 - **A gear that is too high pulls weakly** (the engine lugs). A start in third gear is slow.
 - **High revs use more fuel.** An early upshift saves fuel. Fuel use goes from 0.6× at low revs to 1.3× at the rev limit.
 - **Engine braking.** When you close the throttle, a low gear slows the bike. It uses no fuel and does not wear the brakes. The game refuses a downshift that would over-rev the engine.
-- **Brake wear.** The friction brakes wear in proportion to the speed that they remove: about 1% of the pads for each hard stop from 60 km/h. Worn pads stop the bike less well (45% of new at 0%).
+- **Brake wear.** The brake pads are part of the moto service. The friction brakes add wear to the service meter in proportion to the speed that they remove: about 0.5 km for each hard stop from 60 km/h. When the service is overdue, the brakes get weaker (45% of new at the breakdown point).
 - **Electric regen braking.** The motor does the first 2.5 m/s² of braking and charges the battery. Only harder braking uses the friction brakes.
-
-Milestone 2 will add the cost of new brake pads to the economy.
 
 ## Money
 
@@ -119,15 +119,14 @@ The game is about money. You earn from jobs. You spend on energy, fines and the 
 | Tip: up to 30% of the fare, from passenger comfort | Battery swap: 2,500 RWF flat (electric) |
 | Cargo: 400 RWF + 160 RWF per game km + 12 RWF per kg, less damage | Speed camera fine: 5,000 RWF, or 10,000 RWF when more than 15 km/h over |
 | | Crash repair: 800 RWF |
-| | Garage service: 3,500 RWF (petrol), 2,000 RWF (electric) |
-| | Brake pads at the garage: 3,000 RWF when the pads are below 70% |
+| | Garage service: 3,500 RWF (petrol: oil change, brake pads, check), 2,000 RWF (electric: brake pads, check) |
 | | Daily rent: 6,000 RWF (petrol and electric) |
 | | Loan payment: 2,400 RWF per day for 10 days, if you took the loan |
 
 - **Jobs.** Take a job (1, 2 or 3). Ride to the green marker and stop. Then ride to the white marker and stop. Potholes, hard speed bumps, crashes and hard braking cost passenger comfort (and so the tip) and damage fragile cargo. A passenger or cargo makes the bike heavier.
 - **Speed limits.** Outside a zone the limit is 60 km/h. The market zone is 30 km/h. The city centre, the roundabout and the bottom of the steep east ramp are 40 km/h. Four cameras fine you when you pass more than 5 km/h over the limit. The HUD limit sign flashes when you are too fast.
 - **Off road.** Grass is off road. Each metre there counts 4 times on the service meter (cobblestone 1.3×, dry murram 1.5×, wet murram 1.8×). Off road riding also costs passenger comfort and damages fragile cargo. The HUD shows "OFF ROAD: 4× wear".
-- **Service meter and garage.** The SERVICE meter on the HUD fills as you ride. One game km on tarmac adds 1 km; bad roads add more (see above), the petrol red zone adds 3×, and each pothole (2 km), hard speed bump (1.5 km) and crash (4 km) adds more. A service is due every 150 km (petrol) or 600 km (electric). At 80% the HUD warns you. From 100%, the bike loses up to 30% power and uses up to 30% more energy. At 150%, it breaks down: push it to the garage (south road) and press F. A service takes 20 s. After a breakdown, the mechanic repairs on credit if you have too little cash.
+- **Service meter and garage.** The MOTO SERVICE meter on the HUD fills as you ride. It is one meter for the engine oil, the brake pads, the chain and the tyres. One game km on tarmac adds 1 km; bad roads add more (see above), the petrol red zone adds 3×, hard braking adds about 0.5 km for each stop from 60 km/h, and each pothole (2 km), hard speed bump (1.5 km) and crash (4 km) adds more. A service is due every 150 km (petrol) or 600 km (electric). At 80% the HUD warns you. From 100%, the bike loses up to 30% power and uses up to 30% more energy. At 150%, it breaks down: push it to the garage (south road) and press F. A service takes 20 s. After a breakdown, the mechanic repairs on credit if you have too little cash.
 - **Traffic.** Cars, minibuses, trucks and other motos drive on the right, keep a gap, stop for you and for people, and give way at junctions. Minibuses stop at bus stops; trucks crawl up hills. A crash with a vehicle costs 800 RWF. Petrol engines leave exhaust smoke.
 - **People and street hails.** People walk on the pavements and in the market and step aside from a fast bike. Hitting a person costs a 5,000 RWF police fine. Customers wave at the roadside: stop next to one (below 6 km/h) and press 1 for a quick ride that starts at once.
 - **Rival riders.** When you take an app job, a rival (blue vest) may race you to the pickup; a red pin shows the rival. If the rival gets there first, you lose the job. Rivals also take street hails, and app offers go away faster (15–40 s).
@@ -149,18 +148,18 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `VIEW` | Internal resolution (480 × 270), camera follow and look ahead |
 | `BIKES` | Top speed, acceleration, energy, uphill and downhill factors, regen, gears |
 | `GEARBOX` | Shift time, lugging, rev limit curve, fuel use per rev, auto shift points |
-| `BRAKES` | Pad wear rate, stopping power of worn pads, warning level |
+| `BRAKES` | How much braking adds to the service meter, stopping power when the service is long overdue |
 | `PHYSICS` | Hill force, drag, engine braking, turn rate, grip |
 | `SURFACES` | Grip, speed factor and energy factor for each surface |
 | `HAZARDS` | Pothole and speed bump effects (traffic uses the same safe speeds) |
 | `LOAD` | Mass of bike and rider (a load changes pull and braking) |
 | `DAY` | Day length and hours |
-| `MONEY` | Start cash, rent, fuel, swaps, crash repair, brake pads, loan |
+| `MONEY` | Start cash, rent, fuel, swaps, crash repair, loan |
 | `MAINTENANCE` | Service interval, wear from red zone and hits, overdue penalties, breakdown, garage price |
 | `JOBS` | Fares, tips, cargo pay, comfort and damage rules, game km scale |
 | `LAW` | Default speed limit, camera tolerance and fines |
 | `TRAFFIC` | Number of each vehicle type, speeds, hill slowdown, exhaust, bus stop time, pothole speed, hazard look ahead |
-| `PEOPLE` | Number of walkers, street hails, police fine for hitting a person |
+| `PEOPLE` | Number of walkers, street hails, police fine for hitting a person, near miss yells, how far the horn reaches |
 | `RIVALS` | Chance a rival races you or takes a street hail, offer lifetimes |
 | `LEVELS`, `SAVINGS_FLOAT`, `STREAK` | Goals, shifts, rent, traffic and rivals for each level; the clean ride bonus |
 | `DISTRICTS` | Name, unlock level, fuel price and fare factor of each district |
@@ -170,7 +169,7 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `FAMILY` | The family names, and what money pays for at home |
 | `DAYLIGHT` | Light at each hour, night colour, sunset colour |
 | `LIGHTS` | Street lamp spacing, light pools, lit windows, headlights and tail lights |
-| `MINIMAP` | Minimap size (pixels per tile) and hill shading |
+| `MINIMAP` | Minimap zoom (pixels per tile), window size, hill shading, padlock spacing |
 | `MARKET` | How many vendors, umbrellas, goats and sheep, and street vendors |
 
 The game map is built in code in [`src/world/maps/kigali.js`](src/world/maps/kigali.js): district rectangles, hills, roads, landmarks, stations and places. Each block has a building style (`h` house, `s` shop, `o` office, `t` tower, `g` government, `c` school, `w` warehouse, `v` villa). The district rules set the style, and a landmark sets the style, the height in levels and the sign text of its block. The small test map for the unit tests is an ASCII grid in [`src/world/map-data.js`](src/world/map-data.js). The legend is at the top of the file. Hills are plateaus with ramps; each hill has a height and a ramp length for each side. The same file has the job places, speed limit zones, cameras and signs.
@@ -212,7 +211,7 @@ src/
     daylight.js          Light and colour at each hour of the day
     family.js            What the money means for the rider's family
     fuel.js              Fuel estimate for a job: distance, climb and load
-  audio/engine-sound.js  Engine and horn with Web Audio
+  audio/engine-sound.js  Engine, horn, crash, yells, jingles and menu sounds (Web Audio)
   scenes/
     MenuScene.js         Welcome menu, pause menu, How to play, Settings
     RideScene.js         World, bike, camera, smoke, occlusion

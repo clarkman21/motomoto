@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { World } from '../src/world/world.js';
 import { createBike, stepBike, forwardSpeed, energyUse, shiftGear, resetToRoad } from '../src/sim/bike.js';
-import { BIKES, SURFACES } from '../src/config.js';
+import { BIKES, SURFACES, MAINTENANCE } from '../src/config.js';
 
 const DT = 1 / 120;
 const run = (bike, world, input, seconds) => {
@@ -197,7 +197,7 @@ describe('gearbox (petrol)', () => {
     run(low, world, {}, 2);
     run(high, world, {}, 2);
     expect(kmh(low)).toBeLessThan(kmh(high) - 5);
-    expect(low.brakePads).toBe(1); // engine braking does not wear the brakes
+    expect(low.brakeWearKm).toBe(0); // engine braking does not wear the brakes
   });
 
   it('an early upshift uses less fuel than high revs', () => {
@@ -216,11 +216,11 @@ describe('gearbox (petrol)', () => {
 });
 
 describe('brakes', () => {
-  const stopFrom = (type, kmhStart, brake, pads = 1) => {
+  const stopFrom = (type, kmhStart, brake, due = 0) => {
     const world = straight();
     const bike = createBike(world, type);
     bike.gear = 3;
-    bike.brakePads = pads;
+    bike.serviceWear = due * MAINTENANCE.intervalKm[type];
     bike.vx = kmhStart / 3.6;
     bike.energy = 0.5;
     const x0 = bike.x;
@@ -228,27 +228,29 @@ describe('brakes', () => {
     return { bike, distance: bike.x - x0 };
   };
 
-  it('petrol brakes wear about 1% for a hard stop from 60 km/h', () => {
+  it('a hard stop from 60 km/h adds about 0.5 km to the service meter (the brake pads)', () => {
     const { bike } = stopFrom('petrol', 60, 1);
-    expect(1 - bike.brakePads).toBeGreaterThan(0.005);
-    expect(1 - bike.brakePads).toBeLessThan(0.012);
+    expect(bike.brakeWearKm).toBeGreaterThan(0.3);
+    expect(bike.brakeWearKm).toBeLessThan(0.7);
+    expect(bike.serviceWear).toBeGreaterThanOrEqual(bike.brakeWearKm);
   });
 
-  it('worn brakes need a longer distance to stop', () => {
-    expect(stopFrom('petrol', 50, 1, 0).distance).toBeGreaterThan(stopFrom('petrol', 50, 1, 1).distance * 1.4);
+  it('a bike that is long overdue for a service needs a longer distance to stop', () => {
+    expect(stopFrom('petrol', 50, 1, 1.49).distance).toBeGreaterThan(stopFrom('petrol', 50, 1, 0).distance * 1.4);
+    expect(stopFrom('petrol', 50, 1, 0.9).distance).toBeLessThan(stopFrom('petrol', 50, 1, 0).distance * 1.01);
   });
 
   it('electric regen braking charges the battery and saves the pads', () => {
     const { bike } = stopFrom('electric', 60, 0.3); // gentle: regen does the work down to 1 m/s
-    expect(bike.brakePads).toBeGreaterThan(0.9999);
+    expect(bike.brakeWearKm).toBeLessThan(0.01);
     expect(bike.energy).toBeGreaterThan(0.5);
   });
 
   it('hard electric braking uses the friction brakes too, but wears them less than petrol', () => {
     const e = stopFrom('electric', 60, 1).bike;
     const p = stopFrom('petrol', 60, 1).bike;
-    expect(e.brakePads).toBeLessThan(1);
-    expect(1 - e.brakePads).toBeLessThan((1 - p.brakePads) * 0.8);
+    expect(e.brakeWearKm).toBeGreaterThan(0);
+    expect(e.brakeWearKm).toBeLessThan(p.brakeWearKm * 0.8);
   });
 });
 
@@ -328,11 +330,11 @@ describe('reset (R)', () => {
   it('puts the bike on the nearest road and keeps fuel, wear and the load', () => {
     const world = new World({ name: 'reset', start: { x: 1.5, y: 0.5, headingDeg: 0 }, rows: ['#####', '.....', '.....', '.....'] });
     const bike = createBike(world, 'petrol');
-    Object.assign(bike, { x: 2.5 * 4, y: 3.5 * 4, vx: 3, energy: 0.2, brakePads: 0.4, serviceWear: 90, loadKg: 60, brokenDown: true });
+    Object.assign(bike, { x: 2.5 * 4, y: 3.5 * 4, vx: 3, energy: 0.2, brakeWearKm: 4, serviceWear: 90, loadKg: 60, brokenDown: true });
     expect(resetToRoad(world, bike)).toBe(true);
     expect(world.tileAt(bike.x, bike.y).surface).toBe('tarmac');
     expect(bike.y).toBe(0.5 * 4);
     expect(bike.vx).toBe(0);
-    expect(bike).toMatchObject({ energy: 0.2, brakePads: 0.4, serviceWear: 90, loadKg: 60, brokenDown: true });
+    expect(bike).toMatchObject({ energy: 0.2, brakeWearKm: 4, serviceWear: 90, loadKg: 60, brokenDown: true });
   });
 });

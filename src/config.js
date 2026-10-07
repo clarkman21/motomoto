@@ -138,11 +138,11 @@ export const GEARBOX = {
 };
 
 export const BRAKES = {
-  // Pad wear per m²/s² of speed that the friction brakes remove (a stop from 60 km/h removes 139).
-  // 0.00007 = about 1% of the pads for each hard stop from 60 km/h — guess.
-  wearPerUnit: 0.00007,
-  wornEfficiency: 0.45, // stopping power with fully worn pads, as a fraction of new
-  warnBelow: 0.25, // warn the rider when the pads are below this level
+  // Brake pads are part of the service: the friction brakes add wear to the service meter.
+  // Game km per m²/s² of speed that the friction brakes remove (a stop from 60 km/h removes 139):
+  // 0.0036 = about 0.5 km for each hard stop from 60 km/h — guess.
+  serviceKmPerUnit: 0.0036,
+  wornEfficiency: 0.45, // stopping power at the breakdown point (the pads are worn out), as a fraction of new
 };
 
 // Point hazards on top of a surface.
@@ -193,7 +193,6 @@ export const MONEY = {
   fuelQueueMaxSeconds: 8, // random queue 0..8 s — guess
   swapFee: 2500, // spec: flat fee, whatever charge is left in the old battery
   swapSeconds: 15, // spec
-  brakePads: 3000, // new pads at the garage — guess
   repairs: { wall: 800 }, // a crash costs money at once; potholes and bumps add wear instead (see MAINTENANCE) — guess
   // Out of cash at day end = game over, or one loan. The loan makes the next days harder. All guesses.
   loan: { amount: 20000, days: 10, interest: 0.2 }, // repay 2,400 RWF per day for 10 days
@@ -249,12 +248,11 @@ export const MAINTENANCE = {
   // What the mechanic does at each service (the costs add up to serviceCost). The petrol engine needs
   // an oil change; high revs fill the service meter faster (redlineWearFactor), so you need it sooner.
   serviceItems: {
-    petrol: [{ name: 'Oil change', cost: 2000 }, { name: 'Check: chain, tyres, lights', cost: 1500 }],
-    electric: [{ name: 'Check: brakes, tyres, lights', cost: 2000 }],
+    petrol: [{ name: 'Oil change', cost: 1500 }, { name: 'Brake pads', cost: 1000 }, { name: 'Check: chain, tyres, lights', cost: 1000 }],
+    electric: [{ name: 'Brake pads', cost: 1000 }, { name: 'Check: tyres, lights', cost: 1000 }],
   },
   serviceSeconds: 20,
-  padsBelow: 0.7, // the mechanic also replaces brake pads below this level (MONEY.brakePads)
-  minServiceFraction: 0.05, // below this, and with good pads, the mechanic has nothing to do
+  minServiceFraction: 0.05, // below this, the mechanic has nothing to do
 };
 
 // ---------------------------------------------------------------------------
@@ -297,6 +295,15 @@ export const PEOPLE = {
   hailRange: 6, // metres: stop this close to a customer to take the ride
   hitFine: 5000, // police fine for hitting a person
   hitSpeed: 2.5, // m/s: below this a touch is not a hit
+  // A near miss: a person yells when a fast bike passes this close (a short, cute yell).
+  yellDistance: 2.6, // metres
+  yellSpeed: 4, // m/s (about 15 km/h)
+  yellCooldown: 8, // seconds before the same person yells again
+  yellGap: 1.5, // seconds between two yells (any people)
+  yells: ['AYII!', 'WITONDE!', 'EH! EH!', 'MANA WE!', 'BUHORO!'], // Kinyarwanda: "be careful", "oh my God", "slowly"
+  // The horn: people in front of the bike and this close step out of the way.
+  honkRadius: 16, // metres
+  honkDodgeSeconds: 1.3,
 };
 
 export const RIVALS = {

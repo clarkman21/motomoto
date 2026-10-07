@@ -91,7 +91,7 @@ describe('money', () => {
     expect(repairCost({ type: 'bumpHard' })).toBe(0);
   });
 
-  it('the day end bill is the rent; service and pads are paid at the garage', () => {
+  it('the day end bill is the rent; the service is paid at the garage', () => {
     const wallet = createWallet(20000);
     const bike = createBike(world, 'petrol');
     earn(wallet, 'fares', 9000);
@@ -297,19 +297,19 @@ describe('maintenance and the garage', () => {
     expect(bike.pushing).toBe(true);
   });
 
-  it('the garage resets the meter, fixes a breakdown and replaces worn pads', () => {
+  it('the garage resets the meter (brake pads included) and fixes a breakdown', () => {
     const wallet = createWallet(10000);
     const bike = createBike(world, 'petrol');
     bike.serviceWear = 200;
+    bike.brakeWearKm = 20;
     bike.brokenDown = true;
-    bike.brakePads = 0.5;
     const r = payGarage(wallet, bike);
-    expect(r).toEqual({ ok: true, cost: MAINTENANCE.serviceCost.petrol + MONEY.brakePads, pads: true });
+    expect(r).toEqual({ ok: true, cost: MAINTENANCE.serviceCost.petrol });
     expect(wallet.cash).toBe(10000 - r.cost);
     expect(wallet.ledger.costs.garage).toBe(r.cost);
     expect(serviceDue(bike)).toBe(0);
     expect(bike.brokenDown).toBe(false);
-    expect(bike.brakePads).toBe(1);
+    expect(bike.brakeWearKm).toBe(0);
   });
 
   it('the garage has nothing to do on a new bike, and needs enough cash', () => {
@@ -381,10 +381,9 @@ describe('buying the bare minimum of fuel', () => {
 });
 
 describe('the service at the garage', () => {
-  it('lists an oil change for petrol, and brake pads when they are worn', () => {
+  it('lists an oil change for petrol, and brake pads in every service', () => {
     const bike = createBike(new World(TEST_MAP), 'petrol');
     bike.serviceWear = 100;
-    bike.brakePads = 0.5;
     const q = garageQuote(bike);
     expect(q.items.map((i) => i.name)).toContain('Oil change');
     expect(q.items.map((i) => i.name)).toContain('Brake pads');

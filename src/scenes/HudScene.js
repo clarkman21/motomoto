@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BIKES, COLOURS, GEARBOX, BRAKES, LAW, JOBS, SAVINGS_FLOAT, DISTRICTS } from '../config.js';
+import { BIKES, COLOURS, GEARBOX, LAW, JOBS, SAVINGS_FLOAT, DISTRICTS } from '../config.js';
 import { forwardSpeed } from '../sim/bike.js';
 import { serviceDue } from '../sim/maintenance.js';
 import { MinimapView } from './MinimapView.js';
@@ -30,7 +30,6 @@ export class HudScene extends Phaser.Scene {
     this.gearLabel = this.add.text(0, 0, 'GEAR', { fontFamily: FONT_LABEL, fontSize: '14px', color: ALLOY_GREY }).setOrigin(0.5, 0);
     this.gearText = this.add.text(0, 0, '1', { fontFamily: FONT_LABEL, fontSize: '40px', fontStyle: '600', color: '#ffffff' }).setOrigin(0.5, 0);
     this.revsLabel = this.add.text(0, 0, 'REVS', { fontFamily: FONT_LABEL, fontSize: '14px', color: ALLOY_GREY });
-    this.brakesLabel = this.add.text(0, 0, 'BRAKES', { fontFamily: FONT_LABEL, fontSize: '14px', color: ALLOY_GREY });
     this.serviceLabel = this.add.text(0, 0, 'SERVICE', { fontFamily: FONT_LABEL, fontSize: '14px', color: ALLOY_GREY });
     this.meters = this.add.graphics();
     this.infoText = this.add.text(0, 0, '', { fontFamily: FONT_BODY, fontSize: '14px', color: '#ffffff', lineSpacing: 4 });
@@ -107,7 +106,6 @@ export class HudScene extends Phaser.Scene {
     this.gearLabel.setFontSize(px(14));
     this.gearText.setFontSize(px(40));
     this.revsLabel.setFontSize(px(14));
-    this.brakesLabel.setFontSize(px(14));
     this.infoText.setFontSize(px(14));
     this.helpText.setFontSize(px(14));
     this.barkText.setFontSize(px(28));
@@ -121,12 +119,10 @@ export class HudScene extends Phaser.Scene {
     this.energyLabel.setPosition(x + 14 * s, y + 58 * s);
     this.energyBarPos = { x: x + 14 * s, y: y + 80 * s, w: 272 * s, h: 10 * s };
     this.revsLabel.setPosition(x + 14 * s, y + 96 * s);
-    // Three meters in one row: revs, brake pads, service.
-    this.brakesLabel.setPosition(x + 108 * s, y + 96 * s);
-    this.serviceLabel.setFontSize(px(14)).setPosition(x + 200 * s, y + 96 * s);
+    // Two meters in one row: revs, and the moto service (engine oil, brake pads, chain, tyres).
+    this.serviceLabel.setFontSize(px(14)).setPosition(x + 108 * s, y + 96 * s);
     this.revsBarPos = { x: x + 14 * s, y: y + 116 * s, w: 82 * s, h: 8 * s };
-    this.brakesBarPos = { x: x + 108 * s, y: y + 116 * s, w: 80 * s, h: 8 * s };
-    this.serviceBarPos = { x: x + 200 * s, y: y + 116 * s, w: 86 * s, h: 8 * s };
+    this.serviceBarPos = { x: x + 108 * s, y: y + 116 * s, w: 178 * s, h: 8 * s };
     this.infoText.setPosition(x + 14 * s, y + 134 * s);
     this.helpText.setPosition(width / 2, height - 12 * s);
     this.helpText.setText(
@@ -184,20 +180,17 @@ export class HudScene extends Phaser.Scene {
     this.gearText.setText(spec.gears ? `${bike.autoShift ? 'A' : ''}${bike.gear + 1}` : 'E');
     this.gearLabel.setText(spec.gears ? 'GEAR' : 'SINGLE');
     this.revsLabel.setText(spec.gears ? 'REVS' : 'MOTOR');
-    const pads = bike.brakePads;
-    this.brakesLabel.setText(`PADS ${Math.round(pads * 100)}%`).setColor(pads < BRAKES.warnBelow ? '#ec5825' : ALLOY_GREY);
-    const r = this.revsBarPos, k = this.brakesBarPos, m = this.meters.clear();
-    m.fillStyle(0x333333, 1).fillRect(r.x, r.y, r.w, r.h).fillRect(k.x, k.y, k.w, k.h);
+    const r = this.revsBarPos, m = this.meters.clear();
+    m.fillStyle(0x333333, 1).fillRect(r.x, r.y, r.w, r.h);
     if (spec.gears) m.fillStyle(0x5c1c0e, 1).fillRect(r.x + r.w * GEARBOX.peakRevsEnd, r.y, r.w * (1 - GEARBOX.peakRevsEnd), r.h); // red zone
     const revs = Math.min(1, bike.revs);
     m.fillStyle(spec.gears && revs > GEARBOX.peakRevsEnd ? PETROL_RED : 0xf6f5ec, 1).fillRect(r.x, r.y, r.w * revs, r.h);
-    m.fillStyle(pads < BRAKES.warnBelow ? PETROL_RED : 0xf6f5ec, 1).fillRect(k.x, k.y, k.w * pads, k.h);
     // Service meter: it fills up as the bike wears. Orange from 80%, red when the service is due.
     const due = serviceDue(bike);
     const sv = this.serviceBarPos;
     const late = due >= 1;
     const blink = bike.brokenDown && Math.floor(this.time.now / 300) % 2 === 0;
-    this.serviceLabel.setText(bike.brokenDown ? 'BROKEN DOWN' : `${bike.type === 'petrol' ? 'OIL' : 'SERVICE'} ${Math.round(due * 100)}%`).setColor(late ? '#ec5825' : due >= 0.8 ? '#e8a33a' : ALLOY_GREY);
+    this.serviceLabel.setText(bike.brokenDown ? 'BROKEN DOWN' : `MOTO SERVICE ${Math.round(due * 100)}%`).setColor(late ? '#ec5825' : due >= 0.8 ? '#e8a33a' : ALLOY_GREY);
     m.fillStyle(0x333333, 1).fillRect(sv.x, sv.y, sv.w, sv.h);
     m.fillStyle(blink ? 0xffffff : late ? PETROL_RED : due >= 0.8 ? 0xe8a33a : 0xf6f5ec, 1).fillRect(sv.x, sv.y, sv.w * Math.min(1, due), sv.h);
 

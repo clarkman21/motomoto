@@ -1,7 +1,8 @@
-import { MAINTENANCE, JOBS, GEARBOX, MONEY } from '../config.js';
+import { MAINTENANCE, JOBS, GEARBOX, BRAKES } from '../config.js';
 
 // Maintenance: the service meter. No Phaser here.
 // bike.serviceWear counts game km since the last service, weighted by how hard the ride was.
+// One meter for everything: the engine (oil), the brake pads, the chain and the tyres.
 // serviceDue(bike) = serviceWear / interval: 0 = just serviced, 1 = service due, 1.5 = breakdown.
 
 export function serviceDue(bike) {
@@ -21,6 +22,11 @@ export function powerFactor(bike) {
 /** Energy factor: an overdue bike uses more fuel or charge. */
 export function energyFactor(bike) {
   return 1 + MAINTENANCE.overdueEnergyExtra * overdue(bike);
+}
+
+/** Stopping power of the friction brakes: the pads wear out after the service is due. */
+export function brakeFactor(bike) {
+  return 1 - (1 - BRAKES.wornEfficiency) * overdue(bike);
 }
 
 /** Wear in game km for riding `metres` on `surface`. The petrol red zone wears the engine faster. */
@@ -53,25 +59,19 @@ export function addWear(bike, km) {
 }
 
 /**
- * What the garage would do and what it costs: { nothing, pads, cost, items: [{ name, cost }] }.
- * A service is the oil change (petrol) and a check; worn brake pads are part of it.
+ * What the garage would do and what it costs: { nothing, cost, items: [{ name, cost }] }.
+ * A service is the oil change (petrol), new brake pads and a check.
  */
 export function garageQuote(bike) {
-  const pads = bike.brakePads < MAINTENANCE.padsBelow;
   const service = serviceDue(bike) >= MAINTENANCE.minServiceFraction || bike.brokenDown;
-  const items = service || pads ? [...MAINTENANCE.serviceItems[bike.type]] : [];
-  if (pads) items.push({ name: 'Brake pads', cost: MONEY.brakePads });
+  const items = service ? [...MAINTENANCE.serviceItems[bike.type]] : [];
   const cost = items.reduce((a, i) => a + i.cost, 0);
-  return { nothing: !service && !pads, pads, cost, items };
+  return { nothing: !service, cost, items };
 }
 
-/** The mechanic services the bike: the meter goes to zero, a breakdown is fixed, worn pads are new. */
+/** The mechanic services the bike: the meter goes to zero and a breakdown is fixed. */
 export function serviceBike(bike) {
-  const { pads } = garageQuote(bike);
   bike.serviceWear = 0;
   bike.brokenDown = false;
-  if (pads) {
-    bike.brakePads = 1;
-    bike.brakesWarned = false;
-  }
+  bike.brakeWearKm = 0;
 }

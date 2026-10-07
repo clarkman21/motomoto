@@ -21,9 +21,10 @@ import { buildRoadGraph, openRoads } from '../sim/roads.js';
 import { createTraffic, stepTraffic, insideVehicle, sendBusToPark } from '../sim/traffic.js';
 import { mulberry32 } from '../sim/jobs.js';
 import { TrafficView, isDiesel } from './TrafficView.js';
-import { createPeople, stepPeople, hailInReach, insidePerson, busArrivalHails } from '../sim/people.js';
+import { createPeople, stepPeople, hailInReach, insidePerson, busArrivalHails, honkAt } from '../sim/people.js';
 import { startRace, chaseHail, stepRivals, cancelMission } from '../sim/rivals.js';
 import { PeopleView } from './PeopleView.js';
+import { PERSON_LOOKS } from '../world/vehicle-sprites.js';
 import { levelSettings, milestoneReady, buyMilestone, restartLevel, streakMultiplier, updateStreak, savingsTarget } from '../sim/levels.js';
 import { loadGame, saveGame, clearSave, loadSettings, saveSettings } from './save.js';
 import { deliveryLine } from '../sim/family.js';
@@ -43,7 +44,6 @@ const BARKS = {
   pothole: 'Pothole! Speed −30%, more wear',
   overRev: 'Too fast to shift down',
   noGears: 'Electric moto: no gears',
-  brakesWorn: 'Brakes worn! Downshift or use regen',
   lugging: 'Shift down!',
   offRoad: 'Off road! The bike wears 4 times faster',
   serviceSoon: 'Service soon: 80%. Plan a garage visit',
@@ -121,6 +121,7 @@ export class RideScene extends Phaser.Scene {
     this.bike = createBike(this.world, levelSettings(this.wallet).bikeType);
     if (saved?.bike) Object.assign(this.bike, saved.bike);
     else this.bike.energy = FUEL.startLevel; // a new game starts with a part full tank: plan your first fill up
+    this.bike.brakeWearKm ??= 0; // saves from before the brakes were part of the service
     this.#applyLevel();
     this.cameraState = createCameraState(this.world);
     this.dayTime = 0; // real seconds since the start of the shift
@@ -442,7 +443,7 @@ export class RideScene extends Phaser.Scene {
     const r =
       kind === 'fuel' ? buyFuel(this.wallet, this.bike, this.fuelPrice, upTo) :
       kind === 'swap' ? swapBattery(this.wallet, this.bike) : payGarage(this.wallet, this.bike);
-    const label = kind === 'fuel' ? 'Fuel' : kind === 'swap' ? 'Battery swap' : r.pads ? 'Service and brake pads' : 'Service';
+    const label = kind === 'fuel' ? 'Fuel' : kind === 'swap' ? 'Battery swap' : 'Service';
     if (r.ok) this.events.emit('money', -r.cost, label);
     else this.events.emit('bark', 'Not enough cash');
   }
@@ -546,9 +547,9 @@ export class RideScene extends Phaser.Scene {
   }
 
   #save() {
-    const { energy, brakePads, serviceWear, brokenDown } = this.bike;
+    const { energy, serviceWear, brokenDown, brakeWearKm } = this.bike;
     const { ledger, ...wallet } = this.wallet;
-    saveGame({ wallet, bike: { energy, brakePads, serviceWear, brokenDown } });
+    saveGame({ wallet, bike: { energy, serviceWear, brokenDown, brakeWearKm } });
   }
 
   #endDay() {
@@ -584,7 +585,7 @@ export class RideScene extends Phaser.Scene {
     }
     this.dayTime = 0;
     this.dayOver = false;
-    const { autoShift, energy, brakePads, brakesWarned, serviceWear, brokenDown } = this.bike;
+    const { autoShift, energy, serviceWear, brokenDown, brakeWearKm } = this.bike;
     if (choice === 'newGame') {
       clearSave();
       this.wallet = createWallet();
@@ -598,7 +599,7 @@ export class RideScene extends Phaser.Scene {
     this.bike.autoShift = autoShift;
     if (choice === 'newGame') this.bike.energy = FUEL.startLevel;
     // The same bike carries over (a new bike after a new game or the switch to electric).
-    if (choice !== 'newGame' && type === this.level.bikeType) Object.assign(this.bike, { energy, brakePads, brakesWarned, serviceWear, brokenDown });
+    if (choice !== 'newGame' && type === this.level.bikeType) Object.assign(this.bike, { energy, serviceWear, brokenDown, brakeWearKm: brakeWearKm ?? 0 });
     this.#applyLevel();
     this.#placeBike();
     this.#save();
@@ -630,7 +631,9 @@ export class RideScene extends Phaser.Scene {
   horn() {
     this.engineSound.start();
     this.engineSound.horn();
-    this.events.emit('bark', 'Beep beep!');
+    // People in front of you step out of the way.
+    const moved = this.people ? honkAt(this.people, this.bike) : 0;
+    this.events.emit('bark', moved ? 'Beep beep! People step aside' : 'Beep beep!');
   }
 
   toggleSound() {
@@ -688,11 +691,18 @@ export class RideScene extends Phaser.Scene {
           continue;
         }
         if (e.type === 'wall' && crashed && e.hit?.kind !== 'person') continue; // the crash message says it all
-        if (e.type === 'wall' && e.speed > 3) this.cameras.main.shake(120, 0.002);
+        if (e.type === 'wall' && e.speed > 3) {
+          this.cameras.main.shake(120, 0.002);
+          if (this.time.now - (this.bumpSoundTime ?? -1e9) > 300) {
+            this.bumpSoundTime = this.time.now;
+            this.engineSound.crash(0.3); // a light knock
+          }
+        }
         if (e.type === 'wall' && e.speed < 4) continue; // no bark when you only touch a wall
         if (e.type === 'wall' && e.hit?.kind === 'person') {
           if (e.speed >= PEOPLE.hitSpeed) {
             e.hit.hurt = 3;
+            this.#yell(e.hit, 'AYA!');
             this.#pay('fines', PEOPLE.hitFine, 'Police: you hit a person');
             this.events.emit('bark', 'You hit a person! Slow down near people');
           }
@@ -774,8 +784,23 @@ export class RideScene extends Phaser.Scene {
     const kmh = Math.round(e.speed * 3.6);
     const what = !e.hit ? 'a wall' : e.hit.kind === 'pole' ? 'a pole' : e.hit.kind === 'person' ? 'a person' : e.hit.kind === 'bus' ? 'a minibus' : `a ${e.hit.kind}`;
     this.cameras.main.shake(300, 0.008);
+    this.engineSound.crash(e.speed / 12);
     this.events.emit('bark', `Crash! You hit ${what} at ${kmh} km/h and fell off`);
     for (let i = 0; i < 4; i++) this.#spawnPuff(this.bike.x + (this.rng() - 0.5) * 1.5, this.bike.y + (this.rng() - 0.5) * 1.5, 0.1);
+  }
+
+  /** A person yells: a short, cute voice and the word in a small bubble over the head. */
+  #yell(person, word) {
+    const look = PERSON_LOOKS[person.look] ?? {};
+    // Mamas and some others have higher voices; each person has their own pitch.
+    const pitch = (look.kitenge !== undefined ? 1.2 : 0.9) + ((person.id * 37) % 10) / 40;
+    this.engineSound.yell(pitch);
+    if (!this.cache.bitmapFont.exists('retro')) return;
+    const s = toScreen(person.x, person.y, this.world.heightAt(person.x, person.y));
+    const text = this.add.bitmapText(Math.round(s.x), Math.round(s.y - 34), 'retro', word).setOrigin(0.5, 1)
+      .setTint(0xfff2c8).setDepth(100000);
+    text.noAmbient = true;
+    this.tweens.add({ targets: text, y: text.y - 10, alpha: 0, delay: 600, duration: 700, onComplete: () => text.destroy() });
   }
 
   /** At the edge of a closed district: tell the rider when it opens. Returns true if the bike is there. */
@@ -814,6 +839,7 @@ export class RideScene extends Phaser.Scene {
     for (const e of stepPeople(this.people, this.world, b, this.world.places, dt)) {
       if (e.type === 'hailNew') chaseHail(this.traffic, e.hail, this.rng);
       if (e.type === 'hailGone') this.#cancelRivalsFor('hail', e.hail.id);
+      if (e.type === 'nearMiss') this.#yell(e.person, e.word);
     }
     for (const e of stepRivals(this.traffic, dt)) this.#rivalArrived(e);
     const near = (p) => Math.abs(p.x - b.x) < 12 && Math.abs(p.y - b.y) < 12;

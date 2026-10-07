@@ -1,4 +1,4 @@
-// Engine and horn sounds made with Web Audio, so the prototype needs no audio files.
+// Engine, horn, crash and voice sounds made with Web Audio, so the prototype needs no audio files.
 // Petrol: a rough, low sawtooth. Electric: a quiet, high hum.
 // Browsers start audio only after the first key press or tap.
 
@@ -153,5 +153,95 @@ export class EngineSound {
       o.start(t);
       o.stop(t + 0.36);
     }
+  }
+
+  /** A burst of white noise (seconds long, it starts now), for crashes. */
+  #noise(seconds) {
+    if (!this.noiseBuffer) {
+      const n = Math.floor(this.ctx.sampleRate * 0.6);
+      this.noiseBuffer = this.ctx.createBuffer(1, n, this.ctx.sampleRate);
+      const d = this.noiseBuffer.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    }
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseBuffer;
+    src.start();
+    src.stop(this.ctx.currentTime + seconds);
+    return src;
+  }
+
+  /**
+   * A crash: a low thud, the scrape of metal on the road and a clank. strength 0..1 (from the
+   * impact speed) sets the volume and the length.
+   */
+  crash(strength = 1) {
+    if (!this.ctx || !this.enabled) return;
+    const ctx = this.ctx, t = ctx.currentTime, k = Math.max(0.3, Math.min(1, strength));
+    // Thud: a sine that drops in pitch.
+    const thud = ctx.createOscillator(), tg = ctx.createGain();
+    thud.type = 'sine';
+    thud.frequency.setValueAtTime(140, t);
+    thud.frequency.exponentialRampToValueAtTime(40, t + 0.25);
+    tg.gain.setValueAtTime(0.5 * k, t);
+    tg.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+    thud.connect(tg).connect(this.master);
+    thud.start(t);
+    thud.stop(t + 0.32);
+    // Scrape: noise through a band pass that slides down, longer for a harder crash.
+    const len = 0.25 + 0.35 * k;
+    const scrape = this.#noise(len), bp = ctx.createBiquadFilter(), sg = ctx.createGain();
+    bp.type = 'bandpass';
+    bp.Q.value = 2;
+    bp.frequency.setValueAtTime(2400, t);
+    bp.frequency.exponentialRampToValueAtTime(700, t + len);
+    sg.gain.setValueAtTime(0.35 * k, t);
+    sg.gain.exponentialRampToValueAtTime(0.0001, t + len);
+    scrape.connect(bp).connect(sg).connect(this.master);
+    // Clank: two short metal tones.
+    for (const [f, dt] of [[523, 0.02], [311, 0.09]]) {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'square';
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.08 * k, t + dt);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dt + 0.12);
+      o.connect(g).connect(this.master);
+      o.start(t + dt);
+      o.stop(t + dt + 0.14);
+    }
+  }
+
+  /**
+   * A short, cute yell ("eh-eh!"): two quick voice syllables that go up in pitch. pitch: about
+   * 0.8 (low voice) to 1.3 (high voice).
+   */
+  yell(pitch = 1) {
+    if (!this.ctx || !this.enabled) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    const formant = ctx.createBiquadFilter(); // makes the tone sound like an "eh" vowel
+    formant.type = 'bandpass';
+    formant.frequency.value = 1700 * pitch;
+    formant.Q.value = 1.2;
+    const out = ctx.createGain();
+    out.gain.value = 0.9;
+    formant.connect(out).connect(this.master);
+    [[0, 0.09], [0.13, 0.14]].forEach(([dt, len], i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain(), vib = ctx.createOscillator(), vg = ctx.createGain();
+      o.type = 'sawtooth';
+      const f0 = (i ? 420 : 360) * pitch;
+      o.frequency.setValueAtTime(f0, t + dt);
+      o.frequency.exponentialRampToValueAtTime(f0 * 1.35, t + dt + len * 0.6);
+      o.frequency.exponentialRampToValueAtTime(f0 * 1.1, t + dt + len);
+      vib.frequency.value = 28; // a little wobble in the voice
+      vg.gain.value = 12 * pitch;
+      vib.connect(vg).connect(o.frequency);
+      g.gain.setValueAtTime(0.0001, t + dt);
+      g.gain.exponentialRampToValueAtTime(0.16, t + dt + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dt + len);
+      o.connect(g).connect(formant);
+      for (const n of [o, vib]) {
+        n.start(t + dt);
+        n.stop(t + dt + len + 0.02);
+      }
+    });
   }
 }

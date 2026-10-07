@@ -6,6 +6,7 @@ import { drawVendor, drawGoat, drawSheep, KITENGE, MARKET_GOODS } from '../src/w
 import { drawPerson, PERSON_LOOKS } from '../src/world/vehicle-sprites.js';
 import { drawFuelSign } from '../src/world/garage-sprites.js';
 import { WORLD, PEOPLE, COLOURS } from '../src/config.js';
+import { createPeople, stepPeople, honkAt } from '../src/sim/people.js';
 
 const T = WORLD.tileMetres;
 const world = new World(buildKigaliMap());
@@ -55,5 +56,39 @@ describe('market life', () => {
     expect(hasColour(canvas, COLOURS.spYellow)).toBe(true);
     expect(hasColour(canvas, COLOURS.ampersandYellow)).toBe(false);
     expect(canvas.height).toBeGreaterThan(50);
+  });
+});
+
+describe('people react to the bike', () => {
+  const flat = new World({ name: 'flat', start: { x: 1.5, y: 5.5, headingDeg: 0 }, rows: Array.from({ length: 12 }, () => 'p'.repeat(40)) });
+  const make = () => {
+    const people = createPeople(flat, () => 0.5, { count: 0 });
+    people.walkers = [
+      { id: 1, x: 30, y: 23, tx: 30, ty: 23, speed: 1.2, look: 7, wait: 0, dodge: 0, hurt: 0 }, // ahead, a little to the side
+      { id: 2, x: 2, y: 22, tx: 2, ty: 22, speed: 1.2, look: 0, wait: 0, dodge: 0, hurt: 0 }, // behind
+    ];
+    return people;
+  };
+
+  it('the horn makes the people in front step aside, not the people behind', () => {
+    const people = make();
+    const bike = { x: 20, y: 22, heading: 0, vx: 0, vy: 0 };
+    expect(honkAt(people, bike)).toBe(1);
+    const [front, back] = people.walkers;
+    expect(front.dodge).toBeGreaterThan(0);
+    expect(front.dodgeY).toBeGreaterThan(0); // away from the bike's path (the person is on the +y side)
+    expect(back.dodge).toBe(0);
+    for (let i = 0; i < 60; i++) stepPeople(people, flat, { x: 0, y: 0, vx: 0, vy: 0 }, [], 1 / 60);
+    expect(front.y).toBeGreaterThan(23.5);
+  });
+
+  it('a person yells when a fast bike passes close, then not again at once', () => {
+    const people = make();
+    const bike = { x: 29, y: 22, vx: 8, vy: 0 };
+    const first = stepPeople(people, flat, bike, [], 1 / 60).filter((e) => e.type === 'nearMiss');
+    expect(first).toHaveLength(1);
+    expect(PEOPLE.yells).toContain(first[0].word);
+    const again = stepPeople(people, flat, bike, [], 1 / 60).filter((e) => e.type === 'nearMiss');
+    expect(again).toHaveLength(0);
   });
 });

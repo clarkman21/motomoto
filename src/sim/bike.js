@@ -1,6 +1,6 @@
 import { BIKES, PHYSICS, HAZARDS, WORLD, GEARBOX, BRAKES, LOAD, FUEL, COLLISION } from '../config.js';
 import { wrapAngle } from '../world/iso.js';
-import { addWear, rideWearKm, hitWearKm, powerFactor, energyFactor } from './maintenance.js';
+import { addWear, rideWearKm, hitWearKm, powerFactor, energyFactor, brakeFactor } from './maintenance.js';
 import { collideBike } from './collide.js';
 
 // Arcade bike physics. No Phaser here, so the tests can run it.
@@ -29,8 +29,7 @@ export function createBike(world, type = 'petrol') {
     autoShift: false,
     shiftTimer: 0, // seconds left of a gear change (no engine pull)
     revs: 0, // 0..1 of the rev limit (electric: fraction of top speed)
-    brakePads: 1, // 1 = new, 0 = fully worn
-    brakesWarned: false,
+    brakeWearKm: 0, // the part of the service meter that came from the brakes (since the last service)
     loadKg: 0, // passenger or cargo
     odometer: 0, // metres ridden today
     offRoadMetres: 0, // metres ridden off road today
@@ -82,11 +81,6 @@ export function enginePull(spec, bike, v) {
   else if (r > GEARBOX.peakRevsEnd) curve = (1 - r) / (1 - GEARBOX.peakRevsEnd);
   else if (r < GEARBOX.lugRevs && bike.gear > 0) curve = GEARBOX.lugPull + (1 - GEARBOX.lugPull) * (r / GEARBOX.lugRevs);
   return spec.accelMs2 * g.pull * curve;
-}
-
-/** Stopping power of the friction brakes for a pad level 0..1. */
-export function brakeEfficiency(pads) {
-  return BRAKES.wornEfficiency + (1 - BRAKES.wornEfficiency) * pads;
 }
 
 /** Forward speed in m/s (negative when you roll backwards). */
@@ -163,7 +157,7 @@ export function stepBike(bike, input, world, dt) {
   if (brake > 0 && v > 0.05) {
     const demand = (brake * spec.brakeMs2) / massFactor;
     regenBrake = v > 1 ? Math.min(demand, spec.regenBrakeMs2) : 0;
-    frictionBrake = (demand - regenBrake) * brakeEfficiency(bike.brakePads);
+    frictionBrake = (demand - regenBrake) * brakeFactor(bike);
     accel -= regenBrake + frictionBrake;
   }
   const reversing = brake > 0 && throttle === 0 && v < 0.3;
@@ -189,13 +183,12 @@ export function stepBike(bike, input, world, dt) {
   else v -= Math.sign(v) * dv;
   if (reversing) v = Math.max(v, -spec.reverseSpeedKmh * KMH);
 
-  // Brake wear: proportional to the speed that the friction brakes remove (v · a · dt = change of v²/2).
+  // Brake wear goes on the service meter: proportional to the speed that the friction brakes
+  // remove (v · a · dt = change of v²/2). Engine braking and regen do not wear the pads.
+  let brakeWearKm = 0;
   if (frictionBrake > 0) {
-    bike.brakePads = Math.max(0, bike.brakePads - frictionBrake * Math.abs(v) * dt * BRAKES.wearPerUnit);
-    if (!bike.brakesWarned && bike.brakePads < BRAKES.warnBelow) {
-      bike.brakesWarned = true;
-      events.push({ type: 'brakesWorn' });
-    }
+    brakeWearKm = frictionBrake * Math.abs(v) * dt * BRAKES.serviceKmPerUnit;
+    bike.brakeWearKm += brakeWearKm;
   }
 
   // Net forward acceleration this step (negative = slowing down). Passengers feel hard braking.
@@ -262,7 +255,7 @@ export function stepBike(bike, input, world, dt) {
   bike.bump = Math.max(0, bike.bump - dt);
 
   // Maintenance: the service meter fills with distance (more on bad roads and in the red zone) and with hits.
-  let wearKm = rideWearKm(bike, spec, surface, moved);
+  let wearKm = rideWearKm(bike, spec, surface, moved) + brakeWearKm;
   for (const e of events) wearKm += hitWearKm(e);
   events.push(...addWear(bike, wearKm));
 

@@ -83,8 +83,10 @@ function pickTarget(people, world, p) {
 export function stepPeople(people, world, bike, places, dt) {
   const events = [];
   const rng = people.rng;
+  people.yellTimer = Math.max(0, (people.yellTimer ?? 0) - dt);
   for (const p of people.walkers) {
     p.vx = p.vy = 0;
+    if (p.yellCooldown > 0) p.yellCooldown -= dt;
     if (p.hurt > 0) {
       p.hurt -= dt;
       continue;
@@ -93,6 +95,12 @@ export function stepPeople(people, world, bike, places, dt) {
     const bx = p.x - bike.x, by = p.y - bike.y;
     const bd = Math.hypot(bx, by);
     const bs = Math.hypot(bike.vx, bike.vy);
+    // A near miss: the person yells at you (not too often).
+    if (bd < PEOPLE.yellDistance && bs > PEOPLE.yellSpeed && !(p.yellCooldown > 0) && people.yellTimer <= 0) {
+      p.yellCooldown = PEOPLE.yellCooldown;
+      people.yellTimer = PEOPLE.yellGap;
+      events.push({ type: 'nearMiss', person: p, word: PEOPLE.yells[Math.floor(rng() * PEOPLE.yells.length)] });
+    }
     if (p.dodge <= 0 && bd < PEOPLE.dodgeDistance && bs > 2 && (bike.vx * bx + bike.vy * by) > 0) {
       // Move at right angles to the bike's direction, on the side where the person already is.
       const nx = -bike.vy / bs, ny = bike.vx / bs;
@@ -144,6 +152,28 @@ export function stepPeople(people, world, bike, places, dt) {
     }
   }
   return events;
+}
+
+/**
+ * The horn: people in front of the bike (and near it) step out of the way, to the side.
+ * Returns the number of people who move.
+ */
+export function honkAt(people, bike) {
+  const hx = Math.cos(bike.heading), hy = Math.sin(bike.heading);
+  let moved = 0;
+  for (const p of people.walkers) {
+    if (p.hurt > 0) continue;
+    const bx = p.x - bike.x, by = p.y - bike.y;
+    if (Math.hypot(bx, by) > PEOPLE.honkRadius || bx * hx + by * hy < -1) continue; // behind you: they do not move
+    // Step at right angles to the bike's heading, on the side where the person already is.
+    const side = -hy * bx + hx * by >= 0 ? 1 : -1;
+    p.dodgeX = -hy * side;
+    p.dodgeY = hx * side;
+    p.dodge = PEOPLE.honkDodgeSeconds;
+    p.wait = 0;
+    moved++;
+  }
+  return moved;
 }
 
 /**

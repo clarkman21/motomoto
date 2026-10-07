@@ -101,7 +101,7 @@ export function repairCost(event) {
 }
 
 /**
- * Service the bike at the garage. Returns { ok, cost, pads, reason }. Call when the work is done.
+ * Service the bike at the garage. Returns { ok, cost, reason }. Call when the work is done.
  * After a breakdown, the mechanic repairs the bike on credit (cash can go below zero), so you are never
  * stuck. The day end check then decides: a loan, or game over. A normal service needs the cash.
  */
@@ -111,7 +111,7 @@ export function payGarage(wallet, bike) {
   if (wallet.cash < q.cost && !bike.brokenDown) return { ok: false, cost: q.cost, reason: 'cash' };
   spend(wallet, 'garage', q.cost);
   serviceBike(bike);
-  return { ok: true, cost: q.cost, pads: q.pads };
+  return { ok: true, cost: q.cost };
 }
 
 /**
@@ -141,7 +141,6 @@ export function endDay(wallet, bike, rent = MONEY.dailyRent[bike.type]) {
     totalCosts,
     profit: totalIncome - totalCosts,
     cash: wallet.cash,
-    brakePads: bike.brakePads,
     serviceDue: serviceDue(bike),
     // Regen: energy put back into the battery. A full battery costs one swap, so this is the money saved.
     regenFraction: bike.regenToday,
