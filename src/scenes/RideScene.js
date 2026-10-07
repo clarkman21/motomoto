@@ -10,7 +10,7 @@ import {
   drawCamera, drawSpeedSign, drawMarkerRing, drawMarkerPin, drawArrow, PROP_CANVAS,
   BIKE_LOADS, drawWaitingPassenger, drawCargoPile,
 } from '../world/sprites.js';
-import { createBike, stepBike, forwardSpeed, shiftGear, bestGear } from '../sim/bike.js';
+import { createBike, stepBike, forwardSpeed, shiftGear, bestGear, resetToRoad } from '../sim/bike.js';
 import { readControls, STEERING_MODES, STEERING_LABELS } from '../sim/controls.js';
 import { EngineSound } from '../audio/engine-sound.js';
 import { createWallet, earn, spend, buyFuel, swapBattery, fuelFillCost, fuelChoices, repairCost, endDay, takeLoan, payGarage } from '../sim/economy.js';
@@ -31,6 +31,7 @@ import { jobFuel, legFuel } from '../sim/fuel.js';
 import { LightsView } from './LightsView.js';
 import { BarrierView } from './BarrierView.js';
 import { GarageView } from './GarageView.js';
+import { MarketView } from './MarketView.js';
 import { SignView } from './SignView.js';
 import { daylight } from '../sim/daylight.js';
 
@@ -92,6 +93,7 @@ export class RideScene extends Phaser.Scene {
     this.#createProps();
     // The moto garages: motos, mechanics, oil stains and the name sign.
     this.garages = new GarageView(this, this.world);
+    this.markets = new MarketView(this, this.world);
     this.signs = new SignView(this, this.world); // names on landmark buildings
     // Night lights and the colour of the day (see LightsView.js).
     this.lights = new LightsView(this, this.world);
@@ -131,6 +133,7 @@ export class RideScene extends Phaser.Scene {
     this.accumulator = 0;
     this.engineSound = new EngineSound();
     this.occluded = false;
+    this.showMap = true;
 
     // Settings from an earlier visit (sound, steering, gears).
     const settings = loadSettings();
@@ -138,6 +141,7 @@ export class RideScene extends Phaser.Scene {
       this.engineSound.setEnabled(settings.sound !== false);
       if (STEERING_MODES.includes(settings.steering)) this.steeringMode = settings.steering;
       this.bike.autoShift = !!settings.autoShift;
+      this.showMap = settings.map !== false;
     }
 
     this.chunks.update(this.bike.x, this.bike.y);
@@ -221,7 +225,7 @@ export class RideScene extends Phaser.Scene {
   }
 
   #saveSettings() {
-    saveSettings({ sound: this.engineSound.enabled, steering: this.steeringMode, autoShift: !!this.bike.autoShift });
+    saveSettings({ sound: this.engineSound.enabled, steering: this.steeringMode, autoShift: !!this.bike.autoShift, map: this.showMap });
   }
 
   /** Behind the welcome menu: the camera moves slowly over Nyabugogo at dusk, and the traffic drives. */
@@ -265,6 +269,7 @@ export class RideScene extends Phaser.Scene {
         case 'KeyC': this.toggleSteering(); break;
         case 'KeyB': this.toggleBike(); break;
         case 'KeyR': this.resetBike(); break;
+        case 'KeyM': this.toggleMap(); break;
         case 'KeyH': this.horn(); break;
         case 'KeyV': this.toggleSound(); break;
         case 'KeyE': case 'KeyX': this.shift(1); break;
@@ -304,16 +309,22 @@ export class RideScene extends Phaser.Scene {
     if (e && BARKS[e.type]) this.events.emit('bark', BARKS[e.type]);
   }
 
+  /** M: show or hide the minimap. */
+  toggleMap() {
+    this.showMap = !this.showMap;
+    this.#saveSettings();
+  }
+
   toggleAutoShift() {
     this.bike.autoShift = !this.bike.autoShift;
     this.events.emit('bark', this.bike.autoShift ? 'Auto shift on' : 'Manual shift');
     this.#saveSettings();
   }
 
+  /** R: put a stuck bike back on the nearest road. Fuel, wear and the job stay as they are. */
   resetBike() {
-    const { type, autoShift } = this.bike;
-    this.bike = createBike(this.world, type);
-    this.bike.autoShift = autoShift;
+    if (!resetToRoad(this.world, this.bike)) return;
+    this.events.emit('bark', 'Back on the road');
     this.#placeBike();
   }
 
@@ -716,6 +727,7 @@ export class RideScene extends Phaser.Scene {
     this.trafficView.update(this.world, this.cameras.main.worldView);
     this.peopleView.update(this.world, this.cameras.main.worldView, this.time.now);
     this.garages.update(this.time.now);
+    this.markets.update(this.time.now);
     this.daylight = daylight(this.clockHours);
     this.chunks.night = this.daylight.night;
     this.lights.update(this.daylight, this.cameras.main.worldView, this.bike, this.controls.brake > 0.1);

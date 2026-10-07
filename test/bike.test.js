@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { World } from '../src/world/world.js';
-import { createBike, stepBike, forwardSpeed, energyUse, shiftGear } from '../src/sim/bike.js';
+import { createBike, stepBike, forwardSpeed, energyUse, shiftGear, resetToRoad } from '../src/sim/bike.js';
 import { BIKES, SURFACES } from '../src/config.js';
 
 const DT = 1 / 120;
@@ -321,5 +321,18 @@ describe('climbing with a load', () => {
     run(p, world, { throttle: 1 }, 6);
     run(e, world, { throttle: 1 }, 6);
     expect(e.x).toBeGreaterThan(p.x + 4);
+  });
+});
+
+describe('reset (R)', () => {
+  it('puts the bike on the nearest road and keeps fuel, wear and the load', () => {
+    const world = new World({ name: 'reset', start: { x: 1.5, y: 0.5, headingDeg: 0 }, rows: ['#####', '.....', '.....', '.....'] });
+    const bike = createBike(world, 'petrol');
+    Object.assign(bike, { x: 2.5 * 4, y: 3.5 * 4, vx: 3, energy: 0.2, brakePads: 0.4, serviceWear: 90, loadKg: 60, brokenDown: true });
+    expect(resetToRoad(world, bike)).toBe(true);
+    expect(world.tileAt(bike.x, bike.y).surface).toBe('tarmac');
+    expect(bike.y).toBe(0.5 * 4);
+    expect(bike.vx).toBe(0);
+    expect(bike).toMatchObject({ energy: 0.2, brakePads: 0.4, serviceWear: 90, loadKg: 60, brokenDown: true });
   });
 });

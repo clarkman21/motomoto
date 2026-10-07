@@ -51,6 +51,9 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Building types: houses, shops, offices, glass towers, government offices, schools, warehouses, villas; roof water tanks, AC units, flags | Done |
 | Named landmarks with signs: Kigali City Tower, KPC, Chic, Kigali Heights, IBIRO offices (Kinyarwanda), schools (WE STRIVE FOR SUCCESS) | Done |
 | Traffic slows for speed bumps and potholes and bounces over them | Done |
+| Minimap: districts (closed ones striped), fuel or swap stations, garages, the job target and you | Done |
+| Market life: mamas in kitenge who sell goods on mats, umbrellas, goats and sheep; kitenge walkers | Done |
+| Trees: acacia, jacaranda, avocado and fig, mixed by district | Done |
 | Day and night: fast clock, night colour, sunset, street lamps, lit windows, headlights and tail lights | Done |
 | Levels 5–10, police helmet checks, hired riders, traffic lights | Later milestones |
 
@@ -81,7 +84,8 @@ In the game, Esc, P or the II button opens the pause menu: Resume, Restart shift
 | Horn | H | H button |
 | Change steering model | C | C button |
 | Change bike (petrol or electric) | B | B button |
-| Reset the bike, energy and brakes | R | R button |
+| Put a stuck bike back on the nearest road (fuel, wear and the job stay) | R | R button |
+| Show or hide the minimap | M | Settings menu |
 | Sound on or off | V | — |
 | Take job 1, 2 or 3 | 1, 2, 3 | Tap the job card |
 | Take the street hail next to you (stop close to a waving customer) | 1 | Tap the prompt |
@@ -166,6 +170,8 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `FAMILY` | The family names, and what money pays for at home |
 | `DAYLIGHT` | Light at each hour, night colour, sunset colour |
 | `LIGHTS` | Street lamp spacing, light pools, lit windows, headlights and tail lights |
+| `MINIMAP` | Minimap size (pixels per tile) and hill shading |
+| `MARKET` | How many vendors, umbrellas, goats and sheep, and street vendors |
 
 The game map is built in code in [`src/world/maps/kigali.js`](src/world/maps/kigali.js): district rectangles, hills, roads, landmarks, stations and places. Each block has a building style (`h` house, `s` shop, `o` office, `t` tower, `g` government, `c` school, `w` warehouse, `v` villa). The district rules set the style, and a landmark sets the style, the height in levels and the sign text of its block. The small test map for the unit tests is an ASCII grid in [`src/world/map-data.js`](src/world/map-data.js). The legend is at the top of the file. Hills are plateaus with ramps; each hill has a height and a ramp length for each side. The same file has the job places, speed limit zones, cameras and signs.
 
@@ -187,6 +193,9 @@ src/
     light-sprites.js     Light pools, headlight cones, light dots, lamp posts
     retro-font.js        5 × 7 pixel font for the retro menus
     garage-sprites.js    Garage and building signs (pixel font), mechanics, oil stains, tyres, oil drum
+    market-sprites.js    Market vendors, kitenge, goats and sheep
+    market.js            Where the market vendors and animals stand
+    minimap.js           Draws the minimap (the whole map as a small diamond)
   sim/
     bike.js              Arcade bike physics and energy (no Phaser)
     controls.js          The two steering models
@@ -216,6 +225,8 @@ src/
     BarrierView.js       Barriers at the edge of closed districts
     GarageView.js        The garage yards: motos, mechanics, oil stains, sign
     SignView.js          Landmark signs: roof and entrance signs on towers, wall signs on the others
+    MarketView.js        Market vendors, goats and sheep (animated)
+    MinimapView.js       The minimap in the HUD
     save.js              Saves the game in the browser (localStorage)
 test/                    Unit tests (Vitest)
 ```

@@ -31,7 +31,7 @@ function newPerson(people, x, y) {
   return {
     id: people.nextId++, kind: 'person', x, y, tx: x, ty: y,
     speed: PEOPLE.walkSpeed[0] + rng() * (PEOPLE.walkSpeed[1] - PEOPLE.walkSpeed[0]),
-    look: Math.floor(rng() * 6), wait: 0, dodge: 0, dodgeX: 0, dodgeY: 0, hurt: 0,
+    look: Math.floor(rng() * PEOPLE.looks), wait: 0, dodge: 0, dodgeX: 0, dodgeY: 0, hurt: 0,
     vx: 0, vy: 0, length: 0.7, width: 0.7,
   };
 }
@@ -178,7 +178,7 @@ function makeHail(people, places, bike, tiles = people.roadsideTiles) {
     if (!dests.length) continue;
     const to = dests[Math.floor(rng() * dests.length)];
     const [lo, hi] = PEOPLE.hailLifeSeconds;
-    return { id: people.nextId++, kind: 'person', x, y, from, to, look: Math.floor(rng() * 6), life: lo + rng() * (hi - lo), taken: false, length: 0.7, width: 0.7 };
+    return { id: people.nextId++, kind: 'person', x, y, from, to, look: Math.floor(rng() * PEOPLE.looks), life: lo + rng() * (hi - lo), taken: false, length: 0.7, width: 0.7 };
   }
   return null;
 }

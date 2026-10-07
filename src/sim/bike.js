@@ -366,3 +366,34 @@ function moveWithCollision(bike, world, dx, dy) {
 function clamp(x, lo, hi) {
   return Math.max(lo, Math.min(hi, x));
 }
+
+const ROAD_SURFACES = ['tarmac', 'cobble', 'murram', 'murramWet'];
+
+/**
+ * The reset (R) when the bike is stuck: put the bike on the centre of the nearest open road tile
+ * and stop it. All other state stays: fuel, wear, brake pads, the load and a breakdown.
+ * Returns false if there is no road tile near.
+ */
+export function resetToRoad(world, bike, maxTiles = 40) {
+  const T = WORLD.tileMetres;
+  const ox = Math.floor(bike.x / T), oy = Math.floor(bike.y / T);
+  const isRoad = (t) => t && ROAD_SURFACES.includes(t.surface) && !t.block && !t.solid && !world.isClosedTile(t);
+  for (let r = 0; r <= maxTiles; r++) {
+    let best = null, bestD = Infinity;
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue; // only the ring at distance r
+        const t = world.tile(ox + dx, oy + dy);
+        if (!isRoad(t)) continue;
+        const d = Math.hypot((t.tx + 0.5) * T - bike.x, (t.ty + 0.5) * T - bike.y);
+        if (d < bestD) { best = t; bestD = d; }
+      }
+    }
+    if (best) {
+      const x = (best.tx + 0.5) * T, y = (best.ty + 0.5) * T;
+      Object.assign(bike, { x, y, z: world.heightAt(x, y), vx: 0, vy: 0, surface: world.surfaceAt(x, y), tileKey: null });
+      return true;
+    }
+  }
+  return false;
+}

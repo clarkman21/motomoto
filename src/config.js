@@ -282,6 +282,7 @@ export const TRAFFIC = {
 export const PEOPLE = {
   walkers: 40, // default (tests); the game uses walkersPerDistrict
   walkersPerDistrict: 20,
+  looks: 10, // walker looks (see PERSON_LOOKS in vehicle-sprites.js); the last four are mamas in kitenge
   walkSpeed: [1.1, 1.6], // m/s
   radius: 0.35, // metres, for collisions
   dodgeDistance: 3.5, // a person steps aside when a fast bike comes this close
@@ -454,4 +455,23 @@ export const FAMILY = {
     { cost: 12000, text: 'a month of water and electricity at home' },
     { cost: 20000, text: "a month of the family's rent" },
   ],
+};
+
+// The minimap in the lower left corner (key M shows or hides it).
+export const MINIMAP = {
+  pxPerTile: 1, // pixels along each diagonal for one tile (a 192 × 128 tile map is 320 × 160 px)
+  pxPerTileSmall: 0.6, // on short screens (phones in landscape)
+  heightContrast: 0.45, // higher ground is up to this much lighter
+};
+
+// Market life (see MarketView.js): vendors on mats and goats and sheep for sale. Guesses.
+export const MARKET = {
+  vendorChance: 0.3, // part of the free market tiles with a vendor
+  herdChance: 0.05, // part of the free market tiles with 2 or 3 goats (some sheep)
+  umbrellaChance: 0.4, // vendors under a big umbrella
+  streetVendorChance: 0.03, // pavement tiles in the street districts with a vendor
+  streetDistricts: ['nyabugogo', 'kicukiro'],
+  clearTiles: 2.5, // no vendors this close to a job place (the markers stay clear)
+  vendorRadius: 0.6, // metres, for collisions
+  animalRadius: 0.35,
 };

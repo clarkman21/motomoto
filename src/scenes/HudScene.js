@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { BIKES, COLOURS, GEARBOX, BRAKES, LAW, JOBS, SAVINGS_FLOAT, DISTRICTS } from '../config.js';
 import { forwardSpeed } from '../sim/bike.js';
 import { serviceDue } from '../sim/maintenance.js';
+import { MinimapView } from './MinimapView.js';
 
 // The HUD runs as its own scene at zoom 1, so text stays sharp at any size.
 // It reads the ride scene state each frame and writes the touch controls back.
@@ -86,6 +87,7 @@ export class HudScene extends Phaser.Scene {
       .setOrigin(0, 0).setInteractive({ useHandCursor: true });
     this.pauseBtn.on('pointerdown', (p) => { p.hitButton = true; this.ride.openPause(); });
     this.isTouch = this.sys.game.device.input.touch;
+    this.minimap = new MinimapView(this);
     if (this.isTouch) this.#createTouchControls();
 
     this.#layout();
@@ -130,7 +132,7 @@ export class HudScene extends Phaser.Scene {
     this.helpText.setText(
       this.isTouch
         ? 'Stick: steer · GO: throttle · STOP: brake · + −: shift'
-        : 'W/↑ throttle · S/↓ brake · A D/← → steer · E/Q shift · G auto shift · 1–4 take job · F fuel/swap/garage · H horn · R reset · Esc menu',
+        : 'W/↑ throttle · S/↓ brake · A D/← → steer · E/Q shift · G auto shift · 1–4 take job · F fuel/swap/garage · H horn · R reset · M map · Esc menu',
     );
     this.helpText.setVisible(width > 1000 || this.isTouch);
     this.barkText.setPosition(width / 2, 24 * s);
@@ -155,6 +157,8 @@ export class HudScene extends Phaser.Scene {
     this.stationText.setFontSize(px(16)).setPosition(width / 2, height - 52 * s);
     this.fuelButtons.forEach((b, i) => b.setFontSize(px(16)).setPosition(width / 2, height - 52 * s - (3 - i) * 40 * s - 6 * s));
     this.flash.setSize(width, height);
+    // The minimap: lower left, above the help line (on touch screens, above the stick area).
+    this.minimap.layout(16 * s, height - (this.helpText.visible ? 46 : 16) * s, s);
     if (this.isTouch) this.#layoutTouch(width, height);
   }
 
@@ -206,6 +210,7 @@ export class HudScene extends Phaser.Scene {
     this.infoText.setText(`${gradeText} · ${surface}\n${district} · ${Math.round(bike.z)} m above the valley`);
     this.infoText.setColor(bike.surface.offRoad ? '#ec5825' : '#ffffff');
 
+    this.minimap.update(this.time.now);
     this.#updateMoney();
     this.#updateJobs();
     this.#updateStation();

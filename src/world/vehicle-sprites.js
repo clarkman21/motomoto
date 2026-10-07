@@ -1,6 +1,7 @@
 import { toScreen } from './iso.js';
 import { PixelCanvas, shadeColour } from './pixel-canvas.js';
 import { drawBike, BIKE_DIRECTIONS, BIKE_CANVAS } from './sprites.js';
+import { KITENGE, drawKitengeDress, drawHeadWrap } from './market-sprites.js';
 
 // Traffic sprites made in code: cars, minibuses, trucks (boxes turned to 16 directions) and
 // other motos (the bike drawing with rival colours). People: walkers in 4 directions.
@@ -117,7 +118,9 @@ export function drawRivalMoto(frame, load = 'none') {
 // ---------------------------------------------------------------------------
 // People: 4 directions (by screen quadrant) × 2 walk frames, a few colour sets.
 // ---------------------------------------------------------------------------
-export const PERSON_CANVAS = { width: 14, height: 26, groundX: 7, groundY: 24 };
+export const PERSON_CANVAS = { width: 14, height: 30, groundX: 7, groundY: 28 };
+// Looks of the walkers. The last four are mamas in kitenge (a bright printed wrap dress) and a
+// head wrap; two of them carry a basket of goods on the head.
 export const PERSON_LOOKS = [
   { shirt: 0xc0392b, legs: 0x2a3550, skin: 0x6b4226 },
   { shirt: 0x3f8f4a, legs: 0x3a3a3a, skin: 0x5a3820 },
@@ -125,12 +128,41 @@ export const PERSON_LOOKS = [
   { shirt: 0x6a4aa0, legs: 0x4a3a2a, skin: 0x5a3820 }, // dress
   { shirt: 0xe8e8e4, legs: 0x2a2a2a, skin: 0x6b4226 },
   { shirt: 0x2f6fb0, legs: 0x5a4a3a, skin: 0x7a4a2a },
+  { kitenge: 0, skin: 0x6b4226 },
+  { kitenge: 2, skin: 0x5a3820, basket: 'bananas' },
+  { kitenge: 4, skin: 0x7a4a2a },
+  { kitenge: 5, skin: 0x5a3820, basket: 'tomatoes' },
 ];
+
+/** A mama in kitenge: the dress, the arms, the head with a head wrap and maybe a basket on it. */
+function drawMama(c, look, gx, gy, facing, step, armUp) {
+  const k = KITENGE[look.kitenge % KITENGE.length];
+  const swing = step ? 1 : -1;
+  c.line(gx - 1 + swing * 0.5, gy - 1, gx - 1 + swing * 0.5, gy - 2, 1.6, 0x2a2a2a); // feet under the hem
+  c.line(gx + 1 - swing * 0.5, gy - 1, gx + 1 - swing * 0.5, gy - 2, 1.6, 0x2a2a2a);
+  drawKitengeDress(c, gx, gy - 15, gy - 3, 2.3, k, look.kitenge);
+  if (armUp) c.line(gx + 2.5, gy - 14, gx + 4.5, gy - 21, 1.6, look.skin);
+  else c.line(gx + 2.5, gy - 14, gx + 2.5 + swing * 0.5, gy - 9, 1.6, look.skin);
+  c.line(gx - 2.5, gy - 14, gx - 2.5 - swing * 0.5, gy - 9, 1.6, look.skin);
+  c.fillDisc(gx + 0.5, gy - 18.5, 2.5, facing === 1 ? 0x1a1a1a : look.skin);
+  drawHeadWrap(c, gx + 0.5, gy - 18.5, 2.5, k);
+  if (look.basket) {
+    // A woven basket on the head, full of goods.
+    for (let x = -4; x <= 4; x++) for (let y = 0; y <= 2; y++) c.plot(gx + 0.5 + x, gy - 23 + y, (x + y) % 2 ? 0xa8804a : 0xc8a060);
+    const goods = look.basket === 'bananas' ? [0x7aa83a, 0x5a8a2a] : [0xd0302a, 0xe04a30];
+    for (let x = -3; x <= 3; x += 1.5) c.fillDisc(gx + 0.5 + x, gy - 24.5, 1.1, goods[Math.round(x + 4) % 2]);
+  }
+}
 
 /** A walking person. facing: 0 = towards the camera, 1 = away. step: 0 or 1. */
 export function drawPerson(look, facing, step) {
   const c = new PixelCanvas(PERSON_CANVAS.width, PERSON_CANVAS.height);
   const gx = PERSON_CANVAS.groundX, gy = PERSON_CANVAS.groundY;
+  if (look.kitenge !== undefined) {
+    drawMama(c, look, gx, gy, facing, step, false);
+    c.outline(0x161616);
+    return c;
+  }
   const swing = step ? 1.5 : -1.5;
   c.line(gx - 1, gy - 1, gx - 1 + swing * 0.6, gy - 8, 2.2, look.legs);
   c.line(gx + 1, gy - 1, gx + 1 - swing * 0.6, gy - 8, 2.2, look.legs);
@@ -146,6 +178,11 @@ export function drawPerson(look, facing, step) {
 export function drawWaver(look) {
   const c = new PixelCanvas(PERSON_CANVAS.width, PERSON_CANVAS.height);
   const gx = PERSON_CANVAS.groundX, gy = PERSON_CANVAS.groundY;
+  if (look.kitenge !== undefined) {
+    drawMama(c, look, gx, gy, 0, 0, true);
+    c.outline(0x161616);
+    return c;
+  }
   c.line(gx - 1, gy - 1, gx - 1, gy - 8, 2.2, look.legs);
   c.line(gx + 1, gy - 1, gx + 1, gy - 8, 2.2, look.legs);
   c.line(gx, gy - 9, gx, gy - 15, 4.6, look.shirt);

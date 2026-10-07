@@ -89,11 +89,13 @@ export class World {
           info = { surface: 'tarmac', block: 'building', blockLevels: Number(ch) };
         }
         if (!info) throw new Error(`Unknown map character '${ch}' at ${tx},${ty}`);
-        const lm = this.landmarks.find((l) => l.levels && tx >= l.x0 && tx <= l.x1 && ty >= l.y0 && ty <= l.y1);
+        const inLm = (l) => tx >= l.x0 && tx <= l.x1 && ty >= l.y0 && ty <= l.y1;
+        const lm = this.landmarks.find((l) => l.levels && inLm(l));
         tiles.push({
           tx, ty, ch, district: this.districtAt(tx, ty), surface: info.surface, hazard: info.hazard ?? null, block: info.block ?? null,
           blockLevels: lm && info.block === 'building' ? lm.levels : info.blockLevels ?? 0, solid: !!info.solid,
           style: BUILDING_STYLES[this.styles?.[ty]?.[tx]] ?? null,
+          landmark: info.block === 'building' && this.landmarks.some(inLm), // a named building (see the map data)
         });
       }
     }

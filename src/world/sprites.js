@@ -353,27 +353,83 @@ function isFlagTile(block, world) {
   return !same(block.tx - 1, block.ty) && !same(block.tx, block.ty - 1);
 }
 
+// Tree kinds of Kigali. lumps: discs of the crown [x, y, radius] in pixels from the crown centre.
+// crown: the height of the crown centre above the ground, in levels. Colours: dark to light.
+const TREES = {
+  // Umbrella thorn acacia: a tall forked trunk and a wide flat crown.
+  acacia: {
+    trunk: 3.3, crown: 3.7, fork: true,
+    lumps: [[-18, 1, 5], [-10, -1, 6], [-2, -2, 6], [7, -1, 6], [15, 0, 5], [21, 2, 4], [-23, 3, 3], [3, 2, 5], [-8, 3, 4]],
+    colours: [0x485f22, 0x5a7a2a, 0x6f8f34, 0x87a844], outline: 0x2a3a14,
+  },
+  // Jacaranda: a big round crown of purple flowers, with some green leaves.
+  jacaranda: {
+    trunk: 2.4, crown: 3.0,
+    lumps: [[0, -9, 10], [-10, -2, 9], [10, -2, 9], [-5, 7, 9], [6, 7, 8], [0, 0, 10], [-15, 5, 5], [15, 5, 5]],
+    colours: [0x5e4290, 0x7a5ab0, 0x9a7ad0, 0xb89ae0], leaf: 0x4f7f3a, outline: 0x2e2048,
+  },
+  // Avocado: a dense, tall, dark green crown, with fruit.
+  avocado: {
+    trunk: 1.8, crown: 2.9,
+    lumps: [[0, -12, 8], [-7, -4, 9], [7, -4, 9], [0, 3, 10], [-6, 10, 7], [6, 10, 7], [0, -18, 5]],
+    colours: [0x1f4a24, 0x2c5f2c, 0x3f7a3a, 0x58904a], fruit: 0x6a8a2a, outline: 0x13301a,
+  },
+  // A big shade tree (fig or eucalyptus mix): the common street tree.
+  fig: {
+    trunk: 2.3, crown: 2.9,
+    lumps: [[0, -7, 11], [-10, 0, 10], [10, 0, 10], [-4, 7, 10], [5, 7, 9], [-15, 6, 5], [16, 6, 5]],
+    colours: [0x2f6f2a, 0x3d8a34, 0x52a344, 0x6bbf55], outline: 0x1f3a1a,
+  },
+};
+const TREE_MIX = {
+  // [acacia, jacaranda, avocado]; the rest are figs.
+  nyabugogo: [0.3, 0.1, 0.25], town: [0.05, 0.45, 0.1], kacyiru: [0.1, 0.35, 0.15],
+  kimihurura: [0.1, 0.45, 0.15], nyarutarama: [0.35, 0.3, 0.1], kicukiro: [0.25, 0.15, 0.3],
+};
+
+/** The kind of tree on a tile (it depends on the district and the tile). */
+export function treeKind(world, tx, ty) {
+  const t = world.tile(tx, ty);
+  const mix = TREE_MIX[t?.district] ?? [0.25, 0.25, 0.25];
+  const h = hash2(tx, ty, 41);
+  if (h < mix[0]) return 'acacia';
+  if (h < mix[0] + mix[1]) return 'jacaranda';
+  if (h < mix[0] + mix[1] + mix[2]) return 'avocado';
+  return 'fig';
+}
+
 function drawTree(c, block, pt, world) {
   const { tx, ty, baseLevel } = block;
-  const cx = tx + 0.5, cy = ty + 0.5;
+  const kind = TREES[treeKind(world, tx, ty)];
+  // A small random offset, so a row of trees does not look like a grid.
+  const cx = tx + 0.35 + 0.3 * hash2(tx, ty, 42), cy = ty + 0.35 + 0.3 * hash2(ty, tx, 43);
   const ground = world.heightAt(cx * WORLD.tileMetres, cy * WORLD.tileMetres) / WORLD.levelMetres;
   // Trunk
-  const r = 0.05;
-  drawBox(c, cx - r, cy - r, cx + r, cy + r, Math.min(baseLevel, ground), ground + 2.3, pt,
+  const r = 0.06;
+  drawBox(c, cx - r, cy - r, cx + r, cy + r, Math.min(baseLevel, ground), ground + kind.trunk, pt,
     () => 0x5a3a22, () => 0x4a2f1c, () => 0x5a3a22);
-  // Crown: a cluster of overlapping discs, lit from the upper left.
-  const centre = pt(cx, cy, ground + 2.7);
-  const lumps = [[0, -5, 9], [-7, 0, 8], [7, 0, 8], [-3, 5, 8], [4, 5, 7]];
-  const greens = [0x2f6f2a, 0x3d8a34, 0x52a344, 0x6bbf55];
-  for (let y = -16; y <= 14; y++) {
-    for (let x = -16; x <= 16; x++) {
-      const inside = lumps.some(([lx, ly, lr]) => (x + 0.5 - lx) ** 2 + (y + 0.5 - ly) ** 2 <= lr * lr);
-      if (!inside) continue;
-      const k = 0.55 - (x / 16) * 0.35 - (y / 14) * 0.45 + (hash2(x + tx * 31, y + ty * 17, 9) - 0.5) * 0.4;
-      c.plot(centre.x + x, centre.y + y, greens[Math.max(0, Math.min(3, Math.floor(k * 4)))]);
+  const centre = pt(cx, cy, ground + kind.crown);
+  if (kind.fork) {
+    // The acacia trunk forks into branches that hold the flat crown.
+    const f = pt(cx, cy, ground + kind.trunk - 1.1);
+    for (const dx of [-12, -4, 6, 13]) c.line(f.x, f.y, centre.x + dx, centre.y + 1, 1.4, 0x4a2f1c);
+  }
+  const minX = Math.min(...kind.lumps.map(([x, , r2]) => x - r2)), maxX = Math.max(...kind.lumps.map(([x, , r2]) => x + r2));
+  const minY = Math.min(...kind.lumps.map(([, y, r2]) => y - r2)), maxY = Math.max(...kind.lumps.map(([, y, r2]) => y + r2));
+  const halfW = (maxX - minX) / 2, halfH = (maxY - minY) / 2, midY = (minY + maxY) / 2;
+  for (let y = Math.floor(minY); y <= maxY; y++) {
+    for (let x = Math.floor(minX); x <= maxX; x++) {
+      if (!kind.lumps.some(([lx, ly, lr]) => (x + 0.5 - lx) ** 2 + (y + 0.5 - ly) ** 2 <= lr * lr)) continue;
+      // Lit from the upper left, with leafy noise.
+      const n = hash2(x + tx * 31, y + ty * 17, 9);
+      const k = 0.55 - (x / halfW) * 0.3 - ((y - midY) / halfH) * 0.45 + (n - 0.5) * 0.45;
+      let rgb = kind.colours[Math.max(0, Math.min(3, Math.floor(k * 4)))];
+      if (kind.leaf && hash2(x + tx * 7, y + ty * 5, 44) < 0.12) rgb = kind.leaf;
+      if (kind.fruit && k < 0.45 && hash2(x + tx * 3, y + ty * 11, 45) < 0.03) rgb = kind.fruit;
+      c.plot(centre.x + x, centre.y + y, rgb);
     }
   }
-  c.outline(0x1f3a1a);
+  c.outline(kind.outline);
 }
 
 // The Convention Centre dome: white steps with ribs. At night it shines in many colours.

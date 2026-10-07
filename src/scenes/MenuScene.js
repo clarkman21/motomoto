@@ -34,7 +34,7 @@ const HELP = [
       'E and Q: shift up and down (petrol moto).   G: automatic shift on or off.',
       '1 to 4: take a job. Stop next to a person who waves and press 1 to take a street hail.   Backspace: cancel the job.',
       'F: buy fuel (then 1, 2 or 3: enough for the next job, the next two jobs, or a full tank), swap the battery, or service the bike at the garage.',
-      'H: horn.   V: sound.   R: put the bike back on the road.   Esc or P: pause menu.',
+      'H: horn.   V: sound.   R: put the bike back on the nearest road (your fuel and the bike wear stay as they are).   M: map on or off.   Esc or P: pause menu.',
       'Touch: the stick on the left steers. GO and STOP are on the right, + and − shift. Tap a job card to take it.',
     ],
   },
@@ -210,6 +210,7 @@ export class MenuScene extends Phaser.Scene {
       [`SOUND: ${ride.engineSound.enabled ? 'ON' : 'OFF'}`, () => { ride.toggleSound(); this.#redraw(); }],
       [`STEERING: ${retroText(STEERING_LABELS[ride.steeringMode])}`, () => { ride.toggleSteering(); this.#redraw(); }],
       [`GEARS: ${ride.bike.autoShift ? 'AUTOMATIC' : 'MANUAL'}`, () => { ride.toggleAutoShift(); this.#redraw(); }],
+      [`MAP: ${ride.showMap !== false ? 'ON' : 'OFF'}`, () => { ride.toggleMap(); this.#redraw(); }],
       ['BACK', () => this.#back()],
     ], y + 28, 200);
   }
