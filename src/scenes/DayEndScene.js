@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { INCOME, COSTS, loanPayment } from '../sim/economy.js';
 import { MONEY } from '../config.js';
+import { dayEndStory } from '../sim/family.js';
 
 // The day end summary: what you earned, what you spent, and your profit.
 
@@ -24,18 +25,29 @@ export class DayEndScene extends Phaser.Scene {
     for (const [k, label] of Object.entries(COSTS)) if (summary.costs[k]) lines.push([label, -summary.costs[k], '#ec5825']);
     lines.push(['Total costs', -summary.totalCosts, '#ffffff', true]);
     const rowH = 22 * s;
-    const h = (150 + lines.length * 22 + 70) * s;
+    const h = (150 + lines.length * 22 + 70 + 100) * s; // + the family card
     const x = (width - w) / 2, y = Math.max(8, (height - h) / 2);
 
     this.add.rectangle(0, 0, width, height, 0x000000, 0.55).setOrigin(0);
     const panel = this.add.graphics(); // filled at the end, when the content height is known
+    if (summary.declinedLoan) this.scene.get('ride').engineSound.jingle('gameOver');
     this.add.text(x + 20 * s, y + 16 * s, summary.outOfCash === 'gameOver' ? `Game over · day ${summary.day}` : `End of day ${summary.day}`, { fontFamily: FONT_LABEL, fontSize: `${Math.round(32 * s)}px`, fontStyle: '600', color: '#ffffff' });
     const bikeName = summary.bikeType === 'electric' ? 'Electric moto' : 'Petrol moto';
     const offRoad = summary.offRoadKm >= 0.05 ? ` (${summary.offRoadKm.toFixed(1)} off road)` : '';
     this.add.text(x + 20 * s, y + 56 * s, `${bikeName} · ${summary.gameKm.toFixed(1)} km ridden${offRoad} · service meter ${Math.round(summary.serviceDue * 100)}% · brake pads ${Math.round(summary.brakePads * 100)}%`, {
       fontFamily: FONT_BODY, fontSize: `${Math.round(14 * s)}px`, color: '#9e9e9e', wordWrap: { width: w - 40 * s },
     });
-    let ly = y + 92 * s;
+    // The family card: what today's money means at home.
+    let ly = y + 86 * s;
+    const story = dayEndStory(summary);
+    const card = this.add.graphics();
+    this.add.text(x + 32 * s, ly + 8 * s, story.title, { fontFamily: FONT_LABEL, fontSize: `${Math.round(15 * s)}px`, fontStyle: '600', color: '#44bc9d' });
+    const storyText = this.add.text(x + 32 * s, ly + 28 * s, story.lines.join('\n'), {
+      fontFamily: FONT_BODY, fontSize: `${Math.round(15 * s)}px`, color: '#ffffff', lineSpacing: 4, wordWrap: { width: w - 64 * s },
+    });
+    const cardH = storyText.height + 38 * s;
+    card.fillStyle(0x1d3a33, 1).fillRoundedRect(x + 16 * s, ly, w - 32 * s, cardH, 8 * s);
+    ly += cardH + 14 * s;
     for (const [label, value, colour, bold] of lines) {
       const style = { fontFamily: FONT_BODY, fontSize: `${Math.round(15 * s)}px`, color: bold ? '#ffffff' : '#d8d8d8', fontStyle: bold ? '600' : '400' };
       this.add.text(x + 20 * s, ly, label, style);
@@ -76,9 +88,9 @@ export class DayEndScene extends Phaser.Scene {
     if (loanOffer) {
       // Two buttons: take the loan, or end the game.
       this.#button(width / 2 - 120 * s, promptY, 'L · Take the loan', s, () => finish('loan'));
-      this.#button(width / 2 + 120 * s, promptY, 'Enter · End the game', s, () => this.scene.restart({ summary: { ...summary, outOfCash: 'gameOver' }, onContinue }));
+      this.#button(width / 2 + 120 * s, promptY, 'Enter · End the game', s, () => this.scene.restart({ summary: { ...summary, outOfCash: 'gameOver', declinedLoan: true }, onContinue }));
       this.input.keyboard.once('keydown-L', () => finish('loan'));
-      this.input.keyboard.once('keydown-ENTER', () => this.scene.restart({ summary: { ...summary, outOfCash: 'gameOver' }, onContinue }));
+      this.input.keyboard.once('keydown-ENTER', () => this.scene.restart({ summary: { ...summary, outOfCash: 'gameOver', declinedLoan: true }, onContinue }));
       return;
     }
     if (ready) {
@@ -116,6 +128,7 @@ export class DayEndScene extends Phaser.Scene {
     y += 16 * s;
     text('MILESTONE REACHED', 14, '#9e9e9e', FONT_LABEL);
     text(bought.milestone, 26, '#44bc9d', FONT_LABEL, '600');
+    if (bought.story) text(bought.story, 16, '#ffffff');
     y += 8 * s;
     text(`Level ${next.n}: ${next.name}`, 34, '#ffffff', FONT_LABEL, '600');
     text(next.news, 15, '#d8d8d8');

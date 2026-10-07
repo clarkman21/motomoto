@@ -260,6 +260,8 @@ export const TRAFFIC = {
     bus: { length: 5.0, width: 1.9, maxKmh: 45, accel: 1.8, brake: 5, limitFactor: 1.0, hillSlowdown: 1.6, minHillFactor: 0.35, exhaust: 1.0, variants: 2 },
     truck: { length: 7.0, width: 2.4, maxKmh: 35, accel: 1.0, brake: 4, limitFactor: 0.9, hillSlowdown: 2.4, minHillFactor: 0.18, exhaust: 2.0, variants: 2 },
     moto: { length: 2.0, width: 0.8, maxKmh: 55, accel: 3.5, brake: 7, limitFactor: 1.1, hillSlowdown: 0.8, minHillFactor: 0.5, exhaust: 0.6, variants: 1 },
+    // Cyclists ride slowly at the edge of the road (laneOffset), so cars can pass them. Very slow uphill.
+    cyclist: { length: 1.8, width: 0.6, maxKmh: 16, accel: 0.8, brake: 4, limitFactor: 1, hillSlowdown: 4, minHillFactor: 0.3, exhaust: 0, variants: 3, laneOffset: 3.6 },
   },
   turnKmh: 18,
   busStopSeconds: 5,
@@ -305,36 +307,41 @@ export const SAVINGS_FLOAT = 5000; // you need the goal plus this working money 
 export const LEVELS = [
   {
     n: 1, name: 'Night rider', goal: 15000, milestone: 'School fees for one term', kind: 'life',
+    story: 'Aline goes back to school with her fees paid. At dinner she shows you her new exercise books.',
     shift: { start: 19, end: 23, realSeconds: 180 }, rent: 3000,
-    traffic: 0.3, rivals: 2, raceChance: 0.15, offerLife: [30, 60], hailEvery: 0.6,
+    traffic: 0.3, rivals: 2, cyclists: 0, raceChance: 0.15, offerLife: [30, 60], hailEvery: 0.6,
     fare: 1.2, petrol: 1.0, cameras: false,
     news: 'Night shift in Nyabugogo: quiet streets, few rivals, night fares +20%. Buses arrive at the bus park all night.',
   },
   {
     n: 2, name: 'Evening rider', goal: 25000, milestone: 'A smartphone and a spare passenger helmet', kind: 'asset', effect: 'phone',
+    story: 'Your new phone shows more ride requests, and the spare helmet keeps your passengers safe. Uwase calls you on it to say well done.',
     shift: { start: 16, end: 23, realSeconds: 240 }, rent: 4500,
-    traffic: 0.5, rivals: 4, raceChance: 0.25, offerLife: [25, 50], hailEvery: 0.6,
+    traffic: 0.5, rivals: 4, cyclists: 0, raceChance: 0.25, offerLife: [25, 50], hailEvery: 0.6,
     fare: 1.1, petrol: 1.0, cameras: false,
     news: 'Kigali town opens: the city on the ridge above Nyabugogo. Evening rush, more traffic and more rivals.',
   },
   {
     n: 3, name: 'Day rider', goal: 40000, milestone: 'A year of school: fees, uniforms and books', kind: 'life',
+    story: 'A full year of school is paid for Aline and Eric. Their new uniforms hang by the door, ready for Monday.',
     shift: { start: 6, end: 22, realSeconds: 360 }, rent: 6000,
-    traffic: 0.8, rivals: 6, raceChance: 0.35, offerLife: [20, 45], hailEvery: 1,
+    traffic: 0.8, rivals: 6, cyclists: 2, raceChance: 0.35, offerLife: [20, 45], hailEvery: 1,
     fare: 1.0, petrol: 1.1, cameras: true,
     news: 'Kacyiru opens: offices, the police headquarters and the hospital. Full day shift, speed cameras on, petrol +10%.',
   },
   {
     n: 4, name: 'Rush hour', goal: 60000, milestone: 'Down payment on an Ampersand electric moto', kind: 'asset', effect: 'electric',
+    story: 'You sign for your own Ampersand electric moto. No more petrol queues and no more smoke. The whole family comes to see it at the swap station.',
     shift: { start: 6, end: 22, realSeconds: 360 }, rent: 6000,
-    traffic: 1.0, rivals: 10, raceChance: 0.45, offerLife: [15, 40], hailEvery: 1,
+    traffic: 1.0, rivals: 10, cyclists: 2, raceChance: 0.45, offerLife: [15, 40], hailEvery: 1,
     fare: 1.1, petrol: 1.2, cameras: true,
     news: 'Kimihurura opens: the Convention Centre, Parliament and cobblestone lanes. Rush hour: heavy traffic, 10 rivals. Petrol +20%.',
   },
   {
     n: 5, name: 'Electric rider', goal: 80000, milestone: 'A plot of land', kind: 'life', freePlay: true,
+    story: 'One day this plot will hold the family house.',
     shift: { start: 6, end: 22, realSeconds: 360 }, rent: 6000,
-    traffic: 1.0, rivals: 12, raceChance: 0.5, offerLife: [15, 40], hailEvery: 1,
+    traffic: 1.0, rivals: 12, cyclists: 3, raceChance: 0.5, offerLife: [15, 40], hailEvery: 1,
     fare: 1.2, petrol: 1.3, cameras: true,
     news: 'You ride electric now, and Kicukiro opens: busy junctions, workshops and trucks. Levels 6 to 10 (and Nyarutarama) come in the next build: free play.',
   },
@@ -406,11 +413,27 @@ export const FUEL = {
 export const COLLISION = {
   bikeRadius: 0.45, // metres
   restitution: 0.25, // bounce (0 = no bounce, 1 = full bounce)
-  massKg: { car: 1200, bus: 4500, truck: 9000, moto: 200, person: 70, wall: Infinity, pole: Infinity },
+  massKg: { car: 1200, bus: 4500, truck: 9000, moto: 200, cyclist: 90, person: 70, wall: Infinity, pole: Infinity },
   poleRadius: 0.15, // street lamps, signs, cameras
   crashSpeedKmh: 18, // an impact speed above this throws the rider off
   crashSeconds: 2.5, // time on the ground before you ride again
   slideMs2: 6, // the fallen bike slides to a stop
   repairPerKmh: 60, // RWF of crash repairs for each km/h of impact speed (above 5 km/h)
   personHurtKmh: 9, // an impact above this hurts a person (police fine)
+};
+
+// The rider's family (spec: Story and rewards). The day end shows what the money means at home.
+// Names and prices are guesses (RWF). needs: from small to big; the game shows the biggest one that a day's profit pays for.
+export const FAMILY = {
+  partner: 'Uwase',
+  children: ['Aline', 'Eric'],
+  needs: [
+    { cost: 300, text: 'bread and milk for breakfast' },
+    { cost: 1000, text: 'beans and rice for a family dinner' },
+    { cost: 2500, text: 'a day of food for the whole family' },
+    { cost: 4000, text: "a week of school lunch for Aline" },
+    { cost: 7000, text: 'new school shoes for Eric' },
+    { cost: 12000, text: 'a month of water and electricity at home' },
+    { cost: 20000, text: "a month of the family's rent" },
+  ],
 };

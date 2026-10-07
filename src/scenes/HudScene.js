@@ -250,7 +250,7 @@ export class HudScene extends Phaser.Scene {
     const s = this.hudScale;
     const box = this.jobBox;
     const money = (n) => `${n.toLocaleString('en')} RWF`;
-    const what = (j) => (j.type === 'passenger' ? 'Passenger' : `Cargo ${j.kg} kg${j.fragile ? ', fragile' : ''}`);
+    const what = (j) => (j.type === 'passenger' ? 'Passenger' : j.goods === 'bananas' ? `Bananas ${j.kg} kg, fragile` : `Rice sack ${j.kg} kg`);
     const km = (j) => `${j.gameKm.toFixed(1)} km`;
     if (job) {
       const dist = Math.round(ride.targetDistance ?? 0);

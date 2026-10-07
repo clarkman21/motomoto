@@ -73,6 +73,50 @@ export class EngineSound {
     }
   }
 
+  /** Engine quiet (the shift is over, or a menu is open). The next update() starts it again. */
+  silence() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.petrolGain.gain.setTargetAtTime(0, t, 0.05);
+    this.elecGain.gain.setTargetAtTime(0, t, 0.05);
+  }
+
+  /**
+   * A short chiptune jingle. kind: 'shiftEnd' (the shift is over), 'levelUp' (a milestone),
+   * 'gameOver' (out of cash), 'reward' (money for the family).
+   */
+  jingle(kind) {
+    if (!this.ctx || !this.enabled) return;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+    // [note (semitones from A4), length in beats]; one beat = 0.12 s.
+    const TUNES = {
+      shiftEnd: [[3, 1], [7, 1], [10, 1], [15, 3]],
+      levelUp: [[3, 1], [7, 1], [10, 1], [15, 2], [10, 1], [15, 1], [19, 4]],
+      gameOver: [[10, 2], [6, 2], [3, 2], [-2, 5]],
+      reward: [[15, 1], [19, 2]],
+    };
+    const tune = TUNES[kind];
+    if (!tune) return;
+    const beat = 0.12;
+    let t = this.ctx.currentTime + 0.05;
+    for (const [n, len] of tune) {
+      const f = 440 * 2 ** (n / 12);
+      for (const [type, mul, vol] of [['square', 1, 0.07], ['triangle', 0.5, 0.09]]) {
+        const o = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        o.type = type;
+        o.frequency.value = f * mul;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + len * beat * 0.95);
+        o.connect(g).connect(this.master);
+        o.start(t);
+        o.stop(t + len * beat);
+      }
+      t += len * beat;
+    }
+  }
+
   horn() {
     if (!this.ctx || !this.enabled) return;
     const t = this.ctx.currentTime;

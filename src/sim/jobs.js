@@ -68,7 +68,9 @@ export function makeOffer(world, rng, id, opts = {}) {
   const c = JOBS.cargo;
   const kg = Math.round((c.kgMin + rng() * (c.kgMax - c.kgMin)) / 5) * 5;
   const fragile = rng() < c.fragileChance;
-  return { id, type: 'cargo', from, to, distanceMetres, gameKm, kg, fragile, pay: round10((c.base + c.perGameKm * gameKm + c.perKg * kg) * fare), age: 0, life: offerLife(rng, opts.offerLife) };
+  // What the cargo is: a bunch of bananas (fragile: they bruise) or a big sack of rice.
+  const goods = fragile ? 'bananas' : 'rice';
+  return { id, type: 'cargo', goods, from, to, distanceMetres, gameKm, kg, fragile, pay: round10((c.base + c.perGameKm * gameKm + c.perKg * kg) * fare), age: 0, life: offerLife(rng, opts.offerLife) };
 }
 
 /** A street hail: a passenger who waves at the roadside. It starts at the drop off stage (the customer gets on at once). */
@@ -156,7 +158,7 @@ export function updateJob(board, bike, bikeEvents, dt) {
   if (job.stage === 'toPickup') {
     job.stage = 'toDropoff';
     bike.loadKg = job.kg;
-    bike.loadType = job.type;
+    bike.loadType = job.type === 'cargo' ? job.goods ?? 'rice' : job.type;
     return [{ type: 'pickup', job }];
   }
   board.active = null;

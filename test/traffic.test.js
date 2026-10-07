@@ -129,3 +129,16 @@ describe('Nyabugogo bus park', () => {
     for (const h of hails) expect(Math.hypot(h.x - sx, h.y - sy)).toBeLessThan(18);
   });
 });
+
+describe('cyclists', () => {
+  it('ride slowly at the road edge, and a car can pass them', () => {
+    const t = createTraffic(world, graph, mulberry32(5), { cyclist: 1, car: 1 });
+    const [bikeV, car] = t.vehicles;
+    const edge = graph.edges.find((e) => e.length > 120);
+    Object.assign(bikeV, { edge, s: 40, speed: 4, next: edge.to.out[0], prev: null, route: [] });
+    Object.assign(car, { edge, s: 20, speed: 10, next: edge.to.out[0], prev: null, route: [] });
+    for (let i = 0; i < 30 * 6; i++) stepTraffic(t, world, [], 1 / 30);
+    expect(bikeV.speed * 3.6).toBeLessThanOrEqual(TRAFFIC.kinds.cyclist.maxKmh * 1.2);
+    expect(car.edge !== edge || car.s > bikeV.s).toBe(true); // the car went past
+  });
+});

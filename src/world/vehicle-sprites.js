@@ -1,6 +1,6 @@
 import { toScreen } from './iso.js';
 import { PixelCanvas, shadeColour } from './pixel-canvas.js';
-import { drawBike, BIKE_DIRECTIONS } from './sprites.js';
+import { drawBike, BIKE_DIRECTIONS, BIKE_CANVAS } from './sprites.js';
 
 // Traffic sprites made in code: cars, minibuses, trucks (boxes turned to 16 directions) and
 // other motos (the bike drawing with rival colours). People: walkers in 4 directions.
@@ -152,6 +152,67 @@ export function drawWaver(look) {
   c.line(gx + 2.5, gy - 14, gx + 4.5, gy - 21, 1.6, look.skin); // arm up
   c.line(gx - 2.5, gy - 14, gx - 3, gy - 9, 1.6, look.skin);
   c.fillDisc(gx + 0.5, gy - 18.5, 2.5, look.skin);
+  c.outline(0x161616);
+  return c;
+}
+
+// ---------------------------------------------------------------------------
+// Cyclists: slow traffic at the road edge. Variant 0: a rider; 1: a rice sack on the rack;
+// 2: a bunch of bananas on the rack (bicycles carry a lot of goods in Kigali).
+// ---------------------------------------------------------------------------
+const CYCLIST_SHIRTS = [0xc0392b, 0x3f8f4a, 0x2f6fb0];
+const CYCLIST_SCALE = 1.25;
+
+export function drawCyclist(variant, frame) {
+  const heading = (frame / BIKE_DIRECTIONS) * Math.PI * 2;
+  const c = new PixelCanvas(BIKE_CANVAS.width, BIKE_CANVAS.height, -BIKE_CANVAS.groundX, -BIKE_CANVAS.groundY);
+  const cos = Math.cos(heading), sin = Math.sin(heading);
+  const P = (f, s, z) => {
+    f *= CYCLIST_SCALE; s *= CYCLIST_SCALE; z *= CYCLIST_SCALE;
+    const dx = f * cos - s * sin, dy = f * sin + s * cos;
+    const p = toScreen(dx, dy, z);
+    return { x: p.x, y: p.y, depth: dx + dy };
+  };
+  const parts = [];
+  const seg = (a, b, thick, col, bias = 0) => {
+    const pa = P(...a), pb = P(...b);
+    parts.push({ depth: (pa.depth + pb.depth) / 2 + bias, draw: () => c.line(pa.x, pa.y, pb.x, pb.y, thick, col) });
+  };
+  const blob = (p, r, col, bias = 0) => {
+    const pp = P(...p);
+    parts.push({ depth: pp.depth + bias, draw: () => c.fillDisc(pp.x, pp.y, r, col) });
+  };
+  const wheel = (fc) => {
+    const pts = [];
+    for (let i = 0; i <= 16; i++) {
+      const a = (i / 16) * Math.PI * 2;
+      pts.push(P(fc + 0.33 * Math.cos(a), 0, 0.33 + 0.33 * Math.sin(a)));
+    }
+    parts.push({ depth: P(fc, 0, 0.33).depth - 0.01, draw: () => { for (let i = 0; i < 16; i++) c.line(pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y, 1, 0x1e1e1e); } });
+  };
+  const shirt = CYCLIST_SHIRTS[variant % CYCLIST_SHIRTS.length];
+  wheel(-0.52);
+  wheel(0.52);
+  seg([-0.52, 0, 0.33], [-0.05, 0, 0.75], 1, 0x5a6a7a); // frame
+  seg([-0.05, 0, 0.75], [0.48, 0, 0.8], 1, 0x5a6a7a);
+  seg([0.52, 0, 0.33], [0.45, 0, 0.92], 1, 0x8a8a8a); // fork
+  seg([-0.6, 0, 0.72], [-0.2, 0, 0.72], 1.4, 0x4a4a4a); // rack
+  for (const side of [-1, 1]) {
+    seg([-0.12, 0.1 * side, 0.85], [0.1, 0.16 * side, 0.6], 2.2, 0x2a3550); // thigh
+    seg([0.1, 0.16 * side, 0.6], [0.02, 0.16 * side, 0.32], 2, 0x2a3550); // shin
+    seg([0.02, 0.15 * side, 1.3], [0.42, 0.24 * side, 0.94], 1.8, 0x6b4226); // arm
+  }
+  seg([-0.12, 0, 0.88], [0.04, 0, 1.34], 4, shirt, 0.02); // torso
+  blob([0.06, 0, 1.56], 2.2, 0x1a1a1a, 0.03); // head (no helmet)
+  if (variant === 1) {
+    seg([-0.6, 0, 0.86], [-0.24, 0, 0.86], 6, 0xe6e0cc, -0.02); // rice sack
+    seg([-0.56, 0, 0.88], [-0.28, 0, 0.88], 1.6, 0x2f6fb0, -0.015);
+  } else if (variant === 2) {
+    let i = 0;
+    for (let z = 0.8; z <= 1.2; z += 0.12) for (const sd of [-0.14, 0.14]) blob([-0.42, sd, z], 2 - (z - 0.8), [0x5f9a32, 0x4f8a2a, 0x76b23e][i++ % 3], -0.02);
+  }
+  parts.sort((a, b) => a.depth - b.depth);
+  for (const p of parts) p.draw();
   c.outline(0x161616);
   return c;
 }

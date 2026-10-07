@@ -9,10 +9,13 @@ export const BIKE_DIRECTIONS = 16;
 const BIKE_SCALE = 1.25; // draw the bike and rider a little larger than real size, so they read well
 export const BIKE_CANVAS = { width: 44, height: 44, groundX: 22, groundY: 34 };
 
+// All moto taxi riders wear a high visibility vest (as in Kigali). Its yellow is a safety yellow,
+// not Ampersand Surge Yellow (that colour is only for batteries, swap stations and the electric moto).
+export const VEST = { colour: 0xd4e83a, stripe: 0xe8e8e8 };
 export const BIKE_LOOKS = {
-  petrol: { body: 0x8c2b23, seat: 0x222222, vest: 0x3f8f4a, helmet: 0xc0392b, trousers: 0x2a3550 },
-  electric: { body: COLOURS.ampersandYellow, seat: 0x111111, vest: 0x1a1a1a, helmet: 0x111111, trousers: 0x2a3550 },
-  rival: { body: 0x2b2f36, seat: 0x111111, vest: 0x2a62b8, helmet: 0xe8e8e8, trousers: 0x3a3a3a }, // other moto taxi riders
+  petrol: { body: 0x8c2b23, seat: 0x222222, vest: VEST.colour, helmet: 0xc0392b, trousers: 0x2a3550 },
+  electric: { body: COLOURS.ampersandYellow, seat: 0x111111, vest: VEST.colour, helmet: 0x111111, trousers: 0x2a3550 },
+  rival: { body: 0x2b2f36, seat: 0x111111, vest: VEST.colour, helmet: 0xe8e8e8, trousers: 0x3a3a3a }, // other moto taxi riders
 };
 const SKIN = 0x6b4226;
 
@@ -22,8 +25,8 @@ export function bikeFrameForHeading(heading) {
   return ((Math.round(heading / step) % BIKE_DIRECTIONS) + BIKE_DIRECTIONS) % BIKE_DIRECTIONS;
 }
 
-/** Load shown on the bike: none, a passenger behind the rider, or cargo on the rear rack. */
-export const BIKE_LOADS = ['none', 'passenger', 'cargo'];
+/** Load shown on the bike: none, a passenger behind the rider, or cargo on the rear rack (bananas or a rice sack). */
+export const BIKE_LOADS = ['none', 'passenger', 'bananas', 'rice'];
 const PASSENGER = { shirt: 0x3b6fb6, trousers: 0x4a3a2a, helmet: 0xe8e8e8 };
 
 /** Draw one frame of a bike with rider. type is 'petrol' or 'electric'. load is one of BIKE_LOADS. */
@@ -72,7 +75,8 @@ export function drawBike(type, frame, load = 'none') {
     seg([0.25, 0.2 * side, 0.72], [0.15, 0.22 * side, 0.42], 2.2, look.trousers); // shin
     seg([0.05, 0.18 * side, 1.4], [0.42, 0.3 * side, 1.0], 2, SKIN); // arm
   }
-  seg([-0.15, 0, 0.9], [0.05, 0, 1.42], 4.6, look.vest, 0.02); // torso
+  seg([-0.15, 0, 0.9], [0.05, 0, 1.42], 4.6, look.vest, 0.02); // torso in the vest
+  seg([-0.09, 0, 1.08], [-0.06, 0, 1.14], 4.8, VEST.stripe, 0.021); // reflective band
   blob([0.08, 0, 1.68], 2.6, look.helmet, 0.03); // helmet
   blob([0.16, 0, 1.66], 1.1, 0x9fd3f0, 0.04); // visor
 
@@ -85,11 +89,19 @@ export function drawBike(type, frame, load = 'none') {
     }
     seg([-0.5, 0, 0.92], [-0.38, 0, 1.4], 4.4, PASSENGER.shirt, -0.02); // torso
     blob([-0.36, 0, 1.64], 2.5, PASSENGER.helmet, -0.01); // helmet
-  } else if (load === 'cargo') {
-    // Sacks tied on the rear rack.
-    seg([-0.8, 0, 0.92], [-0.42, 0, 0.92], 6, 0x8a6a3a, -0.02);
-    seg([-0.74, 0, 1.12], [-0.48, 0, 1.12], 5, 0xa5844f, -0.01);
-    seg([-0.61, -0.2, 0.86], [-0.61, -0.2, 1.2], 1, 0x3a2a1a, 0.05); // strap
+  } else if (load === 'bananas') {
+    // A big bunch of green bananas (matoke) tied on the rear rack.
+    seg([-0.62, 0, 0.86], [-0.62, 0, 1.5], 1.4, 0x6b4a2a, -0.03); // stem
+    const greens = [0x5f9a32, 0x4f8a2a, 0x76b23e];
+    let i = 0;
+    for (let z = 0.9; z <= 1.42; z += 0.13) {
+      for (const sd of [-0.16, 0, 0.16]) blob([-0.62 + (i % 2) * 0.05, sd, z], 2.3 - (z - 0.9) * 1.2, greens[i++ % 3], -0.02 + sd * 0.01);
+    }
+  } else if (load === 'rice') {
+    // A big white sack of rice with a printed stripe, strapped on the rear rack.
+    seg([-0.84, 0, 0.98], [-0.4, 0, 0.98], 8, 0xe6e0cc, -0.02);
+    seg([-0.8, 0, 1.0], [-0.44, 0, 1.0], 2, 0x2f6fb0, -0.015); // printed band
+    seg([-0.62, -0.25, 0.86], [-0.62, -0.25, 1.22], 1, 0x3a2a1a, 0.05); // strap
   }
 
   parts.sort((a, b) => a.depth - b.depth);
@@ -147,7 +159,7 @@ export function drawBlock(block, world) {
     return { x: s.x, y: s.y };
   };
   // Canvas bounds: the tile footprint from base to top, with room for tree crowns.
-  const pad = block.kind === 'tree' ? 16 : block.kind === 'monument' ? 8 : 2;
+  const pad = block.kind === 'tree' ? 16 : block.kind === 'monument' ? 8 : block.kind === 'fuel' ? 22 : 2;
   const corners = [];
   for (const [x, y] of [[tx, ty], [tx + 1, ty], [tx + 1, ty + 1], [tx, ty + 1]]) {
     corners.push(pt(x, y, block.baseLevel), pt(x, y, block.topLevel));
@@ -161,7 +173,8 @@ export function drawBlock(block, world) {
   // glow: the parts that shine at night (lit windows, station signs). It has the same size as the canvas.
   const glow = new PixelCanvas(c.width, c.height, c.ox, c.oy);
   if (block.kind === 'building') drawBuilding(c, block, pt, world, glow);
-  else if (block.kind === 'fuel' || block.kind === 'swap') drawStation(c, block, pt, world, glow);
+  else if (block.kind === 'fuel') drawFuelStation(c, block, pt, world, glow);
+  else if (block.kind === 'swap') drawStation(c, block, pt, world, glow);
   else if (block.kind === 'garage') drawGarage(c, block, pt, world);
   else if (block.kind === 'tree') drawTree(c, block, pt, world);
   else if (block.kind === 'dome') drawDome(c, block, pt, world, glow);
@@ -295,6 +308,76 @@ function drawMonument(c, block, pt, world) {
 // ---------------------------------------------------------------------------
 
 /** Fuel station (white and red) or Ampersand swap station (Surge Yellow, black, battery bays). */
+// A fuel station: a white canopy on thin pillars with a red fascia, pumps on a concrete island
+// under it, a small shop with a glass front, and a tall price sign. Two tiles: the first tile
+// (smaller x + y) has the shop, the second has the pumps and the sign.
+const FUEL_RED = 0xc0392b;
+function drawFuelStation(c, block, pt, world, glow) {
+  const { tx, ty } = block;
+  const base = block.floorLevel ?? block.baseLevel;
+  const isFuel = (x, y) => world.blockAt(x, y)?.kind === 'fuel';
+  const first = isFuel(tx + 1, ty) || isFuel(tx, ty + 1);
+  const flat = (col) => () => col;
+  const box = (x0, y0, x1, y1, z0, z1, top, east, south) =>
+    drawBox(c, tx + x0, ty + y0, tx + x1, ty + y1, base + z0, base + z1, pt, top, east, south);
+  const wall = (col, k) => () => shadeColour(col, k);
+  // Concrete forecourt slab.
+  box(0.02, 0.02, 0.98, 0.98, -0.02, 0.06, flat(0xb8b4aa), wall(0x9a968c, 0.8), wall(0x9a968c, 0.9));
+  if (first) {
+    // The shop: white walls, a glass front and a door, a red band at the top.
+    const shop = (k) => (along, z, px, py) => {
+      const zl = z - base;
+      let col = 0xf0efe6;
+      if (zl > 1.45) col = FUEL_RED;
+      else if (zl > 0.35 && zl < 1.3 && (along * 5) % 1 > 0.15) {
+        col = 0x6fa4c4; // glass
+        if (glow) glow.setPixel(px, py, shadeColour(0xfff2c8, 0.8 + 0.2 * k));
+      }
+      return shadeColour(col, k);
+    };
+    box(0.18, 0.18, 0.82, 0.82, 0.06, 1.7, flat(0x9a9a96), shop(0.72), shop(0.88));
+  } else {
+    // A concrete island with two pumps.
+    box(0.25, 0.3, 0.75, 0.7, 0.06, 0.16, flat(0xd8d4ca), wall(0xb0aca2, 0.75), wall(0xb0aca2, 0.88));
+    for (const [px0, py0] of [[0.3, 0.42], [0.58, 0.42]]) {
+      const pump = (k) => (along, z, px, py) => {
+        const zl = z - base;
+        let col = zl > 0.75 ? FUEL_RED : 0xe8e8e4;
+        if (zl > 0.48 && zl < 0.66) {
+          col = 0x203038; // the display
+          if (glow) glow.setPixel(px, py, 0x7cff8a, 220);
+        }
+        return shadeColour(col, k);
+      };
+      box(px0, py0, px0 + 0.12, py0 + 0.16, 0.16, 0.9, flat(FUEL_RED), pump(0.72), pump(0.88));
+    }
+    // The price sign: a tall pole with a red panel and white bars.
+    box(0.88, 0.86, 0.94, 0.92, 0.06, 3.4, flat(0x7a7a7a), wall(0x8a8a8a, 0.72), wall(0x8a8a8a, 0.88));
+    const sign = (k) => (along, z, px, py) => {
+      const zl = z - base;
+      const bar = (zl > 3.65 && zl < 3.8) || (zl > 3.95 && zl < 4.1) || (zl > 4.25 && zl < 4.4);
+      const col = bar ? 0xffffff : FUEL_RED;
+      if (glow) glow.setPixel(px, py, shadeColour(col, k), 230);
+      return shadeColour(col, k);
+    };
+    box(0.72, 0.86, 1.0, 0.92, 3.4, 4.6, flat(0x8a2a20), sign(0.72), sign(0.88));
+  }
+  // Pillars at the corners, then the canopy on top.
+  for (const [x, y] of [[0.08, 0.08], [0.86, 0.08], [0.08, 0.86], [0.86, 0.86]]) {
+    if (!first && x > 0.8 && y > 0.8) continue; // the sign pole stands there
+    box(x, y, x + 0.06, y + 0.06, 0.06, 2.65, flat(0xd0d0cc), wall(0xd0d0cc, 0.72), wall(0xd0d0cc, 0.88));
+  }
+  const fascia = (k) => (along, z, px, py) => {
+    const zl = z - base;
+    const col = zl > 2.8 && zl < 2.88 ? 0xffffff : FUEL_RED;
+    if (glow) glow.setPixel(px, py, shadeColour(col, 0.85 + 0.15 * k), 200);
+    return shadeColour(col, k);
+  };
+  drawBox(c, tx - 0.04, ty - 0.04, tx + 1.04, ty + 1.04, base + 2.65, base + 3, pt,
+    (u, v, px, py) => (hash2(px + c.ox, py + c.oy, 4) > 0.92 ? 0xe0e0dc : 0xf2f2ee), fascia(0.72), fascia(0.88),
+    { east: !isFuel(tx + 1, ty), south: !isFuel(tx, ty + 1) });
+}
+
 function drawStation(c, block, pt, world, glow) {
   const { tx, ty, baseLevel, topLevel } = block;
   const swap = block.kind === 'swap';
@@ -434,12 +517,23 @@ export function drawWaitingPassenger() {
 }
 
 /** Sacks and a crate that wait at a cargo pickup. Origin = ground point (bottom centre). */
-export function drawCargoPile() {
+/** Cargo that waits for you at the pickup: bunches of bananas or sacks of rice. */
+export function drawCargoPile(goods = 'rice') {
   const c = new PixelCanvas(PROP_CANVAS.width, PROP_CANVAS.height);
   const gx = PROP_CANVAS.groundX, gy = PROP_CANVAS.groundY;
-  for (let y = gy - 8; y < gy; y++) for (let x = gx + 1; x < gx + 8; x++) c.setPixel(x, y, y === gy - 8 ? 0xc9a36a : 0xa5844f); // crate
-  c.line(gx - 4, gy - 3, gx + 1, gy - 3, 6, 0x8a6a3a); // sack
-  c.line(gx - 3, gy - 9, gx + 1, gy - 9, 5, 0x9a7a4a); // sack on top
+  if (goods === 'bananas') {
+    const greens = [0x5f9a32, 0x4f8a2a, 0x76b23e];
+    for (const [bx, top] of [[gx - 3, gy - 12], [gx + 4, gy - 9]]) {
+      c.line(bx, gy - 1, bx, top - 2, 1.2, 0x6b4a2a); // stem
+      let i = 0;
+      for (let y = gy - 2; y > top; y -= 2) for (const dx of [-2, 0, 2]) c.fillDisc(bx + dx, y, 1.6, greens[i++ % 3]);
+    }
+  } else {
+    for (const [x0, y0] of [[gx - 6, gy - 6], [gx + 1, gy - 6], [gx - 3, gy - 12]]) {
+      for (let y = y0; y < y0 + 6; y++) for (let x = x0; x < x0 + 7; x++) c.setPixel(x, y, y === y0 ? 0xf2eee0 : 0xe0dac6);
+      for (let x = x0; x < x0 + 7; x++) c.setPixel(x, y0 + 3, 0x2f6fb0); // printed band
+    }
+  }
   c.outline(0x161616);
   return c;
 }

@@ -92,7 +92,7 @@ export class LightsView {
   setTraffic(traffic) {
     for (const l of this.vehicles.values()) this.#destroyLights(l);
     this.vehicles.clear();
-    for (const v of traffic.vehicles) this.vehicles.set(v.id, this.#vehicleLights(v.kind));
+    for (const v of traffic.vehicles) if (v.kind !== 'cyclist') this.vehicles.set(v.id, this.#vehicleLights(v.kind)); // bicycles have no lights
     this.traffic = traffic;
   }
 

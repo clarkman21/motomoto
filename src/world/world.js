@@ -14,7 +14,7 @@ const CHAR_INFO = {
   '=': { surface: 'tarmac', hazard: 'speedBump' },
   t: { surface: 'grass', block: 'tree' },
   M: { surface: 'grass', block: 'monument' },
-  F: { surface: 'tarmac', block: 'fuel', blockLevels: 2 },
+  F: { surface: 'tarmac', block: 'fuel', blockLevels: 3 }, // the canopy top; the price sign is higher (see sprites.js)
   S: { surface: 'tarmac', block: 'swap', blockLevels: 2 },
   G: { surface: 'tarmac', block: 'garage', blockLevels: 3 },
   p: { surface: 'pavement' },

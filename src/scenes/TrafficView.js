@@ -1,7 +1,7 @@
 import { WORLD, TRAFFIC } from '../config.js';
 import { toScreen } from '../world/iso.js';
 import { bikeFrameForHeading, BIKE_DIRECTIONS, BIKE_CANVAS } from '../world/sprites.js';
-import { drawVehicle, drawRivalMoto, VEHICLE_CANVAS, VEHICLE_VARIANTS } from '../world/vehicle-sprites.js';
+import { drawVehicle, drawRivalMoto, drawCyclist, VEHICLE_CANVAS, VEHICLE_VARIANTS } from '../world/vehicle-sprites.js';
 import { packShelves } from './chunks.js';
 
 // Draws the traffic: one sprite and one shadow per vehicle, all frames in one atlas.
@@ -14,11 +14,11 @@ export class TrafficView {
     this.sprites = new Map();
     for (const v of traffic.vehicles) {
       const shadow = scene.add.image(0, 0, 'shadow').setAlpha(0.9);
-      const moto = v.kind === 'moto';
+      const moto = v.kind === 'moto' || v.kind === 'cyclist'; // two wheels: the bike canvas
       const c = moto ? BIKE_CANVAS : VEHICLE_CANVAS;
       const img = scene.add.image(0, 0, 'vehicles', this.#frame(v)).setOrigin(c.groundX / c.width, c.groundY / c.height);
       // Shadow size from the vehicle size (the shadow texture is 24 × 12 px).
-      shadow.setScale(moto ? 0.9 : v.length / 3.2, moto ? 0.9 : v.width / 1.5);
+      shadow.setScale(moto ? (v.kind === 'cyclist' ? 0.7 : 0.9) : v.length / 3.2, moto ? 0.8 : v.width / 1.5);
       this.sprites.set(v.id, { img, shadow });
     }
   }
@@ -26,6 +26,7 @@ export class TrafficView {
   #frame(v) {
     const f = bikeFrameForHeading(v.heading);
     if (v.kind === 'moto') return `moto-${v.loaded ? 'passenger' : 'none'}-${f}`;
+    if (v.kind === 'cyclist') return `cyclist-${v.variant}-${f}`;
     return `${v.kind}-${v.variant}-${f}`;
   }
 
@@ -36,6 +37,9 @@ export class TrafficView {
       for (let variant = 0; variant < VEHICLE_VARIANTS[kind].length; variant++) {
         for (let f = 0; f < BIKE_DIRECTIONS; f++) frames.push({ name: `${kind}-${variant}-${f}`, canvas: drawVehicle(kind, variant, f) });
       }
+    }
+    for (let variant = 0; variant < TRAFFIC.kinds.cyclist.variants; variant++) {
+      for (let f = 0; f < BIKE_DIRECTIONS; f++) frames.push({ name: `cyclist-${variant}-${f}`, canvas: drawCyclist(variant, f) });
     }
     for (const load of ['none', 'passenger']) {
       for (let f = 0; f < BIKE_DIRECTIONS; f++) frames.push({ name: `moto-${load}-${f}`, canvas: drawRivalMoto(f, load) });

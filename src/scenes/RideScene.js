@@ -26,6 +26,7 @@ import { startRace, chaseHail, stepRivals, cancelMission } from '../sim/rivals.j
 import { PeopleView } from './PeopleView.js';
 import { levelSettings, milestoneReady, buyMilestone, restartLevel, streakMultiplier, updateStreak, savingsTarget } from '../sim/levels.js';
 import { loadGame, saveGame, clearSave, loadSettings, saveSettings } from './save.js';
+import { deliveryLine } from '../sim/family.js';
 import { LightsView } from './LightsView.js';
 import { BarrierView } from './BarrierView.js';
 import { daylight } from '../sim/daylight.js';
@@ -171,6 +172,7 @@ export class RideScene extends Phaser.Scene {
     if (!this.started || this.scene.isActive('dayEnd') || this.scene.isPaused()) return;
     this.scene.pause();
     if (this.scene.isActive('hud')) this.scene.pause('hud');
+    this.engineSound.silence();
     this.engineSound.pause();
     this.scene.launch('menu', { mode: 'pause' });
   }
@@ -257,6 +259,7 @@ export class RideScene extends Phaser.Scene {
         case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': this.acceptJob(Number(e.code.slice(5)) - 1); break;
         case 'Backspace': this.cancelJob(); break;
         case 'KeyF': this.startRefuel(); break;
+        case 'KeyK': if (this.debug) this.dayTime = this.level.shift.realSeconds; break; // debug: end the shift now
       }
     });
     this.input.on('pointerdown', () => this.engineSound.start());
@@ -397,10 +400,13 @@ export class RideScene extends Phaser.Scene {
           cancelMission(this.raceRival);
           this.raceRival = null;
         }
-        this.events.emit('bark', e.job.type === 'passenger' ? `Passenger on board. Go to ${e.job.to.name}` : `${e.job.kg} kg cargo loaded. Go to ${e.job.to.name}`);
+        this.events.emit('bark', e.job.type === 'passenger' ? `Passenger on board. Go to ${e.job.to.name}` : `${e.job.kg} kg of ${e.job.goods === 'bananas' ? 'bananas' : 'rice'} loaded. Go to ${e.job.to.name}`);
       } else {
         earn(this.wallet, e.job.type === 'passenger' ? 'fares' : 'cargo', e.fare);
         this.events.emit('money', e.fare, e.job.type === 'passenger' ? 'Fare' : 'Cargo delivered');
+        // What the money means at home (see sim/family.js).
+        this.events.emit('bark', deliveryLine(e.fare));
+        this.engineSound.jingle('reward');
         // Clean ride streak: a bonus on the fare, then the streak grows (or resets after a bad ride).
         const bonus = Math.round((e.fare * (streakMultiplier(this.wallet) - 1)) / 10) * 10;
         if (bonus > 0) {
@@ -456,6 +462,7 @@ export class RideScene extends Phaser.Scene {
     const counts = {};
     for (const kind of ['car', 'bus', 'truck']) counts[kind] = Math.round(TRAFFIC.perDistrict[kind] * L.districts.length * L.traffic);
     counts.moto = L.rivals;
+    counts.cyclist = (L.cyclists ?? 0) * L.districts.length; // slow bicycles from level 3
     this.trafficView?.destroy();
     this.peopleView?.destroy();
     this.traffic = createTraffic(this.world, this.roadGraph, mulberry32(Date.now() & 0xffff), counts);
@@ -483,6 +490,9 @@ export class RideScene extends Phaser.Scene {
     summary.milestoneReady = !summary.outOfCash && milestoneReady(this.wallet);
     summary.savingsTarget = savingsTarget(this.wallet);
     this.dayOver = true;
+    // The engine stops (it used to keep humming the last note), and a short tune says the shift is over.
+    this.engineSound.silence();
+    this.engineSound.jingle(summary.outOfCash === 'gameOver' ? 'gameOver' : 'shiftEnd');
     this.scene.pause();
     this.scene.launch('dayEnd', { summary, onContinue: (choice) => this.#startDay(choice) });
   }
@@ -495,6 +505,7 @@ export class RideScene extends Phaser.Scene {
     if (choice === 'buy') {
       const bought = buyMilestone(this.wallet);
       if (bought) {
+        this.engineSound.jingle('levelUp');
         this.#save();
         this.scene.launch('dayEnd', { levelUp: { bought, next: levelSettings(this.wallet) }, onContinue: () => this.#startDay('next') });
         return;
@@ -617,7 +628,7 @@ export class RideScene extends Phaser.Scene {
           continue;
         }
         if (e.type === 'wall' && e.hit?.kind) {
-          this.events.emit('bark', `Crash! You hit a ${e.hit.kind === 'moto' ? 'moto' : e.hit.kind === 'bus' ? 'minibus' : e.hit.kind}`);
+          this.events.emit('bark', `Crash! You hit a ${e.hit.kind === 'moto' ? 'moto' : e.hit.kind === 'bus' ? 'minibus' : e.hit.kind === 'cyclist' ? 'cyclist' : e.hit.kind}`);
           e.hit.stopTimer = 2; // the other driver stops
           continue;
         }
@@ -820,58 +831,28 @@ export class RideScene extends Phaser.Scene {
     addCanvasTexture(this, 'pin-dropoff', drawMarkerPin(0xf6f5ec));
     addCanvasTexture(this, 'arrow', drawArrow());
     addCanvasTexture(this, 'waiting-passenger', drawWaitingPassenger());
-    addCanvasTexture(this, 'waiting-cargo', drawCargoPile());
+    addCanvasTexture(this, 'waiting-bananas', drawCargoPile('bananas'));
+    addCanvasTexture(this, 'waiting-rice', drawCargoPile('rice'));
     this.waiting = this.add.image(0, 0, 'waiting-passenger').setOrigin(ox, oy).setVisible(false);
     this.markerRing = this.add.image(0, 0, 'ring-pickup').setVisible(false);
     this.markerPin = this.add.image(0, 0, 'pin-pickup').setOrigin(0.5, 1).setDepth(1e5).setVisible(false);
     this.arrow = this.add.image(0, 0, 'arrow').setDepth(1e6).setVisible(false);
-    // Low fuel or charge: an arrow to the nearest station (orange for fuel, yellow for a swap).
-    this.fuelArrow = this.add.image(0, 0, 'arrow').setDepth(1e6).setVisible(false);
-    this.fuelArrow.noAmbient = true;
-    this.fuelWarned = 1;
+    this.fuelWarned = 1; // the last low fuel warning level (see #updateFuelGuide)
   }
 
-  /** The nearest station for your bike (fuel or swap) in the open districts, or null. */
-  nearestStation() {
-    const tag = this.bike.type === 'electric' ? 'swap' : 'fuel';
-    const b = this.bike, T = WORLD.tileMetres;
-    let best = null, bestD = Infinity;
-    for (const p of this.world.placesWithTag(tag)) {
-      if (!this.level.districts.includes(p.district)) continue;
-      const d = Math.hypot(p.x * T - b.x, p.y * T - b.y);
-      if (d < bestD) {
-        bestD = d;
-        best = { place: p, metres: d };
-      }
-    }
-    return best;
-  }
-
-  // Low fuel: warn once at each level, and point to the nearest station.
+  // Low fuel: warn once at each level. There is no arrow: you learn where the stations are.
   #updateFuelGuide() {
     const e = this.bike.energy;
     const electric = this.bike.type === 'electric';
-    const low = e < FUEL.lowAt && !this.refuel;
     if (e > FUEL.lowAt + 0.05) this.fuelWarned = 1;
-    const station = low ? this.nearestStation() : null;
-    if (low && this.fuelWarned > FUEL.lowAt && station) {
+    if (this.refuel) return;
+    if (e < FUEL.lowAt && this.fuelWarned > FUEL.lowAt) {
       this.fuelWarned = FUEL.lowAt;
-      const what = electric ? 'Battery low' : 'Fuel low';
-      this.events.emit('bark', `${what}: ${Math.round(e * 100)}%. Follow the ${electric ? 'yellow' : 'orange'} arrow: ${station.place.name}, ${Math.round(station.metres)} m`);
-    } else if (e < FUEL.reserveAt && this.fuelWarned > FUEL.reserveAt && station) {
+      this.events.emit('bark', electric ? `Battery low: ${Math.round(e * 100)}%. Go to a swap station` : `Fuel low: ${Math.round(e * 100)}%. Go to a fuel station`);
+    } else if (e < FUEL.reserveAt && this.fuelWarned > FUEL.reserveAt) {
       this.fuelWarned = FUEL.reserveAt;
       this.events.emit('bark', electric ? 'Battery reserve! Swap now' : 'Reserve! Fill up now or push the bike');
     }
-    this.fuelArrow.setVisible(!!station);
-    if (!station) return;
-    const T = WORLD.tileMetres;
-    const p = station.place;
-    const s = toScreen(p.x * T, p.y * T, this.world.heightAt(p.x * T, p.y * T));
-    const dx = s.x - this.bikeScreen.x, dy = s.y - this.bikeScreen.y;
-    const d = Math.hypot(dx, dy) || 1;
-    const pulse = e < FUEL.reserveAt ? 1 + 0.25 * Math.sin(this.time.now / 90) : 1;
-    this.fuelArrow.setTint(electric ? 0xfcdc04 : 0xff7a2a).setScale(pulse).setVisible(d > 30)
-      .setPosition(this.bikeScreen.x + (dx / d) * 34, this.bikeScreen.y - 10 + (dy / d) * 22).setRotation(Math.atan2(dy, dx));
   }
 
   // Show where to go: a ring and a pin on the target place, and an arrow beside the bike.
@@ -891,7 +872,7 @@ export class RideScene extends Phaser.Scene {
     this.markerRing.setTexture(`ring-${kind}`).setPosition(s.x, s.y).setScale(pulse).setDepth((wx + wy) / WORLD.tileMetres - 0.5);
     this.markerPin.setTexture(`pin-${kind}`).setPosition(s.x, s.y - 30 - 3 * Math.sin(this.time.now / 220));
     // The passenger (or the cargo) waits beside the marker.
-    this.waiting.setTexture(job.type === 'passenger' ? 'waiting-passenger' : 'waiting-cargo')
+    this.waiting.setTexture(job.type === 'passenger' ? 'waiting-passenger' : `waiting-${job.goods ?? 'rice'}`)
       .setPosition(s.x + 12, s.y - 2).setDepth((wx + wy) / WORLD.tileMetres + 0.3);
     const dx = s.x - this.bikeScreen.x, dy = s.y - this.bikeScreen.y;
     const d = Math.hypot(dx, dy);

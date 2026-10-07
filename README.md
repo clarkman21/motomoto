@@ -41,6 +41,9 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Rival riders who race you to pickups and take street hails | Done |
 | Levels 1–4: savings goals, milestones (phone, electric moto), streak bonus, save game | Done |
 | Welcome menu, How to play, Settings, pause menu with Restart shift | Done |
+| Family rewards: what the money means at home after each job, each shift and each milestone | Done |
+| Sounds: the engine stops at the end of a shift; short tunes for shift end, milestone, game over, delivery | Done |
+| Hi-vis vests for all moto riders; banana and rice cargo; cyclists from level 3; detailed fuel stations | Done |
 | Day and night: fast clock, night colour, sunset, street lamps, lit windows, headlights and tail lights | Done |
 | Levels 5–10, police helmet checks, hired riders, traffic lights | Later milestones |
 
@@ -153,6 +156,7 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `BUS_PARK` | How often buses arrive at Nyabugogo and how many customers they bring |
 | `FUEL` | Start tank, idle use, low fuel and reserve warnings |
 | `COLLISION` | Bike radius, bounce, masses, crash speed and time, repair cost per km/h |
+| `FAMILY` | The family names, and what money pays for at home |
 | `DAYLIGHT` | Light at each hour, night colour, sunset colour |
 | `LIGHTS` | Street lamp spacing, light pools, lit windows, headlights and tail lights |
 
@@ -188,6 +192,7 @@ src/
     maintenance.js       Service meter, wear, breakdown, garage quote
     levels.js            Levels, savings goals, milestones, streak bonus
     daylight.js          Light and colour at each hour of the day
+    family.js            What the money means for the rider's family
   audio/engine-sound.js  Engine and horn with Web Audio
   scenes/
     MenuScene.js         Welcome menu, pause menu, How to play, Settings

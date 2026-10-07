@@ -35,6 +35,7 @@ export function createTraffic(world, graph, rng, counts = TRAFFIC.counts) {
         speed: 0,
         length: spec.length,
         width: spec.width,
+        lane: spec.laneOffset ?? LANE_OFFSET, // metres from the centre line (cyclists keep to the edge)
         maxSpeed: spec.maxKmh * KMH * (0.9 + rng() * 0.2),
         x: 0, y: 0, heading: 0,
         stopTimer: 0,
@@ -64,14 +65,15 @@ function place(v) {
   let p, d;
   const cOut = v.next ? cornerFor(e, v.next) : 0;
   const cIn = v.prev ? cornerFor(v.prev, e) : 0;
+  const lane = v.lane ?? LANE_OFFSET;
   if (v.next && e.length - v.s < cOut) {
     const t = (v.s - (e.length - cOut)) / (2 * cOut); // 0 .. 0.5
-    ({ p, d } = curve(e, v.next, t, cOut));
+    ({ p, d } = curve(e, v.next, t, cOut, lane));
   } else if (v.prev && v.s < cIn) {
     const t = 0.5 + v.s / (2 * cIn); // 0.5 .. 1
-    ({ p, d } = curve(v.prev, e, t, cIn));
+    ({ p, d } = curve(v.prev, e, t, cIn, lane));
   } else {
-    p = lanePoint(e, v.s);
+    p = lanePoint(e, v.s, lane);
     d = { x: e.dx, y: e.dy };
   }
   v.x = p.x;
@@ -80,15 +82,15 @@ function place(v) {
 }
 
 /** Quadratic curve from the lane of edge a (CORNER before its end) to the lane of edge b (CORNER after its start). */
-function curve(a, b, t, c) {
-  const p0 = lanePoint(a, a.length - c);
-  const p2 = lanePoint(b, c);
+function curve(a, b, t, c, lane = LANE_OFFSET) {
+  const p0 = lanePoint(a, a.length - c, lane);
+  const p2 = lanePoint(b, c, lane);
   let p1;
   const cross = a.dx * b.dy - a.dy * b.dx;
   if (Math.abs(cross) > 0.5) {
     // A turn: the control point is where the two lane lines meet.
-    const end = lanePoint(a, a.length);
-    const start = lanePoint(b, 0);
+    const end = lanePoint(a, a.length, lane);
+    const start = lanePoint(b, 0, lane);
     p1 = { x: a.dx !== 0 ? start.x : end.x, y: a.dy !== 0 ? start.y : end.y };
   } else if (a.dx * b.dx + a.dy * b.dy > 0) {
     p1 = { x: (p0.x + p2.x) / 2, y: (p0.y + p2.y) / 2 }; // straight on
@@ -121,7 +123,10 @@ function gapAhead(v, others) {
       if (o.blocker === v && v.id < o.id) continue;
     }
     const side = Math.abs(-rx * fy + ry * fx);
-    if (side > 1.6 + (o.width ?? 0.8) / 2) continue;
+    // A cyclist at the road edge and a car in the lane can pass each other when there is room.
+    const cyclist = o.kind === 'cyclist' || v.kind === 'cyclist';
+    const room = cyclist ? (v.width + (o.width ?? 0.8)) / 2 + 0.25 : 1.6 + (o.width ?? 0.8) / 2;
+    if (side > room) continue;
     const free = along - v.length / 2 - (o.length ?? 1) / 2;
     if (free < gap) {
       gap = free;
