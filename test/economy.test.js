@@ -355,7 +355,7 @@ describe('buying the bare minimum of fuel', () => {
   it('offers enough for the next job, the next two jobs, or a full tank, in round amounts', () => {
     const bike = createBike(new World(TEST_MAP), 'petrol');
     bike.energy = 0.1;
-    const [one, two, full] = fuelChoices(bike, 1, [{ metres: 800 }, { metres: 1000 }]);
+    const [one, two, full] = fuelChoices(bike, 1, [{ fuel: fuelForMetres(800) }, { fuel: fuelForMetres(1000) }]);
     expect(one.cost % FUEL.roundToRwf).toBe(0);
     expect(one.cost).toBeLessThan(two.cost);
     expect(two.cost).toBeLessThan(full.cost);
@@ -376,7 +376,7 @@ describe('buying the bare minimum of fuel', () => {
   it('a choice that buys nothing costs nothing', () => {
     const bike = createBike(new World(TEST_MAP), 'petrol');
     bike.energy = 0.95;
-    expect(fuelChoices(bike, 1, [{ metres: 100 }, { metres: 100 }])[0].cost).toBe(0);
+    expect(fuelChoices(bike, 1, [{ fuel: 0.02 }, { fuel: 0.02 }])[0].cost).toBe(0);
   });
 });
 

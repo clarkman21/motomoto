@@ -415,7 +415,10 @@ export const FUEL = {
   reserveAt: 0.1, // "Reserve!"
   // Buying fuel: riders buy the bare minimum, not a full tank. The station offers enough for the
   // next job, for the next two jobs, or a full tank. Estimate: tank per km of riding (with hills), plus a margin.
-  tankPerKm: 0.25,
+  tankPerKm: 0.25, // a rough average (with hills), for a job that is not known yet
+  // The estimate for a known job (petrol tank; the electric battery scales by its energySeconds):
+  flatTankPerKm: 0.2, // riding on the flat with no load
+  tankPerClimbMetre: 0.0015, // each metre of climb (the engine works harder and revs higher)
   margin: 1.15,
   roundToRwf: 100, // fuel is sold in round amounts
   approachMetres: 500, // the ride to a pickup that is not known yet

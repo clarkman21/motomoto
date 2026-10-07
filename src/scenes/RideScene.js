@@ -27,6 +27,7 @@ import { PeopleView } from './PeopleView.js';
 import { levelSettings, milestoneReady, buyMilestone, restartLevel, streakMultiplier, updateStreak, savingsTarget } from '../sim/levels.js';
 import { loadGame, saveGame, clearSave, loadSettings, saveSettings } from './save.js';
 import { deliveryLine } from '../sim/family.js';
+import { jobFuel, legFuel } from '../sim/fuel.js';
 import { LightsView } from './LightsView.js';
 import { BarrierView } from './BarrierView.js';
 import { GarageView } from './GarageView.js';
@@ -377,7 +378,7 @@ export class RideScene extends Phaser.Scene {
     }
     // At a fuel station you choose how much to buy (see chooseFuel).
     if (this.station === 'fuel') {
-      this.fuelChoice = this.fuelChoice ? null : fuelChoices(this.bike, this.fuelPrice, this.#nextJobMetres());
+      this.fuelChoice = this.fuelChoice ? null : fuelChoices(this.bike, this.fuelPrice, this.#nextJobFuel());
       return;
     }
     const total =
@@ -404,17 +405,22 @@ export class RideScene extends Phaser.Scene {
     this.refuel = { kind: 'fuel', timeLeft: total, total, upTo: c.upTo };
   }
 
-  /** Road distance (metres) of the next jobs, for the fuel estimate: the active job first, then the nearest offers. */
-  #nextJobMetres() {
-    const T = WORLD.tileMetres;
-    const here = { x: this.bike.x / T, y: this.bike.y / T };
+  /** Fuel (tank fraction) of the next jobs, with their weight and hills: the active job first, then the cheapest offers. */
+  #nextJobFuel() {
     const jobs = [];
-    const a = this.board.active;
-    if (a) jobs.push({ metres: a.stage === 'toPickup' ? tripMetres(here, a.from) + a.distanceMetres : tripMetres(here, a.to) });
-    const offers = this.board.offers.map((o) => ({ metres: tripMetres(here, o.from) + o.distanceMetres })).sort((p, q) => p.metres - q.metres);
+    if (this.board.active) jobs.push({ fuel: jobFuel(this.world, this.bike, this.board.active) });
+    const offers = this.board.offers.map((o) => ({ fuel: jobFuel(this.world, this.bike, o) })).sort((p, q) => p.fuel - q.fuel);
     jobs.push(...offers);
-    while (jobs.length < 2) jobs.push({ metres: FUEL.approachMetres + 1500 });
+    while (jobs.length < 2) jobs.push({ fuel: legFuel(this.bike.type, FUEL.approachMetres + 1500, 5, 65) });
     return jobs;
+  }
+
+  /** Fuel estimate for each job card (updated a few times each second). */
+  #updateJobFuel(dt) {
+    if ((this.jobFuelTimer = (this.jobFuelTimer ?? 0) - dt) > 0) return;
+    this.jobFuelTimer = 0.4;
+    for (const o of this.board.offers) o.fuel = jobFuel(this.world, this.bike, o);
+    if (this.board.active) this.board.active.fuel = jobFuel(this.world, this.bike, this.board.active);
   }
 
   #finishRefuel() {
@@ -695,6 +701,7 @@ export class RideScene extends Phaser.Scene {
     if (this.refuel && (this.refuel.timeLeft -= dt) <= 0) this.#finishRefuel();
     this.#updateStation();
     updateBoard(this.board, this.world, dt);
+    this.#updateJobFuel(dt);
     this.speedLimit = speedLimitAt(this.world, this.bike.x, this.bike.y);
     this.#updateMarker();
     this.#updateFuelGuide();

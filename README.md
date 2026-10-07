@@ -45,6 +45,7 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Sounds: the engine stops at the end of a shift; short tunes for shift end, milestone, game over, delivery | Done |
 | Hi-vis vests for all moto riders; banana and rice cargo; cyclists from level 3; detailed fuel stations | Done |
 | Buy the bare minimum of fuel (next job, next two jobs, or full); itemized service with oil change and brake pads | Done |
+| Fuel estimate on each job card, from the distance, the climb and the load | Done |
 | Moto garages (Kazi ni Kazi, Sonatubes): open workshop, motos, mechanics, oil stains, painted sign | Done |
 | Day and night: fast clock, night colour, sunset, street lamps, lit windows, headlights and tail lights | Done |
 | Levels 5–10, police helmet checks, hired riders, traffic lights | Later milestones |
@@ -196,6 +197,7 @@ src/
     levels.js            Levels, savings goals, milestones, streak bonus
     daylight.js          Light and colour at each hour of the day
     family.js            What the money means for the rider's family
+    fuel.js              Fuel estimate for a job: distance, climb and load
   audio/engine-sound.js  Engine and horn with Web Audio
   scenes/
     MenuScene.js         Welcome menu, pause menu, How to play, Settings

@@ -166,8 +166,8 @@ export function fuelForMetres(metres) {
 
 /**
  * The choices at a fuel station: enough for the next job, for the next two jobs, or a full tank.
- * jobs: [{ metres }] for the next jobs (the active job first). Each choice: { label, upTo, cost }.
- * Amounts are round (FUEL.roundToRwf). A choice that buys nothing has cost 0.
+ * jobs: [{ fuel }] the tank fraction of the next jobs (the active job first; see sim/fuel.js).
+ * Each choice: { label, upTo, cost }. Amounts are round (FUEL.roundToRwf). A choice that buys nothing costs 0.
  */
 export function fuelChoices(bike, priceFactor, jobs) {
   const perUnit = MONEY.fuelFullTank * priceFactor;
@@ -177,7 +177,7 @@ export function fuelChoices(bike, priceFactor, jobs) {
     const cost = Math.min(Math.ceil(((upTo - bike.energy) * perUnit) / FUEL.roundToRwf) * FUEL.roundToRwf, round10((1 - bike.energy) * perUnit));
     return { label, upTo: Math.min(1, bike.energy + cost / perUnit), cost };
   };
-  const one = fuelForMetres(jobs[0]?.metres ?? 0) + FUEL.reserveAt / 2;
-  const two = one + fuelForMetres(jobs[1]?.metres ?? jobs[0]?.metres ?? 0);
+  const one = (jobs[0]?.fuel ?? 0) + FUEL.reserveAt / 2;
+  const two = one + (jobs[1]?.fuel ?? jobs[0]?.fuel ?? 0);
   return [choice('Enough for the next job', one), choice('Enough for the next two jobs', two), choice('Fill up the tank', 1)];
 }

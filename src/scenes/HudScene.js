@@ -254,12 +254,15 @@ export class HudScene extends Phaser.Scene {
 
   #updateJobs() {
     const ride = this.ride;
+    const bike = ride.bike;
     const job = ride.board.active;
     const s = this.hudScale;
     const box = this.jobBox;
     const money = (n) => `${n.toLocaleString('en')} RWF`;
     const what = (j) => (j.type === 'passenger' ? 'Passenger' : j.goods === 'bananas' ? `Bananas ${j.kg} kg, fragile` : `Rice sack ${j.kg} kg`);
     const km = (j) => `${j.gameKm.toFixed(1)} km`;
+    // The fuel this job needs (with its weight and hills). Too little in the tank: a warning.
+    const fuel = (j) => (j.fuel === undefined ? '' : ` · fuel ${Math.max(1, Math.round(j.fuel * 100))}%${j.fuel > bike.energy ? ' (NOT ENOUGH)' : ''}`);
     if (job) {
       const dist = Math.round(ride.targetDistance ?? 0);
       this.jobTitle.setText(job.stage === 'toPickup' ? 'GO TO PICKUP' : 'GO TO DROP OFF');
@@ -268,7 +271,7 @@ export class HudScene extends Phaser.Scene {
         job.stage !== 'toDropoff' ? `Stop at the green marker.${racing}` :
         job.type === 'passenger' ? `Comfort ${Math.round(job.comfort)}% (tip up to ${Math.round(JOBS.passenger.maxTipFraction * 100)}%)` :
         job.fragile ? `Damage ${Math.round(job.damage * 100)}%` : 'Stop at the white marker.';
-      this.jobCards[0].setText(`${what(job)} · ${job.from.name} → ${job.to.name}\n${money(job.pay)} · ${dist} m to go\n${quality}`);
+      this.jobCards[0].setText(`${what(job)} · ${job.from.name} → ${job.to.name}\n${money(job.pay)} · ${dist} m to go${fuel(job)}\n${quality}`);
       this.jobCards[0].setY(this.cardTop);
       this.jobCards[1].setText('');
       this.jobCards[2].setText(this.isTouch ? '' : 'Backspace: cancel job (no pay)').setY(this.cardTop + this.jobCards[0].height + 8 * s);
@@ -282,7 +285,7 @@ export class HudScene extends Phaser.Scene {
     let cy = this.cardTop;
     this.jobCards.forEach((t, i) => {
       const o = ride.board.offers[i];
-      t.setText(o ? `${i + 1}  ${what(o)} · ${money(o.pay)}\n    ${o.from.name} → ${o.to.name} · ${km(o)}` : '').setY(cy);
+      t.setText(o ? `${i + 1}  ${what(o)} · ${money(o.pay)}\n    ${o.from.name} → ${o.to.name} · ${km(o)}${fuel(o)}` : '').setY(cy);
       if (o) cy += t.height + 6 * s;
     });
     this.jobPanel.clear().fillStyle(0x000000, 0.62).fillRoundedRect(box.x, box.y, box.w, cy - box.y + 4 * s, 8 * s);
