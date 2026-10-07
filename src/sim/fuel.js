@@ -1,4 +1,4 @@
-import { WORLD, FUEL, LOAD, BIKES } from '../config.js';
+import { WORLD, FUEL, LOAD } from '../config.js';
 import { tripMetres } from './jobs.js';
 
 // Fuel estimates for jobs. No Phaser here.
@@ -27,9 +27,8 @@ export function routeClimb(world, a, b) {
 
 /** Tank fraction for one leg: distance (metres), climb (metres) and the load (kg). */
 export function legFuel(type, metres, climb, kg = 0) {
-  const tankScale = BIKES.petrol.energySeconds / BIKES[type].energySeconds; // a bigger tank uses a smaller fraction
   const mass = 1 + kg / LOAD.baseMassKg;
-  return ((metres / 1000) * FUEL.flatTankPerKm + climb * FUEL.tankPerClimbMetre) * mass * tankScale * FUEL.margin;
+  return ((metres / 1000) * FUEL.flatTankPerKm[type] + climb * FUEL.tankPerClimbMetre[type]) * mass * FUEL.margin;
 }
 
 /**

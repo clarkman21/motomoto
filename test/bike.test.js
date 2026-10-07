@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { World } from '../src/world/world.js';
-import { createBike, stepBike, forwardSpeed, energyUse, shiftGear, resetToRoad } from '../src/sim/bike.js';
-import { BIKES, SURFACES, MAINTENANCE } from '../src/config.js';
+import { createBike, stepBike, forwardSpeed, energyUse, shiftGear, resetToRoad, revsFuelFactor } from '../src/sim/bike.js';
+import { BIKES, SURFACES, MAINTENANCE, GEARBOX, FUEL, JOBS } from '../src/config.js';
 
 const DT = 1 / 120;
 const run = (bike, world, input, seconds) => {
@@ -386,5 +386,48 @@ describe('pushing the bike (no fuel)', () => {
     const up = { moved: bike.x - x0 };
     expect(up.moved).toBeGreaterThan(2);
     expect(up.moved).toBeLessThanOrEqual(flat + 0.01);
+  });
+});
+
+describe('fuel and shifting (petrol)', () => {
+  const long = new World({ name: 'long', start: { x: 1.5, y: 1.5, headingDeg: 0 }, rows: ['#'.repeat(2000), '#'.repeat(2000), '#'.repeat(2000)] });
+  // One minute of stop and go riding: 12 s full throttle, then coast and brake. shiftAt: the revs to shift up at.
+  const ride = (shiftAt) => {
+    const b = createBike(long, 'petrol');
+    const x0 = b.x;
+    const events = [];
+    for (let t = 0; t < 60; t += 1 / 120) {
+      const phase = t % 15;
+      if (b.revs > shiftAt && b.gear < BIKES.petrol.gears.length) shiftGear(b, 1);
+      if (b.revs < 0.3 && b.gear > 1) shiftGear(b, -1);
+      events.push(...stepBike(b, { throttle: phase < 12 ? 1 : 0, brake: phase >= 13 ? 0.6 : 0, steer: 0 }, long, 1 / 120));
+    }
+    return { perKm: (1 - b.energy) / ((b.x - x0) / 1000), events };
+  };
+
+  it('low revs save fuel; the red zone and lugging waste it', () => {
+    expect(revsFuelFactor(0.6, 3)).toBeLessThan(0.85);
+    expect(revsFuelFactor(1, 3)).toBeGreaterThan(1.4);
+    expect(revsFuelFactor(0.1, 3)).toBeGreaterThan(revsFuelFactor(0.3, 3)); // lugging in a high gear
+    expect(revsFuelFactor(0.1, 1)).toBeLessThan(revsFuelFactor(0.3, 1)); // first gear does not lug
+  });
+
+  it('good shifting goes much further on the same fuel than staying in first gear', () => {
+    const good = ride(GEARBOX.ecoRevs - 0.05).perKm;
+    const first = ride(9).perKm;
+    expect(first).toBeGreaterThan(good * 3);
+  });
+
+  it('the start tank is enough for a few jobs with good shifting', () => {
+    const { perKm } = ride(GEARBOX.ecoRevs - 0.05);
+    const gameKm = (FUEL.startLevel / perKm) * 1000 / JOBS.gameKmMetres;
+    expect(gameKm).toBeGreaterThan(60); // about 10 jobs of 6 game km on the flat (fewer with hills and loads)
+  });
+
+  it('a long time in the red zone gives a hint to shift up, but not too often', () => {
+    const red = ride(9).events.filter((e) => e.type === 'redZone');
+    expect(red.length).toBeGreaterThan(0);
+    expect(red.length).toBeLessThanOrEqual(Math.ceil(60 / GEARBOX.redWarnEverySeconds));
+    expect(ride(GEARBOX.ecoRevs - 0.05).events.some((e) => e.type === 'redZone')).toBe(false);
   });
 });

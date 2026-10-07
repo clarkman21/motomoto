@@ -36,7 +36,7 @@ export const BIKES = {
     accelMs2: 3.4, // peak acceleration at 0 km/h — guess ("medium")
     brakeMs2: 7.5,
     reverseSpeedKmh: 4, // walking the bike backwards to get unstuck
-    energySeconds: 4 * 60, // full bar at full throttle on flat tarmac (spec said 6 min; 4 min makes fuel part of each shift)
+    energySeconds: 6 * 60, // full bar at full throttle on flat tarmac (spec: 6 min; 4 min was too hard in play)
     uphillEnergyFactor: 2.0, // spec
     downhillEnergyFactor: 0.5, // spec
     regenFraction: 0, // no regen on petrol
@@ -57,7 +57,7 @@ export const BIKES = {
     accelMs2: 5.0, // spec "high, instant torque" — guess
     brakeMs2: 7.5,
     reverseSpeedKmh: 4,
-    energySeconds: 5.5 * 60, // spec said 8 min plus regen; shorter so swaps are part of each shift
+    energySeconds: 8 * 60, // spec: 8 min plus regen (it must go further than the petrol tank)
     uphillEnergyFactor: 1.6, // spec
     downhillEnergyFactor: 0, // no cost when you roll downhill
     regenFraction: 0.2, // spec: regen gives back 20% of climb cost
@@ -130,9 +130,16 @@ export const GEARBOX = {
   lugWarnSeconds: 0.8, // show "Shift down!" after the engine struggles for this long
   // Above this fraction of the gear's top speed, pull falls to zero at the rev limit.
   peakRevsEnd: 0.85,
-  // Fuel use rises with revs: factor = fuelAtIdle + fuelPerRev × revs (1.0 at mid revs).
-  fuelAtIdle: 0.6,
-  fuelPerRev: 0.7,
+  // Fuel use rises fast with revs: factor = fuelAtIdle + fuelPerRev × revs². So good shifting saves a lot:
+  // revs 0.6 → 0.81, revs 0.8 → 1.09, revs 1.0 (the red zone) → 1.45.
+  fuelAtIdle: 0.45,
+  fuelPerRev: 1.0,
+  // Lugging (revs below lugRevs in gear 2 and up) also wastes fuel: + lugFuel × (lugRevs − revs).
+  lugFuel: 1.5,
+  // The RPM bar on the HUD: green (good for fuel) below ecoRevs, gold up to peakRevsEnd, then red.
+  ecoRevs: 0.7,
+  redWarnSeconds: 1.5, // "Shift up to save fuel" after this long in the red zone (manual shift only)
+  redWarnEverySeconds: 25, // at most once in this time
   // Auto shift (G key) shifts up and down at these revs.
   autoUpRevs: 0.92,
   autoDownRevs: 0.35,
@@ -452,16 +459,17 @@ export const BUS_PARK = {
 // Fuel and charge. Fuel must be part of each shift: you start with a part full tank,
 // the engine uses fuel when it runs at idle, and the HUD points to the nearest station when you are low.
 export const FUEL = {
-  startLevel: 0.45, // tank or battery at the start of a new game
+  startLevel: 0.6, // tank or battery at the start of a new game (0.45 was only enough for about one job)
   idleUse: 0.08, // fraction of the full throttle use while the engine runs with no throttle (petrol only)
   lowAt: 0.25, // "Fuel low": the HUD arrow points to the nearest station
   reserveAt: 0.1, // "Reserve!"
   // Buying fuel: riders buy the bare minimum, not a full tank. The station offers enough for the
   // next job, for the next two jobs, or a full tank. Estimate: tank per km of riding (with hills), plus a margin.
-  tankPerKm: 0.25, // a rough average (with hills), for a job that is not known yet
-  // The estimate for a known job (petrol tank; the electric battery scales by its energySeconds):
-  flatTankPerKm: 0.2, // riding on the flat with no load
-  tankPerClimbMetre: 0.0015, // each metre of climb (the engine works harder and revs higher)
+  tankPerKm: 0.24, // a rough average (with hills), for a job that is not known yet (petrol)
+  // The estimate for a known job, as a fraction of the tank or the battery (measured in a test ride with
+  // stops; see test/fuel.test.js). The electric moto goes further: a bigger battery and no gears.
+  flatTankPerKm: { petrol: 0.19, electric: 0.1 }, // riding on the flat with no load
+  tankPerClimbMetre: { petrol: 0.001, electric: 0.0006 }, // each metre of climb (the engine works harder)
   margin: 1.15,
   roundToRwf: 100, // fuel is sold in round amounts
   approachMetres: 500, // the ride to a pickup that is not known yet

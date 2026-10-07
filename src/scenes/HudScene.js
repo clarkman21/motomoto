@@ -205,8 +205,10 @@ export class HudScene extends Phaser.Scene {
     // Revs: green, then gold, then the red zone (petrol). Electric: the motor load.
     this.revsLabel.setText(spec.gears ? 'RPM' : 'MTR');
     const rb = this.revsBar, segs = 10;
+    // Petrol: green is good for fuel (shift up before the gold), red wastes the most fuel.
     const redFrom = spec.gears ? Math.round(GEARBOX.peakRevsEnd * segs) : segs;
-    drawSegBar(g, rb.x, rb.y, rb.w, rb.h, Math.min(1, bike.revs), (i) => (i >= redFrom ? UI.red : i >= redFrom - 2 ? UI.gold : UI.green), segs);
+    const goldFrom = spec.gears ? Math.round(GEARBOX.ecoRevs * segs) : segs - 2;
+    drawSegBar(g, rb.x, rb.y, rb.w, rb.h, Math.min(1, bike.revs), (i) => (i >= redFrom ? UI.red : i >= goldFrom ? UI.gold : UI.green), segs);
 
     // The moto service (oil, brake pads, chain, tyres): white, orange from 80%, red when due.
     const due = serviceDue(bike);

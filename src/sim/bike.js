@@ -212,6 +212,14 @@ export function stepBike(bike, input, world, dt) {
       events.push({ type: 'lugging' });
     }
     if (bike.lugTime === 0) bike.lugWarned = false;
+    // In the red zone too long (manual shift, not in top gear): a hint to shift up and save fuel.
+    const red = throttle > 0.5 && !bike.autoShift && bike.gear < spec.gears.length - 1 && bike.revs > GEARBOX.peakRevsEnd;
+    bike.redTime = red ? (bike.redTime ?? 0) + dt : 0;
+    bike.redHintIn = Math.max(0, (bike.redHintIn ?? 0) - dt);
+    if (bike.redTime > GEARBOX.redWarnSeconds && bike.redHintIn === 0) {
+      bike.redHintIn = GEARBOX.redWarnEverySeconds;
+      events.push({ type: 'redZone' });
+    }
   }
 
   // Grip removes sideways speed. Low grip lets the bike slide.
@@ -267,7 +275,7 @@ export function stepBike(bike, input, world, dt) {
   events.push(...addWear(bike, wearKm));
 
   // Energy. Regen braking puts a part of the braking energy back into the battery.
-  const fuelRevs = spec.gears ? GEARBOX.fuelAtIdle + GEARBOX.fuelPerRev * Math.min(1, bike.revs) : 1;
+  const fuelRevs = spec.gears ? revsFuelFactor(bike.revs, bike.gear) : 1;
   let use = energyUse(spec, surface, grade, throttle, v, topSpeed) * (throttle > 0 ? fuelRevs * massFactor * energyFactor(bike) : 1);
   if (regenBrake > 0) use -= (spec.regenBrakeFraction * regenBrake * Math.abs(v)) / barInKinetic(spec);
   // A petrol engine uses fuel at idle too: when you coast, wait for a customer or stand in a queue.
@@ -278,6 +286,16 @@ export function stepBike(bike, input, world, dt) {
   if (bike.energy > before) bike.regenToday += bike.energy - before;
   if (hasEnergy && bike.energy === 0) events.push({ type: 'empty' });
   return events;
+}
+
+/**
+ * Petrol: how much more (or less) fuel the engine uses at these revs. Low revs save fuel, the red zone
+ * wastes it, and lugging (gear 2 and up, revs too low) wastes it too. 1.0 at about revs 0.74.
+ */
+export function revsFuelFactor(revs, gear = 1) {
+  const r = Math.min(1, Math.max(0, revs));
+  const lug = gear > 1 && r < GEARBOX.lugRevs ? GEARBOX.lugFuel * (GEARBOX.lugRevs - r) : 0;
+  return GEARBOX.fuelAtIdle + GEARBOX.fuelPerRev * r * r + lug;
 }
 
 /**

@@ -48,6 +48,7 @@ const BARKS = {
   overRev: 'Too fast to shift down',
   noGears: 'Electric moto: no gears',
   lugging: 'Shift down!',
+  redZone: 'Red zone: shift up (E) to save fuel!',
   offRoad: 'Off road! The bike wears 4 times faster',
   serviceSoon: 'Service soon: 80%. Plan a garage visit',
   serviceDue: 'Service due! The bike loses power. Go to the garage',

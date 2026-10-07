@@ -45,6 +45,7 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | The map grows with the levels: barriers close the districts that are not open yet | Done |
 | Nyabugogo bus park: buses arrive and their passengers wave for motos | Done |
 | Fuel in each shift: part full tank at the start, idle use, prices by district, low fuel arrow | Done |
+| Less fuel use: a 6 min tank (electric 8 min), 60% at the start, and good shifting saves a lot (green revs use about half of the red zone); a hint when you stay in the red zone | Done |
 | Collisions by mass with vehicles, people and poles; hard hits throw you off the bike | Done |
 | Traffic: cars, minibuses (bus stops), trucks (slow on hills), other motos; exhaust | Done |
 | People on pavements and in the market; customers who wave (street hails) | Done |
@@ -142,6 +143,7 @@ The game is about money. You earn from jobs. You spend on energy, fines and the 
 - **People and street hails.** People walk on the pavements and in the market and step aside from a fast bike. Hitting a person costs a 5,000 RWF police fine. Customers wave at the roadside: stop next to one (below 6 km/h) and press 1 for a quick ride that starts at once.
 - **Rival riders.** When you take an app job, a rival (blue vest) may race you to the pickup; a red pin shows the rival. If the rival gets there first, you lose the job. Rivals also take street hails, and app offers go away faster (15–40 s).
 - **Passengers and cargo show on the bike.** A passenger with a helmet rides behind you; cargo sacks ride on the rear rack. A person waves at a passenger pickup; sacks wait at a cargo pickup.
+- **Fuel and shifting.** A full petrol tank lasts 6 min at full throttle (the electric battery 8 min). A new game starts with 60%. Fuel use rises fast with the revs: in the green part of the RPM bar the engine uses about 0.6–0.9× fuel, in the red zone 1.45×, and lugging in a high gear also costs more. Shift up (E) before the gold. If you stay in the red zone for 1.5 s with the manual shift, the game tells you to shift up (at most once in 25 s).
 - **Empty tank or battery.** Hold throttle to push the bike at walking speed to a station.
 - **Out of cash: game over.** There is no loan. The game is over when: (1) your cash is below zero at the end of the day, after the rent; or (2) the tank (or the battery) is empty, you have less cash than the smallest fuel buy (10 RWF) or a swap (2,500 RWF), and no passenger or cargo is on the bike. For (2) you get a warning, then the game over screen comes after 4 s. During the shift, cash below zero gets a warning only: earn it back before the shift ends. The game over screen shows why, a moving picture of you on a bicycle taxi (an igare, with a passenger on the soft seat at the back), and what you did in the game. Then you start again at level 1. The save is removed at the game over, so a reload does not bring the moto back.
 - **Regen.** The electric moto charges its battery when it brakes and when it rolls downhill. The day end summary shows how much regen saved.
@@ -158,7 +160,7 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `WORLD` | Tile size (4 m), height per level (1.5 m), pixel sizes |
 | `VIEW` | Internal resolution (480 × 270), camera follow and look ahead |
 | `BIKES` | Top speed, acceleration, energy, uphill and downhill factors, regen, gears |
-| `GEARBOX` | Shift time, lugging, rev limit curve, fuel use per rev, auto shift points |
+| `GEARBOX` | Shift time, lugging, rev limit curve, fuel use by revs (and lugging), the green part of the RPM bar, the red zone hint, auto shift points |
 | `BRAKES` | How much braking adds to the service meter, stopping power when the service is long overdue |
 | `PHYSICS` | Hill force, drag, engine braking, turn rate, grip |
 | `SURFACES` | Grip, speed factor and energy factor for each surface |
@@ -176,7 +178,7 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `LEVELS`, `SAVINGS_FLOAT`, `STREAK` | Goals, shifts, rent, traffic and rivals for each level; the clean ride bonus |
 | `DISTRICTS` | Name, unlock level, fuel price and fare factor of each district |
 | `BUS_PARK` | How often buses arrive at Nyabugogo and how many customers they bring |
-| `FUEL` | Start tank, idle use, low fuel and reserve warnings |
+| `FUEL` | Start tank, idle use, low fuel and reserve warnings, fuel estimates for jobs (petrol and electric) |
 | `COLLISION` | Bike radius, bounce, masses, crash speed and time, repair cost per km/h |
 | `FAMILY` | The family names, and what money pays for at home |
 | `DAYLIGHT` | Light at each hour, night colour, sunset colour |
