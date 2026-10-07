@@ -66,6 +66,13 @@ export class HudScene extends Phaser.Scene {
       .setOrigin(0.5, 1)
       .setInteractive({ useHandCursor: true })
       .on('pointerdown', (p) => { p.hitButton = true; if (!this.ride.acceptHail()) this.ride.startRefuel(); });
+    // Fuel choices at a fuel station: the bare minimum for the next job, the next two jobs, or a full tank.
+    this.fuelButtons = [0, 1, 2].map((i) => this.add
+      .text(0, 0, '', { fontFamily: FONT_BODY, fontSize: '16px', color: '#ffffff', backgroundColor: 'rgba(20,24,28,0.92)', padding: { x: 14, y: 7 } })
+      .setOrigin(0.5, 1)
+      .setVisible(false)
+      .setInteractive({ useHandCursor: true })
+      .on('pointerdown', (p) => { p.hitButton = true; this.ride.chooseFuel(i); }));
     // Money pop ups and the camera flash
     this.popups = [];
     this.ride.events.on('money', (amount, label) => this.#popup(amount, label));
@@ -146,6 +153,7 @@ export class HudScene extends Phaser.Scene {
       this.cardTop = y + 144 * s;
     });
     this.stationText.setFontSize(px(16)).setPosition(width / 2, height - 52 * s);
+    this.fuelButtons.forEach((b, i) => b.setFontSize(px(16)).setPosition(width / 2, height - 52 * s - (3 - i) * 40 * s - 6 * s));
     this.flash.setSize(width, height);
     if (this.isTouch) this.#layoutTouch(width, height);
   }
@@ -185,7 +193,7 @@ export class HudScene extends Phaser.Scene {
     const sv = this.serviceBarPos;
     const late = due >= 1;
     const blink = bike.brokenDown && Math.floor(this.time.now / 300) % 2 === 0;
-    this.serviceLabel.setText(bike.brokenDown ? 'BROKEN DOWN' : `SERVICE ${Math.round(due * 100)}%`).setColor(late ? '#ec5825' : due >= 0.8 ? '#e8a33a' : ALLOY_GREY);
+    this.serviceLabel.setText(bike.brokenDown ? 'BROKEN DOWN' : `${bike.type === 'petrol' ? 'OIL' : 'SERVICE'} ${Math.round(due * 100)}%`).setColor(late ? '#ec5825' : due >= 0.8 ? '#e8a33a' : ALLOY_GREY);
     m.fillStyle(0x333333, 1).fillRect(sv.x, sv.y, sv.w, sv.h);
     m.fillStyle(blink ? 0xffffff : late ? PETROL_RED : due >= 0.8 ? 0xe8a33a : 0xf6f5ec, 1).fillRect(sv.x, sv.y, sv.w * Math.min(1, due), sv.h);
 
@@ -282,6 +290,12 @@ export class HudScene extends Phaser.Scene {
 
   #updateStation() {
     const ride = this.ride;
+    const choices = !ride.refuel && ride.fuelChoice;
+    this.fuelButtons.forEach((b, i) => {
+      const c = choices?.[i];
+      b.setVisible(!!c);
+      if (c) b.setText(`${this.isTouch ? '' : `${i + 1} · `}${c.label}: ${c.cost ? `${c.cost.toLocaleString('en')} RWF` : 'you have enough'}`).setColor(c.cost ? '#ffffff' : '#9e9e9e');
+    });
     if (ride.refuel) {
       const r = ride.refuel;
       const done = Math.round((1 - r.timeLeft / r.total) * 100);

@@ -348,3 +348,55 @@ describe('maintenance and the garage', () => {
     expect(job.comfort).toBeCloseTo(100 - JOBS.comfortLoss.offRoadPerSecond * 2, 0);
   });
 });
+
+import { fuelChoices, fuelForMetres } from '../src/sim/economy.js';
+import { FUEL } from '../src/config.js';
+describe('buying the bare minimum of fuel', () => {
+  it('offers enough for the next job, the next two jobs, or a full tank, in round amounts', () => {
+    const bike = createBike(new World(TEST_MAP), 'petrol');
+    bike.energy = 0.1;
+    const [one, two, full] = fuelChoices(bike, 1, [{ metres: 800 }, { metres: 1000 }]);
+    expect(one.cost % FUEL.roundToRwf).toBe(0);
+    expect(one.cost).toBeLessThan(two.cost);
+    expect(two.cost).toBeLessThan(full.cost);
+    expect(one.upTo).toBeGreaterThanOrEqual(fuelForMetres(800));
+    expect(full.upTo).toBe(1);
+  });
+
+  it('buys only up to the level you chose', () => {
+    const bike = createBike(new World(TEST_MAP), 'petrol');
+    bike.energy = 0.2;
+    const wallet = createWallet(10000);
+    const r = buyFuel(wallet, bike, 1, 0.5);
+    expect(r.ok).toBe(true);
+    expect(bike.energy).toBeCloseTo(0.5);
+    expect(r.cost).toBe(MONEY.fuelFullTank * 0.3);
+  });
+
+  it('a choice that buys nothing costs nothing', () => {
+    const bike = createBike(new World(TEST_MAP), 'petrol');
+    bike.energy = 0.95;
+    expect(fuelChoices(bike, 1, [{ metres: 100 }, { metres: 100 }])[0].cost).toBe(0);
+  });
+});
+
+describe('the service at the garage', () => {
+  it('lists an oil change for petrol, and brake pads when they are worn', () => {
+    const bike = createBike(new World(TEST_MAP), 'petrol');
+    bike.serviceWear = 100;
+    bike.brakePads = 0.5;
+    const q = garageQuote(bike);
+    expect(q.items.map((i) => i.name)).toContain('Oil change');
+    expect(q.items.map((i) => i.name)).toContain('Brake pads');
+    expect(q.cost).toBe(q.items.reduce((a, i) => a + i.cost, 0));
+    const e = createBike(new World(TEST_MAP), 'electric');
+    e.serviceWear = 400;
+    expect(garageQuote(e).items.map((i) => i.name)).not.toContain('Oil change');
+  });
+
+  it('the service items add up to the service cost', () => {
+    for (const type of ['petrol', 'electric']) {
+      expect(MAINTENANCE.serviceItems[type].reduce((a, i) => a + i.cost, 0)).toBe(MAINTENANCE.serviceCost[type]);
+    }
+  });
+});

@@ -182,18 +182,18 @@ export function buildKigaliMap(seed = 7) {
 
   // Stations and garages (2 tiles each, beside a road). facing: the side of the road.
   const places = [];
-  const station = (x, y, c, facing, name) => {
+  const station = (x, y, c, facing, name, sign) => {
     set(x, y, c);
     set(x + 1, y, c);
     reserve(x - 1, y - 1, x + 2, y + 1);
     const tag = { F: 'fuel', S: 'swap', G: 'garage' }[c];
     const p = { north: { x: x + 1, y: y - 0.6 }, south: { x: x + 1, y: y + 1.6 }, west: { x: x - 0.6, y: y + 0.5 }, east: { x: x + 2.6, y: y + 0.5 } }[facing];
-    places.push({ id: `${tag}-${x}-${y}`, name, ...p, tags: [tag] });
+    places.push({ id: `${tag}-${x}-${y}`, name, ...p, tags: [tag], ...(sign ? { sign } : {}) });
   };
   station(46, 22, 'F', 'north', 'Nyabugogo fuel');
   station(20, 40, 'F', 'west', 'Gakinjiro fuel');
   station(38, 14, 'S', 'east', 'Ampersand swap, Nyabugogo');
-  station(20, 24, 'G', 'west', 'Gakinjiro garage');
+  station(20, 24, 'G', 'west', 'Kazi ni Kazi garage', 'KAZI NI KAZI'); // Swahili: "work is work"
   station(12, 98, 'F', 'north', 'Town fuel');
   station(34, 98, 'S', 'north', 'Ampersand swap, town');
   station(102, 30, 'S', 'west', 'Ampersand swap, Kacyiru');
@@ -204,7 +204,7 @@ export function buildKigaliMap(seed = 7) {
   station(162, 98, 'F', 'north', 'Sonatubes fuel');
   station(146, 86, 'F', 'north', 'Gikondo fuel');
   station(180, 98, 'S', 'north', 'Ampersand swap, Kicukiro');
-  station(180, 108, 'G', 'north', 'Kicukiro garage');
+  station(180, 108, 'G', 'north', 'Sonatubes moto garage', 'SONATUBES');
 
   // Landmark buildings.
   const landmark = (x0, y0, x1, y1, c) => { rect(x0, y0, x1, y1, c); reserve(x0 - 1, y0 - 1, x1 + 1, y1 + 1); };

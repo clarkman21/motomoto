@@ -29,7 +29,7 @@ const HELP = [
       'A D or ← →: steer.   C: change the steering mode.',
       'E and Q: shift up and down (petrol moto).   G: automatic shift on or off.',
       '1 to 4: take a job. Stop next to a person who waves and press 1 to take a street hail.   Backspace: cancel the job.',
-      'F: fill up, swap the battery or service the bike at a station or the garage.',
+      'F: buy fuel (then 1, 2 or 3: enough for the next job, the next two jobs, or a full tank), swap the battery, or service the bike at the garage.',
       'H: horn.   V: sound.   R: put the bike back on the road.   Esc or P: pause menu.',
       'Touch: the stick on the left steers. GO and STOP are on the right, + and − shift. Tap a job card to take it.',
     ],
@@ -39,8 +39,8 @@ const HELP = [
     lines: [
       'Income: fares, cargo, tips (a smooth ride gives a bigger tip) and a bonus for a row of clean rides.',
       'Costs: fuel or battery swaps, the rent, the service at the garage, repairs after a crash, and fines from speed cameras and the police.',
-      'Fuel: watch the bar. Below 25%, an arrow points to the nearest station.',
-      'Service: the meter fills as you ride, faster on bad roads, off the road and at high revs. At 100% the bike loses power. At 150% it breaks down, and you must push it to the garage.',
+      'Fuel: like real riders, buy only what you need for the next job or two. A full tank ties up cash that you may need for the rent. Learn where the stations are: there is no arrow.',
+      'Service: the OIL meter fills as you ride, faster on bad roads, off the road and at high revs. The garage does an oil change and a check, and new brake pads when they are worn. At 100% the bike loses power. At 150% it breaks down, and you must push it to the garage.',
     ],
   },
   {

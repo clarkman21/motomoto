@@ -44,6 +44,8 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Family rewards: what the money means at home after each job, each shift and each milestone | Done |
 | Sounds: the engine stops at the end of a shift; short tunes for shift end, milestone, game over, delivery | Done |
 | Hi-vis vests for all moto riders; banana and rice cargo; cyclists from level 3; detailed fuel stations | Done |
+| Buy the bare minimum of fuel (next job, next two jobs, or full); itemized service with oil change and brake pads | Done |
+| Moto garages (Kazi ni Kazi, Sonatubes): open workshop, motos, mechanics, oil stains, painted sign | Done |
 | Day and night: fast clock, night colour, sunset, street lamps, lit windows, headlights and tail lights | Done |
 | Levels 5–10, police helmet checks, hired riders, traffic lights | Later milestones |
 
@@ -178,6 +180,7 @@ src/
     terrain-render.js    Draws the ground into one image
     sprites.js           Draws the bike (16 directions), buildings, trees, lit windows
     light-sprites.js     Light pools, headlight cones, light dots, lamp posts
+    garage-sprites.js    Garage sign (pixel font), mechanics, oil stains, tyres, oil drum
   sim/
     bike.js              Arcade bike physics and energy (no Phaser)
     controls.js          The two steering models
@@ -204,6 +207,7 @@ src/
     PeopleView.js        Draws people and waving customers
     LightsView.js        Night colour, street lamps, headlights and tail lights
     BarrierView.js       Barriers at the edge of closed districts
+    GarageView.js        The garage yards: motos, mechanics, oil stains, sign
     save.js              Saves the game in the browser (localStorage)
 test/                    Unit tests (Vitest)
 ```

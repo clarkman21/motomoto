@@ -1,4 +1,4 @@
-import { MONEY, JOBS, COLLISION } from '../config.js';
+import { MONEY, JOBS, COLLISION, FUEL } from '../config.js';
 import { garageQuote, serviceBike, serviceDue } from './maintenance.js';
 
 // Money: everything the rider earns and spends. No Phaser here.
@@ -62,18 +62,19 @@ export function spend(wallet, category, amount) {
 }
 
 /** Cost to fill the petrol tank from its current level. priceFactor: the petrol price of the level. */
-export function fuelFillCost(bike, priceFactor = 1) {
-  return round10((1 - bike.energy) * MONEY.fuelFullTank * priceFactor);
+/** The cost to fill the tank up to the level upTo (0..1, default full). */
+export function fuelFillCost(bike, priceFactor = 1, upTo = 1) {
+  return round10(Math.max(0, upTo - bike.energy) * MONEY.fuelFullTank * priceFactor);
 }
 
 /**
- * Fill the petrol tank with the cash you have. Returns { ok, cost, reason }.
- * Call when the fill has finished.
+ * Buy fuel up to the level upTo (0..1, default a full tank) with the cash you have.
+ * Returns { ok, cost, reason }. Call when the fill has finished.
  */
-export function buyFuel(wallet, bike, priceFactor = 1) {
-  const missing = 1 - bike.energy;
+export function buyFuel(wallet, bike, priceFactor = 1, upTo = 1) {
+  const missing = Math.min(1, upTo) - bike.energy;
   const fullTank = MONEY.fuelFullTank * priceFactor;
-  if (missing < 0.01) return { ok: false, cost: 0, reason: 'full' };
+  if (missing < 0.005) return { ok: false, cost: 0, reason: 'full' };
   if (wallet.cash < 10) return { ok: false, cost: 0, reason: 'cash' };
   const fraction = Math.min(missing, wallet.cash / fullTank);
   const cost = Math.min(wallet.cash, round10(fraction * fullTank));
@@ -156,4 +157,27 @@ export function endDay(wallet, bike, rent = MONEY.dailyRent[bike.type]) {
   bike.offRoadMetres = 0;
   bike.regenToday = 0;
   return summary;
+}
+
+/** The tank fraction needed to ride a distance in metres (an estimate, with hills and a margin). */
+export function fuelForMetres(metres) {
+  return (metres / 1000) * FUEL.tankPerKm * FUEL.margin;
+}
+
+/**
+ * The choices at a fuel station: enough for the next job, for the next two jobs, or a full tank.
+ * jobs: [{ metres }] for the next jobs (the active job first). Each choice: { label, upTo, cost }.
+ * Amounts are round (FUEL.roundToRwf). A choice that buys nothing has cost 0.
+ */
+export function fuelChoices(bike, priceFactor, jobs) {
+  const perUnit = MONEY.fuelFullTank * priceFactor;
+  const choice = (label, need) => {
+    const upTo = Math.min(1, need);
+    if (upTo <= bike.energy + 0.005) return { label, upTo: bike.energy, cost: 0 };
+    const cost = Math.min(Math.ceil(((upTo - bike.energy) * perUnit) / FUEL.roundToRwf) * FUEL.roundToRwf, round10((1 - bike.energy) * perUnit));
+    return { label, upTo: Math.min(1, bike.energy + cost / perUnit), cost };
+  };
+  const one = fuelForMetres(jobs[0]?.metres ?? 0) + FUEL.reserveAt / 2;
+  const two = one + fuelForMetres(jobs[1]?.metres ?? jobs[0]?.metres ?? 0);
+  return [choice('Enough for the next job', one), choice('Enough for the next two jobs', two), choice('Fill up the tank', 1)];
 }

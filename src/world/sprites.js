@@ -16,6 +16,10 @@ export const BIKE_LOOKS = {
   petrol: { body: 0x8c2b23, seat: 0x222222, vest: VEST.colour, helmet: 0xc0392b, trousers: 0x2a3550 },
   electric: { body: COLOURS.ampersandYellow, seat: 0x111111, vest: VEST.colour, helmet: 0x111111, trousers: 0x2a3550 },
   rival: { body: 0x2b2f36, seat: 0x111111, vest: VEST.colour, helmet: 0xe8e8e8, trousers: 0x3a3a3a }, // other moto taxi riders
+  // Motos that wait for repair at the garage (no rider).
+  parkedRed: { body: 0x9a2a20, seat: 0x1a1a1a },
+  parkedBlue: { body: 0x2a4f8a, seat: 0x1a1a1a },
+  parkedBlack: { body: 0x2a2c30, seat: 0x3a2a1a },
 };
 const SKIN = 0x6b4226;
 
@@ -29,8 +33,11 @@ export function bikeFrameForHeading(heading) {
 export const BIKE_LOADS = ['none', 'passenger', 'bananas', 'rice'];
 const PASSENGER = { shirt: 0x3b6fb6, trousers: 0x4a3a2a, helmet: 0xe8e8e8 };
 
-/** Draw one frame of a bike with rider. type is 'petrol' or 'electric'. load is one of BIKE_LOADS. */
-export function drawBike(type, frame, load = 'none') {
+/**
+ * Draw one frame of a bike with rider. type is a key of BIKE_LOOKS. load is one of BIKE_LOADS.
+ * rider: false draws a parked bike with nobody on it (for example at the garage).
+ */
+export function drawBike(type, frame, load = 'none', rider = true) {
   const look = BIKE_LOOKS[type];
   const heading = (frame / BIKE_DIRECTIONS) * Math.PI * 2;
   const c = new PixelCanvas(BIKE_CANVAS.width, BIKE_CANVAS.height, -BIKE_CANVAS.groundX, -BIKE_CANVAS.groundY);
@@ -70,6 +77,12 @@ export function drawBike(type, frame, load = 'none') {
   seg([-0.45, 0, 0.8], [0.05, 0, 0.84], 3, look.seat); // seat
   seg([0.42, -0.32, 0.98], [0.42, 0.32, 0.98], 1.5, 0x333333); // handlebar
   blob([0.52, 0, 0.84], 1.1, 0xfff2b0, 0.05); // headlight
+  if (!rider) {
+    parts.sort((a, b) => a.depth - b.depth);
+    for (const p of parts) p.draw();
+    c.outline(0x161616);
+    return c;
+  }
   for (const side of [-1, 1]) {
     seg([-0.15, 0.12 * side, 0.88], [0.25, 0.2 * side, 0.72], 2.6, look.trousers); // thigh
     seg([0.25, 0.2 * side, 0.72], [0.15, 0.22 * side, 0.42], 2.2, look.trousers); // shin
@@ -159,7 +172,7 @@ export function drawBlock(block, world) {
     return { x: s.x, y: s.y };
   };
   // Canvas bounds: the tile footprint from base to top, with room for tree crowns.
-  const pad = block.kind === 'tree' ? 16 : block.kind === 'monument' ? 8 : block.kind === 'fuel' ? 22 : 2;
+  const pad = block.kind === 'tree' ? 16 : block.kind === 'monument' ? 8 : block.kind === 'fuel' ? 22 : block.kind === 'garage' ? 6 : 2;
   const corners = [];
   for (const [x, y] of [[tx, ty], [tx + 1, ty], [tx + 1, ty + 1], [tx, ty + 1]]) {
     corners.push(pt(x, y, block.baseLevel), pt(x, y, block.topLevel));
@@ -539,22 +552,57 @@ export function drawCargoPile(goods = 'rice') {
 }
 
 /** Garage: grey walls, a blue sign band, roll up doors with a tyre stack look. */
+// The moto garage: an open workshop under a rusty iron roof. You see inside through the open
+// front: a dark wall with tools, shelves with oil cans, and an oily floor. Motos, mechanics,
+// oil stains and the name sign stand around it (see GarageView.js).
 function drawGarage(c, block, pt, world) {
-  const { tx, ty, baseLevel, topLevel } = block;
-  const wall = 0xb9b6ae, band = 0x2f5d9a, door = 0x4a4f55;
-  const wallShade = (k) => (along, z, px, py) => {
-    const zl = z - baseLevel;
-    let col = wall;
-    if (topLevel - z < 0.5) col = (Math.floor(along * 8) & 1) && topLevel - z > 0.15 ? 0xf0efe6 : band; // sign band
-    else if (zl < 0.15) col = shadeColour(wall, 0.7);
-    else {
-      const a = along % 1;
-      if (zl < 1.9 && a > 0.12 && a < 0.88) col = Math.floor(zl * 6) & 1 ? door : shadeColour(door, 1.2); // roll up door
-    }
+  const { tx, ty } = block;
+  const base = block.floorLevel ?? block.baseLevel;
+  const isGarage = (x, y) => world.blockAt(x, y)?.kind === 'garage';
+  const box = (x0, y0, x1, y1, z0, z1, top, east, south, faces) =>
+    drawBox(c, tx + x0, ty + y0, tx + x1, ty + y1, base + z0, base + z1, pt, top, east, south, faces);
+  const flat = (col) => () => col;
+  const shade = (col, k) => () => shadeColour(col, k);
+  // An oily concrete floor.
+  const floor = (u, v, px, py) => {
+    const n = hash2(Math.floor((tx + u) * 6), Math.floor((ty + v) * 6), 31);
+    return n > 0.8 ? 0x1c1c1c : n > 0.65 ? 0x3a3835 : 0x6a665e;
+  };
+  box(0, 0, 1, 1, -0.02, 0.05, floor, shade(0x5a564e, 0.75), shade(0x5a564e, 0.9));
+  // Back walls, seen from inside: a tool board and shelves with oil cans.
+  const inside = (k) => (along, z, px, py) => {
+    const zl = z - base;
+    const a = along % 1;
+    let col = 0x3e4a52;
+    if (zl > 1.0 && zl < 1.6 && a > 0.15 && a < 0.85) {
+      col = 0x6b5a3a; // the tool board
+      if (hash2(Math.floor(along * 14), Math.floor(zl * 8), 33) > 0.7) col = 0x9a9a9a; // spanners
+    } else if (zl > 0.45 && zl < 0.5 || zl > 0.85 && zl < 0.9) col = 0x5a4a3a; // shelves
+    else if (zl > 0.5 && zl < 0.62 && hash2(Math.floor(along * 10), 1, 35) > 0.4) {
+      col = [0xc0392b, 0x2f6fb0, 0x3f8f4a, 0xe6e0cc][Math.floor(hash2(Math.floor(along * 10), 2, 36) * 4)]; // oil cans
+    } else if (zl < 0.3 && hash2(Math.floor(along * 9), Math.floor(zl * 9), 37) > 0.75) col = 0x1a1a1a; // oil splashes
     return shadeColour(col, k);
   };
-  const roofShade = (u, v, px, py) => (Math.floor((tx + u) * 10) & 1 ? 0x8f8f8a : 0x7f7f7a);
-  drawBox(c, tx, ty, tx + 1, ty + 1, baseLevel, topLevel, pt, roofShade, wallShade(0.72), wallShade(0.88), visibleFaces(block, world));
+  if (!isGarage(tx - 1, ty)) box(0, 0, 0.06, 1, 0.05, 2.4, flat(0x4a4a4a), inside(0.62), shade(0x3e4a52, 0.8));
+  if (!isGarage(tx, ty - 1)) box(0, 0, 1, 0.06, 0.05, 2.4, flat(0x4a4a4a), shade(0x3e4a52, 0.6), inside(0.82));
+  // A workbench and a moto engine on a stand inside.
+  box(0.12, 0.12, 0.5, 0.3, 0.05, 0.75, flat(0x6b4a2a), shade(0x5a3a1a, 0.72), shade(0x5a3a1a, 0.88));
+  box(0.55, 0.15, 0.75, 0.32, 0.05, 0.55, flat(0x2a2a2a), shade(0x8a8a8a, 0.72), shade(0x5a5a5a, 0.88));
+  // Posts at the open front.
+  for (const [x, y] of [[0.92, 0.92], [0.92, 0.04], [0.04, 0.92]]) {
+    if (x > 0.9 && y < 0.1 && isGarage(tx + 1, ty)) continue;
+    if (y > 0.9 && x < 0.1 && isGarage(tx, ty + 1)) continue;
+    box(x, y, x + 0.06, y + 0.06, 0.05, 2.4, flat(0x5a4a3a), shade(0x6b5a4a, 0.72), shade(0x6b5a4a, 0.88));
+  }
+  // A rusty corrugated iron roof, a little larger than the floor.
+  const roof = (u, v, px, py) => {
+    const ridge = Math.floor((tx + u) * 10) & 1;
+    const rust = hash2(Math.floor((tx + u) * 5), Math.floor((ty + v) * 5), 39) > 0.6;
+    return rust ? (ridge ? 0x8a4a2a : 0x7a3e22) : ridge ? 0x9a9a92 : 0x82827a;
+  };
+  const edge = (k) => (along, z, px, py) => shadeColour(Math.floor(along * 10) & 1 ? 0x7a3e22 : 0x8a8a82, k);
+  drawBox(c, tx - 0.08, ty - 0.08, tx + 1.08, ty + 1.08, base + 2.4, base + 2.55, pt, roof, edge(0.72), edge(0.88),
+    { east: !isGarage(tx + 1, ty), south: !isGarage(tx, ty + 1) });
 }
 
 // Barriers at the edge of a closed district. axis 'x': the closed side is in the x direction, so the

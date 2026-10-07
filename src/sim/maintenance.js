@@ -52,12 +52,17 @@ export function addWear(bike, km) {
   return events;
 }
 
-/** What the garage would do and what it costs. */
+/**
+ * What the garage would do and what it costs: { nothing, pads, cost, items: [{ name, cost }] }.
+ * A service is the oil change (petrol) and a check; worn brake pads are part of it.
+ */
 export function garageQuote(bike) {
   const pads = bike.brakePads < MAINTENANCE.padsBelow;
   const service = serviceDue(bike) >= MAINTENANCE.minServiceFraction || bike.brokenDown;
-  const cost = (service || pads ? MAINTENANCE.serviceCost[bike.type] : 0) + (pads ? MONEY.brakePads : 0);
-  return { nothing: !service && !pads, pads, cost };
+  const items = service || pads ? [...MAINTENANCE.serviceItems[bike.type]] : [];
+  if (pads) items.push({ name: 'Brake pads', cost: MONEY.brakePads });
+  const cost = items.reduce((a, i) => a + i.cost, 0);
+  return { nothing: !service && !pads, pads, cost, items };
 }
 
 /** The mechanic services the bike: the meter goes to zero, a breakdown is fixed, worn pads are new. */

@@ -36,3 +36,18 @@ describe('renderers', () => {
     expect(bikeFrameForHeading(Math.PI)).toBe(8);
   });
 });
+
+import { drawGarageSign, textWidth, drawMechanic, drawOilStain } from '../src/world/garage-sprites.js';
+describe('garage sprites', () => {
+  it('draws the sign with the name and the garage line', () => {
+    const { canvas } = drawGarageSign('KAZI NI KAZI', 'MOTO GARAGE');
+    expect(canvas.width).toBeGreaterThan(textWidth('KAZI NI KAZI'));
+    expect(canvas.data.some((v, i) => i % 4 === 3 && v > 0)).toBe(true);
+    expect(textWidth('N')).toBe(4); // wider than a plain letter, so it does not look like D
+  });
+
+  it('draws mechanics and oil stains', () => {
+    expect(drawMechanic(0).data).not.toEqual(drawMechanic(1).data); // the arm moves
+    expect(drawOilStain(1).data.some((v, i) => i % 4 === 3 && v > 0)).toBe(true);
+  });
+});

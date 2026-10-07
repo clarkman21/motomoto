@@ -241,7 +241,13 @@ export const MAINTENANCE = {
   // Between 100% and the breakdown, the bike loses power and uses more energy (up to these values).
   overduePowerLoss: 0.3,
   overdueEnergyExtra: 0.3,
-  serviceCost: { petrol: 3500, electric: 2000 }, // oil, filters, chain, check — guess
+  serviceCost: { petrol: 3500, electric: 2000 }, // the sum of serviceItems — guess
+  // What the mechanic does at each service (the costs add up to serviceCost). The petrol engine needs
+  // an oil change; high revs fill the service meter faster (redlineWearFactor), so you need it sooner.
+  serviceItems: {
+    petrol: [{ name: 'Oil change', cost: 2000 }, { name: 'Check: chain, tyres, lights', cost: 1500 }],
+    electric: [{ name: 'Check: brakes, tyres, lights', cost: 2000 }],
+  },
   serviceSeconds: 20,
   padsBelow: 0.7, // the mechanic also replaces brake pads below this level (MONEY.brakePads)
   minServiceFraction: 0.05, // below this, and with good pads, the mechanic has nothing to do
@@ -407,6 +413,12 @@ export const FUEL = {
   idleUse: 0.08, // fraction of the full throttle use while the engine runs with no throttle (petrol only)
   lowAt: 0.25, // "Fuel low": the HUD arrow points to the nearest station
   reserveAt: 0.1, // "Reserve!"
+  // Buying fuel: riders buy the bare minimum, not a full tank. The station offers enough for the
+  // next job, for the next two jobs, or a full tank. Estimate: tank per km of riding (with hills), plus a margin.
+  tankPerKm: 0.25,
+  margin: 1.15,
+  roundToRwf: 100, // fuel is sold in round amounts
+  approachMetres: 500, // the ride to a pickup that is not known yet
 };
 
 // Collisions: the bike and other things push each other by mass. A hard hit throws you off the bike.
