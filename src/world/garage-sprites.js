@@ -1,4 +1,4 @@
-import { WORLD } from '../config.js';
+import { WORLD, COLOURS } from '../config.js';
 import { drawRetroText } from './retro-font.js';
 import { PixelCanvas, shadeColour, hash2 } from './pixel-canvas.js';
 
@@ -164,8 +164,8 @@ export function drawBuildingSign(text, line2 = '', kind = 'wall') {
 const retroWidth = (text) => text.length * 6;
 
 /**
- * The price sign of a fuel station: a red panel on a tall pole, with the brand name in big white
- * letters and two lit price bars. The canvas origin is at the foot of the pole.
+ * The price sign of a fuel station: a blue panel on a tall pole, with the brand name in big yellow
+ * letters and two lit price bars (SP colours). The canvas origin is at the foot of the pole.
  */
 export function drawFuelSign(brand) {
   const w = Math.max(17, retroWidth(brand) + 6), panel = 24, pole = 30;
@@ -173,9 +173,9 @@ export function drawFuelSign(brand) {
   const cx = Math.floor((w + 2) / 2);
   for (let y = panel; y < panel + pole; y++) for (const dx of [-1, 0]) c.setPixel(cx + dx, y, dx ? 0x8a8a8a : 0x6a6a6a);
   for (let y = 1; y <= panel; y++) {
-    for (let x = 1; x <= w; x++) c.setPixel(x, y, y === 1 || y === panel || x === 1 || x === w ? 0xf2efe6 : 0xc0392b);
+    for (let x = 1; x <= w; x++) c.setPixel(x, y, y === 1 || y === panel || x === 1 || x === w ? COLOURS.spYellow : COLOURS.spBlue);
   }
-  drawRetroText(c, brand, Math.round((w + 2 - retroWidth(brand)) / 2) + 1, 4, 0xffffff, 0x7a1f18);
+  drawRetroText(c, brand, Math.round((w + 2 - retroWidth(brand)) / 2) + 1, 4, COLOURS.spYellow, 0x0f2a5a);
   for (const y of [15, 19]) for (let x = 4; x <= w - 3; x++) c.setPixel(x, y, x < w - 7 ? 0xf2efe6 : 0x202020);
   c.outline(0x161616);
   return { canvas: c, groundX: cx, groundY: panel + pole };

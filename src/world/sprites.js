@@ -471,7 +471,7 @@ function drawMonument(c, block, pt, world) {
 // A fuel station: a white canopy on thin pillars with a red fascia, pumps on a concrete island
 // under it, a small shop with a glass front, and a tall price sign. Two tiles: the first tile
 // (smaller x + y) has the shop, the second has the pumps and the sign.
-const FUEL_RED = 0xc0392b;
+const FUEL_BLUE = COLOURS.spBlue, FUEL_YELLOW = COLOURS.spYellow; // SP colours
 export const FUEL_BRAND = 'SP'; // the name on the fuel stations (a simple look, not the real logo)
 function drawFuelStation(c, block, pt, world, glow) {
   const { tx, ty } = block;
@@ -489,7 +489,7 @@ function drawFuelStation(c, block, pt, world, glow) {
     const shop = (k) => (along, z, px, py) => {
       const zl = z - base;
       let col = 0xf0efe6;
-      if (zl > 1.45) col = FUEL_RED;
+      if (zl > 1.45) col = FUEL_BLUE;
       else if (zl > 0.35 && zl < 1.3 && (along * 5) % 1 > 0.15) {
         col = 0x6fa4c4; // glass
         if (glow) glow.setPixel(px, py, shadeColour(0xfff2c8, 0.8 + 0.2 * k));
@@ -503,14 +503,14 @@ function drawFuelStation(c, block, pt, world, glow) {
     for (const [px0, py0] of [[0.3, 0.42], [0.58, 0.42]]) {
       const pump = (k) => (along, z, px, py) => {
         const zl = z - base;
-        let col = zl > 0.75 ? FUEL_RED : 0xe8e8e4;
+        let col = zl > 0.75 ? FUEL_BLUE : 0xe8e8e4;
         if (zl > 0.48 && zl < 0.66) {
           col = 0x203038; // the display
           if (glow) glow.setPixel(px, py, 0x7cff8a, 220);
         }
         return shadeColour(col, k);
       };
-      box(px0, py0, px0 + 0.12, py0 + 0.16, 0.16, 0.9, flat(FUEL_RED), pump(0.72), pump(0.88));
+      box(px0, py0, px0 + 0.12, py0 + 0.16, 0.16, 0.9, flat(FUEL_BLUE), pump(0.72), pump(0.88));
     }
     // The SP price sign stands at the corner (SignView draws it, so the letters are upright).
   }
@@ -521,7 +521,7 @@ function drawFuelStation(c, block, pt, world, glow) {
   }
   const fascia = (k) => (along, z, px, py) => {
     const zl = z - base;
-    const col = zl > 2.8 && zl < 2.88 ? 0xffffff : FUEL_RED;
+    const col = zl > 2.8 && zl < 2.88 ? FUEL_YELLOW : FUEL_BLUE;
     if (glow) glow.setPixel(px, py, shadeColour(col, 0.85 + 0.15 * k), 200);
     return shadeColour(col, k);
   };

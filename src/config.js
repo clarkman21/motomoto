@@ -158,6 +158,10 @@ export const COLOURS = {
   ampersandYellow: 0xfcdc04, // Surge Yellow
   ampersandBlack: 0x000000, // Eerie Black
   ebonyGrey: 0x5c5c5e,
+  // SP fuel stations: blue and yellow. This yellow is darker and more orange than Surge Yellow,
+  // so the two do not mix up.
+  spBlue: 0x1f4fa8,
+  spYellow: 0xf0a800,
 };
 
 // ---------------------------------------------------------------------------

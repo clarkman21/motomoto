@@ -10,8 +10,8 @@ import { addCanvasTexture } from './textures.js';
 // Key M (or the Settings menu) shows or hides it.
 
 const FONT = '"Barlow Condensed", "Instrument Sans", system-ui, sans-serif';
-const FUEL = 0xe0452b;
-const GARAGE = 0x4f8fe0;
+const FUEL = COLOURS.spBlue; // SP: a blue badge with yellow letters
+const GARAGE = 0xe07a2a; // orange, so it is not like the blue SP badge
 const PAD = 8;
 
 export class MinimapView {
@@ -66,7 +66,7 @@ export class MinimapView {
         if (tag === 'fuel') {
           // A small red badge with "SP" in white, like the sign at the station.
           const x0 = Math.round(m.x) - 5, y0 = Math.round(m.y) - 4;
-          g.fillStyle(0x000000, 1).fillRect(x0 - 1, y0 - 1, 11, 9).fillStyle(rgb, 1).fillRect(x0, y0, 9, 7).fillStyle(0xffffff, 1);
+          g.fillStyle(0x000000, 1).fillRect(x0 - 1, y0 - 1, 11, 9).fillStyle(rgb, 1).fillRect(x0, y0, 9, 7).fillStyle(COLOURS.spYellow, 1);
           for (let y = 0; y < 5; y++) for (let x = 0; x < 7; x++) if (textBit(FUEL_BRAND, x, y)) g.fillRect(x0 + 1 + x, y0 + 1 + y, 1, 1);
           continue;
         }

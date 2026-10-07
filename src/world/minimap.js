@@ -1,4 +1,4 @@
-import { WORLD, MINIMAP } from '../config.js';
+import { WORLD, MINIMAP, COLOURS } from '../config.js';
 import { PixelCanvas } from './pixel-canvas.js';
 
 // The minimap: a small flat picture of the whole map, in the same diamond shape as the game
@@ -10,7 +10,7 @@ const GROUND = {
   tarmac: 0x3c4044, cobble: 0x6e665c, murram: 0xb0643a, murramWet: 0x8a4e30, grass: 0x4f8a3c,
   pavement: 0xa8a294, sand: 0xd8c890, water: 0x3a6a9a,
 };
-const BLOCKS = { tree: 0x2c6228, fuel: 0xe0452b, swap: 0x3c4044, garage: 0x2f6fb0, dome: 0xf2efe6, monument: 0xf2efe6 };
+const BLOCKS = { tree: 0x2c6228, fuel: COLOURS.spBlue, swap: 0x3c4044, garage: 0x2f6fb0, dome: 0xf2efe6, monument: 0xf2efe6 };
 const BUILDING = { tower: 0x6f9fb8, government: 0xefe6cc, school: 0x5f8fd0 };
 const BUILDING_OTHER = 0x8c7c6c;
 const LANDMARK = 0xf2e6c8;

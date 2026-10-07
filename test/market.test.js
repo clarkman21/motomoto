@@ -49,10 +49,11 @@ describe('market life', () => {
     expect(hasColour(drawVendor('pineapples', 2, 1, 2), COLOURS.ampersandYellow)).toBe(false);
   });
 
-  it('draws the SP fuel sign: white letters on a red panel', () => {
+  it('draws the SP fuel sign: yellow letters on a blue panel, not Surge Yellow', () => {
     const { canvas } = drawFuelSign('SP');
-    expect(hasColour(canvas, 0xc0392b)).toBe(true);
-    expect(hasColour(canvas, 0xffffff)).toBe(true);
+    expect(hasColour(canvas, COLOURS.spBlue)).toBe(true);
+    expect(hasColour(canvas, COLOURS.spYellow)).toBe(true);
+    expect(hasColour(canvas, COLOURS.ampersandYellow)).toBe(false);
     expect(canvas.height).toBeGreaterThan(50);
   });
 });
