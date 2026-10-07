@@ -72,7 +72,8 @@ export class TrafficView {
       shadow.setVisible(visible);
       if (!visible) continue;
       const depth = (v.x + v.y) / WORLD.tileMetres;
-      img.setFrame(this.#frame(v)).setPosition(s.x, s.y).setDepth(depth);
+      const bounce = v.bump > 0 ? Math.sin((v.bump / 0.3) * Math.PI) * (v.kind === 'truck' || v.kind === 'bus' ? 3 : 2) : 0;
+      img.setFrame(this.#frame(v)).setPosition(s.x, s.y - bounce).setDepth(depth);
       shadow.setPosition(s.x, s.y + 1).setDepth(depth - 0.01);
     }
   }

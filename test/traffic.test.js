@@ -142,3 +142,22 @@ describe('cyclists', () => {
     expect(car.edge !== edge || car.s > bikeV.s).toBe(true); // the car went past
   });
 });
+
+import { HAZARDS } from '../src/config.js';
+describe('traffic and road hazards', () => {
+  it('a car slows down for a speed bump, as the bike must, and bounces over it', () => {
+    // Speed bumps on the northern road in Nyabugogo (x = 26 and 34, rows 20 and 21).
+    const t = createTraffic(world, graph, mulberry32(3), { car: 1 });
+    const car = t.vehicles[0];
+    const edge = graph.edges.find((e) => e.road.name.startsWith('Northern road') && e.dx > 0 && e.from.x <= 20 * 4 && e.to.x >= 30 * 4);
+    Object.assign(car, { edge, s: 20 * 4 - edge.from.x, speed: 14, next: edge.to.out[0], prev: null, route: [], maxSpeed: 14 });
+    let minNearBump = Infinity, bounced = false;
+    for (let i = 0; i < 30 * 8; i++) {
+      stepTraffic(t, world, [], 1 / 30);
+      if (Math.abs(car.x / 4 - 26.5) < 1) minNearBump = Math.min(minNearBump, car.speed);
+      if (car.bump > 0) bounced = true;
+    }
+    expect(minNearBump * 3.6).toBeLessThan(HAZARDS.speedBump.safeSpeedKmh);
+    expect(bounced).toBe(true);
+  });
+});

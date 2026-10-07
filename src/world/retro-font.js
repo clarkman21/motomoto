@@ -77,3 +77,14 @@ export function wrapRetro(text, n) {
   }
   return lines;
 }
+
+/** Draw text with the retro font into a PixelCanvas (top left at x, y), with an optional shadow colour. */
+export function drawRetroText(c, text, x, y, rgb, shadow = null) {
+  for (const ch of retroText(text)) {
+    const bits = G[ch].split(' ');
+    for (const [dx, col] of shadow === null ? [[0, rgb]] : [[1, shadow], [0, rgb]]) {
+      bits.forEach((row, ry) => [...row].forEach((b, rx) => b === '1' && c.setPixel(x + rx + dx, y + ry + dx, col)));
+    }
+    x += RETRO_CELL.width;
+  }
+}

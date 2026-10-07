@@ -31,6 +31,7 @@ import { jobFuel, legFuel } from '../sim/fuel.js';
 import { LightsView } from './LightsView.js';
 import { BarrierView } from './BarrierView.js';
 import { GarageView } from './GarageView.js';
+import { SignView } from './SignView.js';
 import { daylight } from '../sim/daylight.js';
 
 const FIXED_DT = 1 / 120; // physics step in seconds
@@ -91,6 +92,7 @@ export class RideScene extends Phaser.Scene {
     this.#createProps();
     // The moto garages: motos, mechanics, oil stains and the name sign.
     this.garages = new GarageView(this, this.world);
+    this.signs = new SignView(this, this.world); // names on landmark buildings
     // Night lights and the colour of the day (see LightsView.js).
     this.lights = new LightsView(this, this.world);
     // These stay bright at night: they are not tinted.

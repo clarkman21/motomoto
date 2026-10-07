@@ -172,7 +172,8 @@ export function drawBlock(block, world) {
     return { x: s.x, y: s.y };
   };
   // Canvas bounds: the tile footprint from base to top, with room for tree crowns.
-  const pad = block.kind === 'tree' ? 16 : block.kind === 'monument' ? 8 : block.kind === 'fuel' ? 22 : block.kind === 'garage' ? 6 : 2;
+  const pad = block.kind === 'tree' ? 16 : block.kind === 'monument' ? 8 : block.kind === 'fuel' ? 22 : block.kind === 'garage' ? 6
+    : block.kind === 'building' ? (block.style === 'government' ? 52 : 14) : 2; // room for roof tanks and flags
   const corners = [];
   for (const [x, y] of [[tx, ty], [tx + 1, ty], [tx + 1, ty + 1], [tx, ty + 1]]) {
     corners.push(pt(x, y, block.baseLevel), pt(x, y, block.topLevel));
@@ -221,12 +222,34 @@ function visibleFaces(block, world) {
   return { east: !hidden(world.blockAt(block.tx + 1, block.ty)), south: !hidden(world.blockAt(block.tx, block.ty + 1)) };
 }
 
+// Building styles (block.style). Each style has its own walls, windows, ground floor and roof.
+// The colours of one building come from its group id, so neighbours look different.
+const STYLE_LOOKS = {
+  house: { walls: [0xe8dcc0, 0xd98c6a, 0x9fc4d6, 0xe0a7b5, 0xc9d6a0, 0xf0efe6], roofs: [0x8a3b2a, 0x9a9a96, 0xa0522d], corrugated: true, tanks: 0.5 },
+  shop: { walls: [0xe8dcc0, 0xf0efe6, 0xd8c8a8, 0xc9d6a0], roofs: [0x8a3b2a, 0x9a9a96], corrugated: true, tanks: 0.4 },
+  office: { walls: [0xd8d4c8, 0xbfc6cc, 0xe8e2d6, 0xc9b8a0], roofs: [0x8a8a86, 0x7a7e82], tanks: 0.5, ac: true },
+  tower: { walls: [0x5f8fa8, 0x4a7f8a, 0x6a8fb8, 0x3f6a7a], roofs: [0x5a5e62, 0x4a4e52], ac: true },
+  government: { walls: [0xefe6cc, 0xf2efe6], roofs: [0x9a3b2a], flag: true },
+  school: { walls: [0xf0efe6], roofs: [0x3f7f4a, 0x8a3b2a], corrugated: true },
+  warehouse: { walls: [0xa0a4a8, 0x8f9aa0, 0xb0a890], roofs: [0x9a9a96, 0x8a8a86], corrugated: true },
+  villa: { walls: [0xf0efe6, 0xe8dcc0, 0xe0d0b0, 0xd8e0e8], roofs: [0xb5543a, 0xa0482e], tanks: 0.3 },
+};
+// Bright paint for shop fronts (not Surge Yellow: that colour is only for Ampersand).
+const SHOP_PAINT = [0xc0392b, 0x3f8f4a, 0x2f6fb0, 0xe07a2a, 0x8a4ab0];
+
 function drawBuilding(c, block, pt, world, glow) {
   const { tx, ty, baseLevel, topLevel, groupId } = block;
-  const wall = BUILDING_WALLS[groupId % BUILDING_WALLS.length];
-  const roof = BUILDING_ROOFS[groupId % BUILDING_ROOFS.length];
-  const corrugated = roof === BUILDING_ROOFS[0];
+  const style = block.style ?? 'house';
+  const look = STYLE_LOOKS[style] ?? STYLE_LOOKS.house;
+  const wall = look.walls[groupId % look.walls.length];
+  const roof = look.roofs[groupId % look.roofs.length];
+  const paint = SHOP_PAINT[groupId % SHOP_PAINT.length];
   const floor = block.floorLevel ?? baseLevel;
+  const lit = (along, zl, k, px, py, perFloor) => {
+    if (glow && hash2(Math.floor(along * perFloor), Math.floor(zl / 2), groupId + 101) < LIGHTS.windowLitChance) {
+      glow.setPixel(px, py, shadeColour(LIGHTS.windowColour, 0.7 + 0.3 * k));
+    }
+  };
   const wallShade = (k) => (along, z, px, py) => {
     const zl = z - floor;
     let col = wall;
@@ -237,29 +260,97 @@ function drawBuilding(c, block, pt, world, glow) {
       col = (z * 4) % 1 < 0.18 || (along * 6 + (course & 1) * 0.5) % 1 < 0.1 ? 0x5e574d : hash2(brick, course, 9) > 0.5 ? 0x948a7a : 0x857b6c;
       return shadeColour(col, k);
     }
-    if (zl < 0.18) col = shadeColour(wall, 0.7); // dirty plinth
-    else if (topLevel - z < 0.2) col = shadeColour(wall, 1.1); // parapet
-    else {
-      const floorPos = zl % 2; // one floor is 2 levels (3 m)
-      const a = (along * 3) % 1;
-      if (floorPos > 0.7 && floorPos < 1.6 && a > 0.22 && a < 0.78) {
-        col = hash2(Math.floor(along * 3), Math.floor(zl / 2), groupId) > 0.75 ? WINDOW_LIT : WINDOW;
-        // Some windows have the light on at night.
-        if (glow && hash2(Math.floor(along * 3), Math.floor(zl / 2), groupId + 101) < LIGHTS.windowLitChance) {
-          glow.setPixel(px, py, shadeColour(LIGHTS.windowColour, 0.7 + 0.3 * k));
-        }
+    const top = topLevel - z;
+    const floorPos = zl % 2; // one floor is 2 levels (3 m)
+    if (style === 'tower') {
+      // Glass: a line at each floor, thin mullions, a darker crown at the top.
+      col = shadeColour(wall, 0.85 + 0.25 * Math.min(1, zl / Math.max(1, topLevel - floor)));
+      if (top < 0.6) col = 0x2f3a44;
+      else if (zl % 1 < 0.1 || (along * 4) % 1 < 0.07) col = 0xc8d8e0;
+      else if (zl > 0.4) lit(along, zl * 2, k, px, py, 4);
+      return shadeColour(col, k);
+    }
+    if (zl < 0.18) return shadeColour(wall, 0.7 * k); // dirty plinth
+    if (top < 0.2) return shadeColour(wall, 1.1 * k); // parapet
+    const a3 = (along * 3) % 1;
+    if (style === 'shop' && zl < 1.9) {
+      // The ground floor: open shop fronts with goods, and a painted band with the shop name above.
+      if (zl > 1.45) col = hash2(Math.floor(along * 12), Math.floor(zl * 8), groupId) > 0.82 ? 0xffffff : paint;
+      else if ((along * 2) % 1 > 0.12 && (along * 2) % 1 < 0.88) {
+        col = zl < 1.1 && hash2(Math.floor(along * 16), Math.floor(zl * 10), groupId + 7) > 0.6 ? SHOP_PAINT[Math.floor(hash2(Math.floor(along * 16), 3, groupId) * 5)] : 0x2a2622;
+        if (glow && zl > 0.2) glow.setPixel(px, py, shadeColour(0xffd8a0, 0.6 + 0.2 * k), 170);
       }
+      return shadeColour(col, k);
+    }
+    if (style === 'school') {
+      col = zl < 0.8 ? 0x3a6fb0 : wall; // blue below, white above
+      if (floorPos > 0.9 && floorPos < 1.6 && (along * 2) % 1 > 0.1 && (along * 2) % 1 < 0.9) {
+        col = WINDOW;
+        lit(along, zl, k, px, py, 2);
+      }
+      return shadeColour(col, k);
+    }
+    if (style === 'government') {
+      // Tall windows between light columns.
+      const a = (along * 3) % 1;
+      if (a < 0.12) col = 0xffffff;
+      else if (zl > 0.5 && top > 0.5 && a > 0.3 && a < 0.82) {
+        col = 0x2f4a6c;
+        lit(along, zl, k, px, py, 3);
+      }
+      return shadeColour(col, k);
+    }
+    if (style === 'warehouse') {
+      col = (along * 10) % 1 < 0.3 ? shadeColour(wall, 0.9) : wall; // corrugated sheets
+      if (zl < 1.6 && (along % 1) > 0.25 && (along % 1) < 0.75) col = 0x4a4f55; // a big door
+      return shadeColour(col, k);
+    }
+    const perFloor = style === 'office' ? 4 : style === 'villa' ? 2 : 3;
+    const a = (along * perFloor) % 1;
+    if (floorPos > 0.7 && floorPos < 1.6 && a > 0.22 && a < 0.78) {
+      col = hash2(Math.floor(along * perFloor), Math.floor(zl / 2), groupId) > 0.75 ? WINDOW_LIT : WINDOW;
+      lit(along, zl, k, px, py, perFloor);
+    } else if (style === 'office' && floorPos > 0.45 && floorPos < 0.7 && a > 0.3 && a < 0.55 && hash2(Math.floor(along * perFloor), Math.floor(zl / 2), groupId + 5) > 0.7) {
+      col = 0xa8acb0; // an air conditioner under the window
+    } else if (style === 'house' && floorPos < 0.7 && (along % 1) > 0.42 && (along % 1) < 0.58 && zl < 1.4) {
+      col = 0x5a3a24; // a door
     }
     if (hash2(px + c.ox, py + c.oy, 2) > 0.95) col = shadeColour(col, 0.94);
     return shadeColour(col, k);
   };
   const roofShade = (u, v, px, py) => {
     let col = roof;
-    if (corrugated) col = Math.floor((tx + u) * 10) & 1 ? roof : shadeColour(roof, 0.88);
+    if (look.corrugated) col = Math.floor((tx + u) * 10) & 1 ? roof : shadeColour(roof, 0.88);
+    else if (style === 'villa') col = Math.floor((ty + v) * 6) & 1 ? roof : shadeColour(roof, 0.9); // clay tiles
     else if (hash2(px + c.ox, py + c.oy, 4) > 0.9) col = shadeColour(roof, 0.92);
     return col;
   };
   drawBox(c, tx, ty, tx + 1, ty + 1, baseLevel, topLevel, pt, roofShade, wallShade(0.68), wallShade(0.86), visibleFaces(block, world));
+  // Roof details: black water tanks, air conditioners, and the flag of Rwanda on government buildings.
+  const h = hash2(tx, ty, groupId + 11);
+  const flat = (col) => () => col;
+  const side = (col, k) => () => shadeColour(col, k);
+  if (look.tanks && h < look.tanks && isFlagTile(block, world)) {
+    // One small black water tank on the building (most houses in Kigali have one).
+    drawBox(c, tx + 0.42, ty + 0.42, tx + 0.6, ty + 0.6, topLevel, topLevel + 0.5, pt,
+      (u, v) => (u + v < 1 ? 0x3a3a3a : 0x262626), side(0x1e1e1e, 0.8), side(0x2a2a2a, 1));
+  } else if (look.ac && h < 0.3) {
+    drawBox(c, tx + 0.3, ty + 0.4, tx + 0.55, ty + 0.6, topLevel, topLevel + 0.35, pt, flat(0xc8ccd0), side(0xa8acb0, 0.8), side(0xa8acb0, 0.95));
+  }
+  if (look.flag && isFlagTile(block, world)) {
+    drawBox(c, tx + 0.48, ty + 0.48, tx + 0.53, ty + 0.53, topLevel, topLevel + 3, pt, flat(0xd8d8d8), side(0xc0c0c0, 0.8), side(0xc0c0c0, 1));
+    // The flag of Rwanda: blue (with the sun), yellow, green. The yellow is the flag's own, not Surge Yellow.
+    const p = pt(tx + 0.5, ty + 0.5, topLevel + 3);
+    const colours = [0x20a0e0, 0x20a0e0, 0xe5be01, 0x20603d];
+    for (let r = 0; r < 4; r++) for (let x = 1; x <= 7; x++) c.plot(p.x + x, p.y + r, colours[r]);
+    c.plot(p.x + 6, p.y, 0xe5be01);
+  }
+}
+
+/** The flag stands on one tile of a government building: the one with the smallest x + y. */
+function isFlagTile(block, world) {
+  const same = (x, y) => world.blockAt(x, y)?.groupId === block.groupId;
+  return !same(block.tx - 1, block.ty) && !same(block.tx, block.ty - 1);
 }
 
 function drawTree(c, block, pt, world) {

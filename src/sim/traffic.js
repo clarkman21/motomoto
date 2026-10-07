@@ -1,4 +1,4 @@
-import { TRAFFIC, WORLD, BUS_PARK } from '../config.js';
+import { TRAFFIC, WORLD, BUS_PARK, HAZARDS } from '../config.js';
 import { lanePoint, LANE_OFFSET, shortestPath } from './roads.js';
 import { speedLimitAt } from './law.js';
 
@@ -104,6 +104,21 @@ function curve(a, b, t, c, lane = LANE_OFFSET) {
   return { p, d: { x: d.x / len, y: d.y / len } };
 }
 
+/** The safe speed (m/s) over a speed bump or a pothole. */
+function safeSpeed(hazard) {
+  return hazard === 'speedBump' ? HAZARDS.speedBump.safeSpeedKmh * KMH * 0.8 : TRAFFIC.potholeKmh * KMH;
+}
+
+/** The nearest speed bump or pothole ahead of v in its lane (within look metres): { type, dist }, or null. */
+function hazardAhead(world, v, look) {
+  const fx = Math.cos(v.heading), fy = Math.sin(v.heading);
+  for (let d = 1; d <= look; d += 1) {
+    const t = world.tileAt(v.x + fx * d, v.y + fy * d);
+    if (t?.hazard) return { type: t.hazard, dist: d };
+  }
+  return null;
+}
+
 /** Anything in front of vehicle v, in its lane: returns the free distance (metres) and the speed of the thing ahead. */
 function gapAhead(v, others) {
   const fx = Math.cos(v.heading), fy = Math.sin(v.heading);
@@ -158,6 +173,9 @@ export function stepTraffic(traffic, world, obstacles, dt) {
     const toEnd = v.edge.length - v.s;
     const turning = v.next && v.edge.dx * v.next.dx + v.edge.dy * v.next.dy < 0.5;
     if (turning && toEnd < 10) target = Math.min(target, TRAFFIC.turnKmh * KMH);
+    // Speed bumps and potholes: slow down before them, as the bike must.
+    const hazard = hazardAhead(world, v, TRAFFIC.hazardLookMetres);
+    if (hazard) target = Math.min(target, safeSpeed(hazard.type) + Math.max(0, hazard.dist - 2) * 1.2);
     // Minibuses stop at bus stops.
     if (v.kind === 'bus') {
       for (const stop of world.busStops) {
@@ -220,6 +238,17 @@ export function stepTraffic(traffic, world, obstacles, dt) {
       v.claimed = undefined;
     }
     place(v);
+    // Over a bump or a pothole the vehicle bounces (the view shows it), and a fast one loses speed.
+    const tile = world.tileAt(v.x, v.y);
+    const key = tile ? tile.tx * 100000 + tile.ty : -1;
+    if (key !== v.tileKey) {
+      v.tileKey = key;
+      if (tile?.hazard) {
+        v.bump = 0.3;
+        if (v.speed > safeSpeed(tile.hazard) * 1.2) v.speed *= 1 - (tile.hazard === 'speedBump' ? HAZARDS.speedBump.speedCut : HAZARDS.pothole.speedCut);
+      }
+    }
+    v.bump = Math.max(0, (v.bump ?? 0) - dt);
     // Exhaust from petrol engines.
     if (spec.exhaust) {
       v.puff -= dt * (0.6 + v.speed * 0.08) * spec.exhaust;

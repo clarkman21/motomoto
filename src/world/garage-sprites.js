@@ -1,4 +1,5 @@
 import { WORLD } from '../config.js';
+import { drawRetroText } from './retro-font.js';
 import { PixelCanvas, shadeColour, hash2 } from './pixel-canvas.js';
 
 // Sprites for the moto garage yard: the name sign, mechanics at work, oil stains, tyres and an oil drum.
@@ -124,3 +125,29 @@ export function drawOilDrum() {
   c.outline(0x161616);
   return c;
 }
+
+/**
+ * A sign for a landmark building. kind 'roof': big letters (retro font) on a dark panel, for the roof
+ * of a tower. kind 'wall': a blue board with white letters (and a second line), for the front wall
+ * of an office, a school or a market. Returns { canvas, groundX, groundY } (the bottom centre).
+ */
+export function drawBuildingSign(text, line2 = '', kind = 'wall') {
+  if (kind === 'roof') {
+    const w = retroWidth(text) + 8, h = 13;
+    const c = new PixelCanvas(w + 2, h + 6);
+    for (let y = 1; y <= h; y++) for (let x = 1; x <= w; x++) c.setPixel(x, y, y === 1 || y === h ? 0x5a5e62 : 0x14181c);
+    drawRetroText(c, text, 5, 4, 0xf6f5ec, 0x2a3a4a);
+    for (const px of [3, w - 2]) for (let y = h + 1; y <= h + 5; y++) c.setPixel(px, y, 0x5a5e62); // the frame on the roof
+    return { canvas: c, groundX: (w + 2) / 2, groundY: h + 5 };
+  }
+  const w = Math.max(textWidth(text), textWidth(line2)) + 8;
+  const h = line2 ? 16 : 10;
+  const c = new PixelCanvas(w + 2, h + 2);
+  for (let y = 1; y <= h; y++) for (let x = 1; x <= w; x++) c.setPixel(x, y, y === 1 || y === h || x === 1 || x === w ? 0xe8e8f0 : 0x1f4f9a);
+  drawText(c, text, Math.round((w + 2 - textWidth(text)) / 2), 3, 0xffffff);
+  if (line2) drawText(c, line2, Math.round((w + 2 - textWidth(line2)) / 2), 9, 0xf2c94c);
+  c.outline(0x161616);
+  return { canvas: c, groundX: (w + 2) / 2, groundY: h + 1 };
+}
+
+const retroWidth = (text) => text.length * 6;

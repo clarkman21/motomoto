@@ -124,11 +124,15 @@ const CROWD_AREAS = [
 export function buildKigaliMap(seed = 7) {
   const W = KIGALI_W, H = KIGALI_H;
   const g = Array.from({ length: H }, () => Array(W).fill('.'));
+  // The building style of each tile (see BUILDING_STYLES in world.js): h house, s shop, o office,
+  // t glass tower, g government, c school, w warehouse, v villa. '.' = no style.
+  const st = Array.from({ length: H }, () => Array(W).fill('.'));
   const reserved = Array.from({ length: H }, () => Array(W).fill(false)); // no buildings or trees here
   const inside = (x, y) => x >= 0 && y >= 0 && x < W && y < H;
   const set = (x, y, c) => inside(x, y) && (g[y][x] = c);
   const get = (x, y) => (inside(x, y) ? g[y][x] : null);
   const rect = (x0, y0, x1, y1, c) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) set(x, y, c); };
+  const style = (x0, y0, x1, y1, c) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (inside(x, y)) st[y][x] = c; };
   const reserve = (x0, y0, x1, y1) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (inside(x, y)) reserved[y][x] = true; };
   const isRoad = (c) => c === '#' || c === 'm' || c === 'c' || c === 'o' || c === '=' || c === 'w';
   const nearRoad = (x, y, r = 1) => {
@@ -206,16 +210,36 @@ export function buildKigaliMap(seed = 7) {
   station(180, 98, 'S', 'north', 'Ampersand swap, Kicukiro');
   station(180, 108, 'G', 'north', 'Sonatubes moto garage', 'SONATUBES');
 
-  // Landmark buildings.
-  const landmark = (x0, y0, x1, y1, c) => { rect(x0, y0, x1, y1, c); reserve(x0 - 1, y0 - 1, x1 + 1, y1 + 1); };
-  landmark(34, 86, 36, 88, '9'); // Kigali City Tower
-  landmark(14, 100, 18, 104, '3'); // Kigali town market
-  landmark(104, 6, 111, 12, '4'); // King Faisal Hospital
-  landmark(88, 24, 95, 30, '4'); // Police headquarters
-  landmark(89, 104, 94, 109, '4'); // Parliament
-  landmark(140, 8, 143, 12, '7'); // MTN Centre
-  landmark(136, 27, 139, 29, '2'); // golf club house
-  landmark(107, 83, 112, 88, 'K'); // Kigali Convention Centre (dome)
+  // Landmark buildings. levels: the height (it can be taller than 9); kind: the building style;
+  // sign: the name on the building (towers: on the roof; offices and schools: on the front wall).
+  const landmarks = [];
+  const landmark = (x0, y0, x1, y1, c, kind, extra = {}) => {
+    rect(x0, y0, x1, y1, c);
+    style(x0, y0, x1, y1, kind);
+    reserve(x0 - 1, y0 - 1, x1 + 1, y1 + 1);
+    landmarks.push({ x0, y0, x1, y1, style: kind, ...extra });
+  };
+  landmark(34, 86, 36, 88, '9', 't', { levels: 18, sign: 'KIGALI CITY TOWER' });
+  landmark(43, 87, 47, 91, '9', 't', { levels: 12, sign: 'CHIC' }); // shopping centre in town
+  landmark(5, 86, 8, 90, '9', 't', { levels: 14, sign: 'KPC' });
+  landmark(14, 100, 18, 104, '3', 's', { sign: 'ISOKO RYA KIGALI', sign2: 'TOWN MARKET' });
+  landmark(28, 112, 33, 117, '4', 'g', { sign: "IBIRO BY'AKARERE", sign2: 'KA NYARUGENGE' });
+  landmark(44, 112, 49, 117, '3', 'c', { sign: 'LYCEE DE KIGALI', sign2: 'WE STRIVE FOR SUCCESS' });
+  landmark(104, 6, 111, 12, '4', 'o', { sign: 'KING FAISAL HOSPITAL' });
+  landmark(88, 24, 95, 30, '4', 'g', { sign: "POLISI Y'U RWANDA", sign2: 'POLICE' });
+  landmark(103, 39, 110, 45, '5', 'g', { sign: "IBIRO BYA MINISITIRI", sign2: "W'INTEBE" });
+  landmark(86, 40, 92, 46, '4', 'g', { sign: "IBIRO BY'AKARERE", sign2: 'KA GASABO' });
+  landmark(112, 51, 118, 53, '2', 'c', { sign: 'G.S. KACYIRU', sign2: 'WE STRIVE FOR SUCCESS' });
+  landmark(89, 104, 94, 109, '4', 'g', { sign: 'INTEKO ISHINGA AMATEGEKO', sign2: 'PARLIAMENT' });
+  landmark(116, 84, 119, 88, '9', 't', { levels: 11, sign: 'KIGALI HEIGHTS' });
+  landmark(140, 8, 143, 12, '7', 't', { levels: 10 }); // MTN Centre
+  landmark(136, 27, 139, 29, '2', 'v'); // golf club house
+  landmark(181, 87, 187, 93, '4', 'g', { sign: "IBIRO BY'AKARERE", sign2: 'KA KICUKIRO' });
+  landmark(184, 109, 190, 111, '2', 'c', { sign: 'G.S. KICUKIRO', sign2: 'WE STRIVE FOR SUCCESS' });
+  landmark(7, 41, 13, 42, '2', 'c', { sign: 'G.S. KIMISAGARA', sign2: 'WE STRIVE FOR SUCCESS' });
+  rect(7, 43, 13, 45, 'm'); // the school yard (murram)
+  reserve(7, 43, 13, 45);
+  landmark(107, 83, 112, 88, 'K', '.'); // Kigali Convention Centre (dome)
 
   // Pavement beside busy tarmac roads (people walk here).
   const paved = (x, y) => {
@@ -259,8 +283,20 @@ export function buildKigaliMap(seed = 7) {
         if (!nearRoad(x, y) && hash(x >> 2, y >> 1, 13) < 0.7) c = '2';
       } else if (!nearRoad(x, y) && lot(x, y, 2, 14) < 0.5) c = String(2 + Math.floor(lot(x, y, 2, 15) * 2));
     }
-    if (c) set(x, y, c);
+    if (c) {
+      set(x, y, c);
+      // The style of the building: it changes the walls, windows and roof details.
+      let k = 'h';
+      if (d === 'nyabugogo') k = x < 17 && y > 22 ? 'h' : nearRoad(x, y, 2) ? 's' : 'h';
+      else if (d === 'town') k = lvl < 5 ? 'h' : Number(c) >= 8 ? 't' : nearRoad(x, y, 2) && lot(x, y, 3, 21) < 0.4 ? 's' : 'o';
+      else if (d === 'kacyiru') k = 'o';
+      else if (d === 'kimihurura' || d === 'nyarutarama') k = 'v';
+      else if (d === 'kicukiro') k = x < 144 && y >= 100 ? 'w' : nearRoad(x, y, 2) ? 's' : 'h';
+      st[y][x] = k;
+    }
   }
+  // Market stalls are shops.
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (g[y][x] === '2' && st[y][x] === '.') st[y][x] = 's';
 
   // Trees: avenue trees on the Kacyiru boulevard, many trees in the rich districts and the golf course.
   for (let x = 66; x < 126; x += 3) for (const y of [35, 38]) if (g[y][x] === '.' || g[y][x] === 'p') set(x, y, 't');
@@ -318,6 +354,7 @@ export function buildKigaliMap(seed = 7) {
   }
 
   const rows = g.map((r) => r.join(''));
+  const styles = st.map((r) => r.join(''));
 
   // Job places. weight: how often jobs start here (the bus park makes many fares).
   const P = (id, name, x, y, tags = [], weight = 1) => places.push({ id, name, x, y, tags, weight });
@@ -352,6 +389,16 @@ export function buildKigaliMap(seed = 7) {
   P('kicukiroCentre', 'Kicukiro centre market', 170, 104, ['market'], 3);
   P('gikondo', 'Gikondo warehouses', 145, 110, ['market'], 2);
   P('kicukiroSouth', 'Kicukiro south', 168, 117, []);
+  P('gsKimisagara', 'G.S. Kimisagara', 10, 44, [], 1);
+  P('lycee', 'Lycee de Kigali', 46, 118.5, [], 1);
+  P('nyarugengeOffice', 'Nyarugenge district office', 30, 118.5, [], 1);
+  P('gasaboOffice', 'Gasabo district office', 89, 47, [], 1);
+  P('pmOffice', "Prime Minister's office", 106, 47, [], 1);
+  P('gsKacyiru', 'G.S. Kacyiru', 115, 50, [], 1);
+  P('kigaliHeights', 'Kigali Heights', 115, 89.5, [], 2);
+  P('chic', 'CHIC shopping centre', 45, 86, [], 2);
+  P('kicukiroOffice', 'Kicukiro district office', 184, 94.5, [], 1);
+  P('gsKicukiro', 'G.S. Kicukiro', 187, 108.5, [], 1);
   P('airportRoad', 'Airport road', 189, 97, []);
   for (const p of places) p.district = districtOf(Math.floor(p.x), Math.floor(p.y));
 
@@ -359,6 +406,8 @@ export function buildKigaliMap(seed = 7) {
     name: 'Kigali',
     start: { x: 30, y: 21, headingDeg: 0 },
     rows,
+    styles,
+    landmarks,
     hills: HILLS,
     roads: ROADS,
     lamps,

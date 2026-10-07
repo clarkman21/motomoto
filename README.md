@@ -48,6 +48,9 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Buy the bare minimum of fuel (next job, next two jobs, or full); itemized service with oil change and brake pads | Done |
 | Fuel estimate on each job card, from the distance, the climb and the load | Done |
 | Moto garages (Kazi ni Kazi, Sonatubes): open workshop, motos, mechanics, oil stains, painted sign | Done |
+| Building types: houses, shops, offices, glass towers, government offices, schools, warehouses, villas; roof water tanks, AC units, flags | Done |
+| Named landmarks with signs: Kigali City Tower, KPC, Chic, Kigali Heights, IBIRO offices (Kinyarwanda), schools (WE STRIVE FOR SUCCESS) | Done |
+| Traffic slows for speed bumps and potholes and bounces over them | Done |
 | Day and night: fast clock, night colour, sunset, street lamps, lit windows, headlights and tail lights | Done |
 | Levels 5–10, police helmet checks, hired riders, traffic lights | Later milestones |
 
@@ -145,14 +148,14 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `BRAKES` | Pad wear rate, stopping power of worn pads, warning level |
 | `PHYSICS` | Hill force, drag, engine braking, turn rate, grip |
 | `SURFACES` | Grip, speed factor and energy factor for each surface |
-| `HAZARDS` | Pothole and speed bump effects |
+| `HAZARDS` | Pothole and speed bump effects (traffic uses the same safe speeds) |
 | `LOAD` | Mass of bike and rider (a load changes pull and braking) |
 | `DAY` | Day length and hours |
 | `MONEY` | Start cash, rent, fuel, swaps, crash repair, brake pads, loan |
 | `MAINTENANCE` | Service interval, wear from red zone and hits, overdue penalties, breakdown, garage price |
 | `JOBS` | Fares, tips, cargo pay, comfort and damage rules, game km scale |
 | `LAW` | Default speed limit, camera tolerance and fines |
-| `TRAFFIC` | Number of each vehicle type, speeds, hill slowdown, exhaust, bus stop time |
+| `TRAFFIC` | Number of each vehicle type, speeds, hill slowdown, exhaust, bus stop time, pothole speed, hazard look ahead |
 | `PEOPLE` | Number of walkers, street hails, police fine for hitting a person |
 | `RIVALS` | Chance a rival races you or takes a street hail, offer lifetimes |
 | `LEVELS`, `SAVINGS_FLOAT`, `STREAK` | Goals, shifts, rent, traffic and rivals for each level; the clean ride bonus |
@@ -164,7 +167,7 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `DAYLIGHT` | Light at each hour, night colour, sunset colour |
 | `LIGHTS` | Street lamp spacing, light pools, lit windows, headlights and tail lights |
 
-The game map is built in code in [`src/world/maps/kigali.js`](src/world/maps/kigali.js): district rectangles, hills, roads, landmarks, stations and places. The small test map for the unit tests is an ASCII grid in [`src/world/map-data.js`](src/world/map-data.js). The legend is at the top of the file. Hills are plateaus with ramps; each hill has a height and a ramp length for each side. The same file has the job places, speed limit zones, cameras and signs.
+The game map is built in code in [`src/world/maps/kigali.js`](src/world/maps/kigali.js): district rectangles, hills, roads, landmarks, stations and places. Each block has a building style (`h` house, `s` shop, `o` office, `t` tower, `g` government, `c` school, `w` warehouse, `v` villa). The district rules set the style, and a landmark sets the style, the height in levels and the sign text of its block. The small test map for the unit tests is an ASCII grid in [`src/world/map-data.js`](src/world/map-data.js). The legend is at the top of the file. Hills are plateaus with ramps; each hill has a height and a ramp length for each side. The same file has the job places, speed limit zones, cameras and signs.
 
 ## Code structure
 
@@ -180,10 +183,10 @@ src/
     world.js             Heights, slopes, surfaces, solid blocks
     pixel-canvas.js      Small software rasterizer for pixel art
     terrain-render.js    Draws the ground into one image
-    sprites.js           Draws the bike (16 directions), buildings, trees, lit windows
+    sprites.js           Draws the bike (16 directions), buildings (8 styles), trees, lit windows
     light-sprites.js     Light pools, headlight cones, light dots, lamp posts
     retro-font.js        5 × 7 pixel font for the retro menus
-    garage-sprites.js    Garage sign (pixel font), mechanics, oil stains, tyres, oil drum
+    garage-sprites.js    Garage and building signs (pixel font), mechanics, oil stains, tyres, oil drum
   sim/
     bike.js              Arcade bike physics and energy (no Phaser)
     controls.js          The two steering models
@@ -212,6 +215,7 @@ src/
     LightsView.js        Night colour, street lamps, headlights and tail lights
     BarrierView.js       Barriers at the edge of closed districts
     GarageView.js        The garage yards: motos, mechanics, oil stains, sign
+    SignView.js          Landmark signs: roof and entrance signs on towers, wall signs on the others
     save.js              Saves the game in the browser (localStorage)
 test/                    Unit tests (Vitest)
 ```

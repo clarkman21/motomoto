@@ -271,6 +271,9 @@ export const TRAFFIC = {
   },
   turnKmh: 18,
   busStopSeconds: 5,
+  // Drivers slow down for speed bumps (to HAZARDS.speedBump.safeSpeedKmh) and potholes (to this speed).
+  potholeKmh: 25,
+  hazardLookMetres: 12,
 };
 
 // ---------------------------------------------------------------------------

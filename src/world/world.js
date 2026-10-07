@@ -23,6 +23,9 @@ const CHAR_INFO = {
   K: { surface: 'tarmac', block: 'dome', blockLevels: 1 },
 };
 
+// Building styles (map data 'styles': one character per tile). They change the look of a building.
+export const BUILDING_STYLES = { h: 'house', s: 'shop', o: 'office', t: 'tower', g: 'government', c: 'school', w: 'warehouse', v: 'villa' };
+
 // Blocks that join with neighbours of the same kind into one building (one colour, no inner walls).
 const GROUPED = ['building', 'fuel', 'swap', 'garage', 'dome'];
 
@@ -52,7 +55,10 @@ export class World {
     this.poles = [...this.lamps, ...this.signs, ...this.cameras].map((p) => ({
       kind: 'pole', x: p.x * WORLD.tileMetres, y: p.y * WORLD.tileMetres, radius: COLLISION.poleRadius,
     }));
-    this.crowdAreas = mapData.crowdAreas ?? []; // open areas where many people walk { x0, y0, x1, y1 }
+    this.crowdAreas = mapData.crowdAreas ?? [];
+    this.styles = mapData.styles ?? null;
+    // Landmark buildings: { x0, y0, x1, y1, style, levels?, sign?, sign2? } (tiles, inclusive).
+    this.landmarks = mapData.landmarks ?? []; // open areas where many people walk { x0, y0, x1, y1 }
     // Districts: rectangles of tiles { id, name, x0, y0, x1, y1 } (x1, y1 exclusive). A closed district is solid.
     this.districts = mapData.districts ?? [];
     this.closed = new Set();
@@ -83,7 +89,12 @@ export class World {
           info = { surface: 'tarmac', block: 'building', blockLevels: Number(ch) };
         }
         if (!info) throw new Error(`Unknown map character '${ch}' at ${tx},${ty}`);
-        tiles.push({ tx, ty, ch, district: this.districtAt(tx, ty), surface: info.surface, hazard: info.hazard ?? null, block: info.block ?? null, blockLevels: info.blockLevels ?? 0, solid: !!info.solid });
+        const lm = this.landmarks.find((l) => l.levels && tx >= l.x0 && tx <= l.x1 && ty >= l.y0 && ty <= l.y1);
+        tiles.push({
+          tx, ty, ch, district: this.districtAt(tx, ty), surface: info.surface, hazard: info.hazard ?? null, block: info.block ?? null,
+          blockLevels: lm && info.block === 'building' ? lm.levels : info.blockLevels ?? 0, solid: !!info.solid,
+          style: BUILDING_STYLES[this.styles?.[ty]?.[tx]] ?? null,
+        });
       }
     }
     return tiles;
@@ -147,6 +158,7 @@ export class World {
         tx: t.tx,
         ty: t.ty,
         kind: t.block,
+        style: t.style ?? 'house',
         groupId: ids.get(t) ?? -1,
         baseLevel,
         floorLevel: topOfGround, // on a slope, the building stands on a foundation from baseLevel up to here
