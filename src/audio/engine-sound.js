@@ -117,6 +117,25 @@ export class EngineSound {
     }
   }
 
+  /** A short menu sound: 'move' (the cursor moves), 'select' or 'back'. */
+  blip(kind) {
+    if (!this.ctx || !this.enabled) return;
+    const notes = { move: [[1320, 0.04]], select: [[880, 0.05], [1760, 0.07]], back: [[660, 0.05], [440, 0.07]] }[kind] ?? [];
+    let t = this.ctx.currentTime + 0.01;
+    for (const [f, len] of notes) {
+      const o = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      o.type = 'square';
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.05, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+      o.connect(g).connect(this.master);
+      o.start(t);
+      o.stop(t + len);
+      t += len;
+    }
+  }
+
   horn() {
     if (!this.ctx || !this.enabled) return;
     const t = this.ctx.currentTime;

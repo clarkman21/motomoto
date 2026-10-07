@@ -41,6 +41,7 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Rival riders who race you to pickups and take street hails | Done |
 | Levels 1–4: savings goals, milestones (phone, electric moto), streak bonus, save game | Done |
 | Welcome menu, How to play, Settings, pause menu with Restart shift | Done |
+| Retro 16-bit menus: pixel font, blue windows, ▶ cursor, scanlines, menu blips | Done |
 | Family rewards: what the money means at home after each job, each shift and each milestone | Done |
 | Sounds: the engine stops at the end of a shift; short tunes for shift end, milestone, game over, delivery | Done |
 | Hi-vis vests for all moto riders; banana and rice cargo; cyclists from level 3; detailed fuel stations | Done |
@@ -181,6 +182,7 @@ src/
     terrain-render.js    Draws the ground into one image
     sprites.js           Draws the bike (16 directions), buildings, trees, lit windows
     light-sprites.js     Light pools, headlight cones, light dots, lamp posts
+    retro-font.js        5 × 7 pixel font for the retro menus
     garage-sprites.js    Garage sign (pixel font), mechanics, oil stains, tyres, oil drum
   sim/
     bike.js              Arcade bike physics and energy (no Phaser)

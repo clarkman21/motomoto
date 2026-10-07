@@ -51,3 +51,19 @@ describe('garage sprites', () => {
     expect(drawOilStain(1).data.some((v, i) => i % 4 === 3 && v > 0)).toBe(true);
   });
 });
+
+import { drawRetroFontSheet, RETRO_CHARS, retroText, wrapRetro } from '../src/world/retro-font.js';
+describe('retro menu font', () => {
+  it('has a glyph for every character in the sheet', () => {
+    const c = drawRetroFontSheet();
+    expect(c.width).toBe(16 * 6);
+    expect([...RETRO_CHARS].length).toBeGreaterThan(60);
+  });
+
+  it('shows text in capitals and wraps it at spaces', () => {
+    expect(retroText('Go to Kiyovu')).toBe('GO TO KIYOVU');
+    const lines = wrapRetro('one two three four five', 9);
+    expect(lines.every((l) => l.length <= 9)).toBe(true);
+    expect(lines.join(' ')).toBe('ONE TWO THREE FOUR FIVE');
+  });
+});

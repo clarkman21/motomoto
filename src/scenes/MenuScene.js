@@ -2,15 +2,19 @@ import Phaser from 'phaser';
 import { loadGame } from './save.js';
 import { levelDef } from '../sim/levels.js';
 import { STEERING_LABELS } from '../sim/controls.js';
+import { drawRetroFontSheet, RETRO_CHARS, RETRO_CELL, RETRO_PER_ROW, retroText, wrapRetro } from '../world/retro-font.js';
+import { PixelCanvas } from '../world/pixel-canvas.js';
+import { addCanvasTexture } from './textures.js';
 
-// Menus: the welcome menu when the game starts, the pause menu in the game, How to play and Settings.
-// The ride scene draws the city behind the menu. Keyboard: ↑ ↓ to choose, Enter to select, Esc to go back.
-// Mouse and touch: tap a button.
+// Menus in a retro 16-bit console style: the welcome menu when the game starts, the pause menu,
+// How to play and Settings. Everything is drawn at a low resolution (about 320 × 200) with a pixel
+// font, then scaled up by a whole number, so the pixels stay big and sharp. Blue windows with a
+// light border, a ▶ cursor, scanlines and chiptune blips.
+// Keyboard: ↑ ↓ to choose, Enter to select, Esc to go back. Mouse and touch: tap a line.
 
-const FONT_BODY = '"Instrument Sans", system-ui, sans-serif';
-const FONT_LABEL = '"Barlow Condensed", "Instrument Sans", system-ui, sans-serif';
-const GREEN = 0x44bc9d;
 const money = (n) => `${Math.round(n).toLocaleString('en')} RWF`;
+const WHITE = 0xffffff, DIM = 0xa8b0e0, GREEN = 0x7fe0b8, GOLD = 0xffc85a, RED = 0xd84a3a;
+const ROW = 14; // virtual pixels between menu lines
 
 // How to play: one page for each topic. Simplified Technical English.
 const HELP = [
@@ -64,10 +68,10 @@ export class MenuScene extends Phaser.Scene {
   create({ mode = 'welcome' } = {}) {
     this.mode = mode;
     this.ride = this.scene.get('ride');
-    // The first time, start the ride scene behind the menu. It stays paused until you start.
+    // The first time, start the ride scene behind the menu. It waits until you start.
     if (!this.scene.isActive('ride') && !this.scene.isPaused('ride')) this.scene.launch('ride', { menu: true });
     this.scene.bringToTop();
-    this.layer = this.add.container(0, 0);
+    this.#makeFont();
     this.items = [];
     this.focus = 0;
     this.confirm = null;
@@ -78,17 +82,41 @@ export class MenuScene extends Phaser.Scene {
     this.#redraw();
   }
 
+  update(time) {
+    // The cursor bounces, and the footer hint blinks.
+    if (this.cursor) this.cursor.x = this.cursorX + (Math.floor(time / 260) % 2);
+    if (this.blink) this.blink.setVisible(Math.floor(time / 600) % 2 === 0);
+  }
+
+  #makeFont() {
+    if (this.cache.bitmapFont.exists('retro')) return;
+    addCanvasTexture(this, 'retro-font', drawRetroFontSheet());
+    const config = {
+      image: 'retro-font', width: RETRO_CELL.width, height: RETRO_CELL.height, chars: RETRO_CHARS,
+      charsPerRow: RETRO_PER_ROW, spacing: { x: 0, y: 0 }, offset: { x: 0, y: 0 }, lineSpacing: 1,
+    };
+    this.cache.bitmapFont.add('retro', Phaser.GameObjects.RetroFont.Parse(this, config));
+  }
+
   // ---------------------------------------------------------------------------
-  // Screens
+  // Screens (in virtual pixels: this.vw × this.vh)
   // ---------------------------------------------------------------------------
 
   #redraw() {
-    this.layer.removeAll(true);
+    this.children.removeAll(true);
     this.items = [];
+    this.cursor = null;
+    this.blink = null;
     const { width, height } = this.scale.gameSize;
-    this.s = height < 560 || width < 640 ? 0.75 : 1;
-    const dim = this.mode === 'welcome' && this.screen === 'main' ? 0.35 : 0.6;
-    this.layer.add(this.add.rectangle(0, 0, width, height, 0x000000, dim).setOrigin(0));
+    // The biggest whole number scale that keeps at least 320 × 200 virtual pixels (2 at least).
+    this.k = Math.max(2, Math.min(6, Math.floor(Math.min(width / 320, height / 200))));
+    this.vw = Math.floor(width / this.k);
+    this.vh = Math.floor(height / this.k);
+    this.ui = this.add.container(Math.floor((width - this.vw * this.k) / 2), Math.floor((height - this.vh * this.k) / 2)).setScale(this.k);
+    // Dim the city behind, and draw scanlines over everything.
+    const dim = this.mode === 'welcome' && this.screen === 'main' ? 0.35 : 0.55;
+    this.add.rectangle(0, 0, width, height, 0x060818, dim).setOrigin(0).setDepth(-1);
+    this.#scanlines(width, height);
     if (this.screen === 'main') this.#main();
     else if (this.screen === 'pause') this.#pause();
     else if (this.screen === 'help') this.#help();
@@ -99,102 +127,105 @@ export class MenuScene extends Phaser.Scene {
   }
 
   #main() {
-    const { width, height } = this.scale.gameSize;
-    const s = this.s;
     const save = loadGame();
     const session = this.ride?.started;
-    let y = Math.max(24 * s, height * 0.14);
-    this.#text(width / 2, y, 'MOTO KIGALI', 84, '#ffffff', FONT_LABEL, '600').setOrigin(0.5, 0).setStroke('#000000', 6);
-    y += 96 * s;
-    this.#text(width / 2, y, 'Ride a moto taxi on the hills of Kigali. Start on petrol, and save for an electric moto.', 17, '#e8e8e8', FONT_BODY, '400', Math.min(width - 48, 520 * s))
-      .setOrigin(0.5, 0).setAlign('center').setStroke('#000000', 4);
-    y += 64 * s;
+    const cx = Math.floor(this.vw / 2);
+    let y = Math.max(10, Math.floor(this.vh * 0.1));
+    // The title: big letters with a red shadow and a gold underline.
+    this.#label(cx + 3, y + 3, 'MOTO KIGALI', RED, 3).setOrigin(0.5, 0);
+    this.#label(cx, y, 'MOTO KIGALI', WHITE, 3).setOrigin(0.5, 0);
+    y += 31;
+    const g = this.#gfx();
+    g.fillStyle(GOLD, 1).fillRect(cx - 66, y, 132, 2);
+    y += 7;
+    this.#label(cx, y, 'A MOTO TAXI GAME', DIM).setOrigin(0.5, 0);
+    y += 11;
+    this.#label(cx, y, 'START ON PETROL. SAVE FOR ELECTRIC.', DIM).setOrigin(0.5, 0);
+    y += 16;
     const summary = session ? this.#sessionSummary() : save ? this.#saveSummary(save) : null;
     if (summary) {
-      this.#text(width / 2, y, summary, 15, '#9fe3cf', FONT_BODY).setOrigin(0.5, 0).setStroke('#000000', 4);
-      y += 34 * s;
+      this.#label(cx, y, summary, GREEN).setOrigin(0.5, 0);
+      y += 14;
     }
-    const buttons = [];
-    if (session || save) buttons.push(['Continue', () => this.#start('continue')]);
-    buttons.push(['New game', () => ((session || save) ? this.#ask('Start a new game? Your saved game will be deleted.', 'Yes, new game', () => this.#start('new')) : this.#start('new'))]);
-    buttons.push(['How to play', () => this.#go('help')]);
-    buttons.push(['Settings', () => this.#go('settings')]);
-    this.#column(buttons, y + 10 * s);
-    const hint = this.sys.game.device.input.touch ? 'Tap a button' : '↑ ↓ choose · Enter select · Esc back';
-    this.#text(width / 2, height - 22 * s, `${hint}   ·   Prototype v0.1`, 13, '#9e9e9e', FONT_BODY).setOrigin(0.5, 1);
+    const lines = [];
+    if (session || save) lines.push(['CONTINUE', () => this.#start('continue')]);
+    lines.push(['NEW GAME', () => ((session || save) ? this.#ask('START A NEW GAME? YOUR SAVED GAME WILL BE DELETED.', 'YES, NEW GAME', () => this.#start('new')) : this.#start('new'))]);
+    lines.push(['HOW TO PLAY', () => this.#go('help')]);
+    lines.push(['SETTINGS', () => this.#go('settings')]);
+    this.#menuWindow(lines, y + 4, 120);
+    const hint = this.sys.game.device.input.touch ? 'TAP A LINE' : '↑↓ CHOOSE   ENTER SELECT';
+    this.blink = this.#label(cx, this.vh - 22, hint, WHITE).setOrigin(0.5, 0);
+    this.#label(cx, this.vh - 11, 'PROTOTYPE V0.1', DIM).setOrigin(0.5, 0);
   }
 
   #pause() {
-    const { width, height } = this.scale.gameSize;
-    const s = this.s;
-    let y = Math.max(24 * s, height * 0.18);
-    this.#text(width / 2, y, 'PAUSED', 56, '#ffffff', FONT_LABEL, '600').setOrigin(0.5, 0);
-    y += 66 * s;
-    this.#text(width / 2, y, this.#sessionSummary(), 15, '#9fe3cf', FONT_BODY).setOrigin(0.5, 0);
-    y += 40 * s;
-    this.#column([
-      ['Resume', () => this.#resume()],
-      ['Restart shift', () => this.#ask('Restart this shift? You lose the money and the jobs of this shift.', 'Yes, restart', () => this.#restartShift())],
-      ['How to play', () => this.#go('help')],
-      ['Settings', () => this.#go('settings')],
-      ['Main menu', () => this.#toMainMenu()],
-    ], y);
+    const cx = Math.floor(this.vw / 2);
+    let y = Math.max(10, Math.floor(this.vh * 0.14));
+    this.#label(cx + 2, y + 2, 'PAUSED', RED, 2).setOrigin(0.5, 0);
+    this.#label(cx, y, 'PAUSED', WHITE, 2).setOrigin(0.5, 0);
+    y += 24;
+    this.#label(cx, y, this.#sessionSummary(), GREEN).setOrigin(0.5, 0);
+    y += 16;
+    this.#menuWindow([
+      ['RESUME', () => this.#resume()],
+      ['RESTART SHIFT', () => this.#ask('RESTART THIS SHIFT? YOU LOSE THE MONEY AND THE JOBS OF THIS SHIFT.', 'YES, RESTART', () => this.#restartShift())],
+      ['HOW TO PLAY', () => this.#go('help')],
+      ['SETTINGS', () => this.#go('settings')],
+      ['MAIN MENU', () => this.#toMainMenu()],
+    ], y, 132);
   }
 
   #help() {
-    const { width, height } = this.scale.gameSize;
-    const s = this.s;
     this.page = this.page ?? 0;
     const page = HELP[this.page];
-    const w = Math.min(width - 32, 640 * s);
-    const x = (width - w) / 2;
-    const panel = this.add.graphics();
-    this.layer.add(panel);
-    let y = Math.max(16, height * 0.08);
-    const top = y;
-    y += 16 * s;
-    this.#text(x + 22 * s, y, `HOW TO PLAY · ${this.page + 1} / ${HELP.length}`, 14, '#9e9e9e', FONT_LABEL);
-    y += 22 * s;
-    this.#text(x + 22 * s, y, page.title, 34, '#ffffff', FONT_LABEL, '600');
-    y += 46 * s;
-    for (const line of page.lines) {
-      const t = this.#text(x + 22 * s, y, line, 15, '#e0e0e0', FONT_BODY, '400', w - 44 * s).setLineSpacing(3);
-      y += t.height + 10 * s;
-    }
-    panel.fillStyle(0x111417, 0.96).fillRoundedRect(x, top, w, y - top + 6 * s, 10 * s);
-    const by = Math.min(height - 30 * s, y + 36 * s);
+    const w = Math.min(this.vw - 12, 380);
+    const x = Math.floor((this.vw - w) / 2);
+    const chars = Math.floor((w - 16) / RETRO_CELL.width);
+    const body = [];
+    for (const line of page.lines) body.push(...wrapRetro(line, chars), '');
+    body.pop();
+    const lineH = 10;
+    const maxLines = Math.max(4, Math.floor((this.vh - 64) / lineH));
+    const shown = body.slice(0, maxLines);
+    const h = 30 + shown.length * lineH + 8;
+    const y = Math.max(4, Math.floor((this.vh - h - 20) / 2));
+    this.#window(x, y, w, h);
+    this.#label(x + 8, y + 7, `${retroText(page.title)}`, GOLD);
+    this.#label(x + w - 8, y + 7, `${this.page + 1}/${HELP.length}`, DIM).setOrigin(1, 0);
+    shown.forEach((line, i) => this.#label(x + 8, y + 22 + i * lineH, line, WHITE));
     const row = [];
-    if (this.page > 0) row.push(['← Back', () => this.#turn(-1)]);
-    if (this.page < HELP.length - 1) row.push(['Next →', () => this.#turn(1)]);
-    row.push(['Close', () => this.#back()]);
-    this.#row(row, by);
+    if (this.page > 0) row.push(['◀ BACK', () => this.#turn(-1)]);
+    if (this.page < HELP.length - 1) row.push(['NEXT ▶', () => this.#turn(1)]);
+    row.push(['CLOSE', () => this.#back()]);
+    this.#rowWindow(row, y + h + 4);
   }
 
   #settings() {
-    const { width, height } = this.scale.gameSize;
-    const s = this.s;
     const ride = this.ride;
-    let y = Math.max(24 * s, height * 0.2);
-    this.#text(width / 2, y, 'SETTINGS', 48, '#ffffff', FONT_LABEL, '600').setOrigin(0.5, 0);
-    y += 70 * s;
-    const sound = ride.engineSound.enabled;
-    this.#column([
-      [`Sound: ${sound ? 'on' : 'off'}`, () => { ride.toggleSound(); this.#redraw(); }],
-      [`Steering: ${STEERING_LABELS[ride.steeringMode]}`, () => { ride.toggleSteering(); this.#redraw(); }],
-      [`Gears: ${ride.bike.autoShift ? 'automatic' : 'manual'}`, () => { ride.toggleAutoShift(); this.#redraw(); }],
-      ['Back', () => this.#back()],
-    ], y);
+    const cx = Math.floor(this.vw / 2);
+    const y = Math.max(10, Math.floor(this.vh * 0.18));
+    this.#label(cx + 2, y + 2, 'SETTINGS', RED, 2).setOrigin(0.5, 0);
+    this.#label(cx, y, 'SETTINGS', WHITE, 2).setOrigin(0.5, 0);
+    this.#menuWindow([
+      [`SOUND: ${ride.engineSound.enabled ? 'ON' : 'OFF'}`, () => { ride.toggleSound(); this.#redraw(); }],
+      [`STEERING: ${retroText(STEERING_LABELS[ride.steeringMode])}`, () => { ride.toggleSteering(); this.#redraw(); }],
+      [`GEARS: ${ride.bike.autoShift ? 'AUTOMATIC' : 'MANUAL'}`, () => { ride.toggleAutoShift(); this.#redraw(); }],
+      ['BACK', () => this.#back()],
+    ], y + 28, 200);
   }
 
   #confirmScreen() {
-    const { width, height } = this.scale.gameSize;
-    const s = this.s;
-    const y = Math.max(24 * s, height * 0.3);
-    const t = this.#text(width / 2, y, this.confirm.question, 22, '#ffffff', FONT_BODY, '600', Math.min(width - 48, 480 * s)).setOrigin(0.5, 0).setAlign('center');
-    this.#column([
+    const w = Math.min(this.vw - 12, 260);
+    const x = Math.floor((this.vw - w) / 2);
+    const lines = wrapRetro(this.confirm.question, Math.floor((w - 16) / RETRO_CELL.width));
+    const h = 14 + lines.length * 10;
+    const y = Math.max(8, Math.floor(this.vh * 0.25));
+    this.#window(x, y, w, h);
+    lines.forEach((l, i) => this.#label(x + 8, y + 8 + i * 10, l, WHITE));
+    this.#menuWindow([
       [this.confirm.yes, () => { const act = this.confirm.action; this.confirm = null; act(); }],
-      ['No', () => { this.confirm = null; this.#back(); }],
-    ], y + t.height + 30 * s);
+      ['NO', () => { this.confirm = null; this.#back(); }],
+    ], y + h + 6, 120);
   }
 
   // ---------------------------------------------------------------------------
@@ -202,7 +233,6 @@ export class MenuScene extends Phaser.Scene {
   // ---------------------------------------------------------------------------
 
   #go(screen) {
-    this.backTo = this.screen;
     this.screen = screen;
     if (screen === 'help') this.page = 0;
     this.focus = 0;
@@ -210,6 +240,7 @@ export class MenuScene extends Phaser.Scene {
   }
 
   #back() {
+    this.#sound('back');
     this.screen = this.mode === 'pause' ? 'pause' : 'main';
     this.focus = 0;
     this.#redraw();
@@ -223,7 +254,10 @@ export class MenuScene extends Phaser.Scene {
   }
 
   #turn(dir) {
-    this.page = Phaser.Math.Clamp(this.page + dir, 0, HELP.length - 1);
+    const page = Phaser.Math.Clamp(this.page + dir, 0, HELP.length - 1);
+    if (page === this.page) return;
+    this.page = page;
+    this.#sound('move');
     this.#redraw();
   }
 
@@ -249,78 +283,126 @@ export class MenuScene extends Phaser.Scene {
   #saveSummary(save) {
     const w = save.wallet ?? {};
     const def = levelDef(w.level ?? 1);
-    return `Saved game: level ${def.n} · ${def.name} · day ${w.day ?? 1} · ${money(w.cash ?? 0)}`;
+    return retroText(`Saved: level ${def.n} · day ${w.day ?? 1} · ${money(w.cash ?? 0)}`);
   }
 
   #sessionSummary() {
     const r = this.ride;
     const h = r.clockHours;
     const clock = `${String(Math.floor(h)).padStart(2, '0')}:${String(Math.floor((h % 1) * 60)).padStart(2, '0')}`;
-    return `Level ${r.level.n} · ${r.level.name} · day ${r.wallet.day} · ${clock} · ${money(r.wallet.cash)}`;
+    return retroText(`Level ${r.level.n} · day ${r.wallet.day} · ${clock} · ${money(r.wallet.cash)}`);
+  }
+
+  #sound(kind) {
+    const sound = this.ride?.engineSound;
+    sound?.start(); // the browser starts audio only after a key press or a tap
+    sound?.blip(kind);
   }
 
   // ---------------------------------------------------------------------------
-  // Widgets and keyboard
+  // Widgets (virtual pixels, inside this.ui)
   // ---------------------------------------------------------------------------
 
-  #text(x, y, str, size, colour, font = FONT_BODY, weight = '400', wrap = 0) {
-    const t = this.add.text(x, y, str, {
-      fontFamily: font, fontSize: `${Math.round(size * this.s)}px`, fontStyle: weight, color: colour,
-      wordWrap: wrap ? { width: wrap } : undefined,
-    });
-    this.layer.add(t);
+  #gfx() {
+    const g = this.add.graphics();
+    this.ui.add(g);
+    return g;
+  }
+
+  #label(x, y, text, tint = WHITE, scale = 1) {
+    const t = this.add.bitmapText(x, y, 'retro', retroText(text)).setTint(tint).setScale(scale);
+    this.ui.add(t);
     return t;
   }
 
-  #button(x, y, label, onTap, w) {
-    const s = this.s;
-    const bw = w ?? 260 * s, bh = 44 * s;
-    const bg = this.add.rectangle(x, y, bw, bh, 0x1c2126, 0.95).setStrokeStyle(2, 0x3a424a).setInteractive({ useHandCursor: true });
-    const t = this.add.text(x, y, label, { fontFamily: FONT_LABEL, fontSize: `${Math.round(22 * s)}px`, fontStyle: '600', color: '#ffffff' }).setOrigin(0.5);
-    this.layer.add([bg, t]);
-    const item = { bg, t, onTap };
+  /** A window like the menus of 16-bit role playing games: a blue gradient and a light border. */
+  #window(x, y, w, h) {
+    const g = this.#gfx();
+    const bands = [0x3050c0, 0x2a48b0, 0x2440a0, 0x1e3890, 0x183080, 0x142870, 0x102060];
+    const bandH = Math.ceil(h / bands.length);
+    bands.forEach((col, i) => g.fillStyle(col, 0.96).fillRect(x + 2, y + 2 + i * bandH, w - 4, Math.min(bandH, h - 4 - i * bandH)));
+    g.fillStyle(0x000000, 1);
+    g.fillRect(x + 1, y, w - 2, 1).fillRect(x + 1, y + h - 1, w - 2, 1).fillRect(x, y + 1, 1, h - 2).fillRect(x + w - 1, y + 1, 1, h - 2);
+    g.fillStyle(0xe8e8f8, 1);
+    g.fillRect(x + 2, y + 1, w - 4, 1).fillRect(x + 1, y + 2, 1, h - 4);
+    g.fillStyle(0x9098c8, 1);
+    g.fillRect(x + 2, y + h - 2, w - 4, 1).fillRect(x + w - 2, y + 2, 1, h - 4);
+    return g;
+  }
+
+  /** A window with one menu line for each item. items: [[label, onSelect]]. */
+  #menuWindow(items, y, w) {
+    const width = Math.max(w, ...items.map(([l]) => retroText(l).length * RETRO_CELL.width + 26));
+    const h = items.length * ROW + 8;
+    const x = Math.floor((this.vw - width) / 2);
+    this.#window(x, y, width, h);
+    items.forEach(([label, fn], i) => this.#item(x + 16, y + 6 + i * ROW, label, fn, width - 20));
+  }
+
+  /** A row of choices in one window (for example: back, next, close). */
+  #rowWindow(items, y) {
+    const cellW = Math.max(...items.map(([l]) => retroText(l).length * RETRO_CELL.width + 18));
+    const w = cellW * items.length + 8;
+    const x = Math.floor((this.vw - w) / 2);
+    this.#window(x, y, w, ROW + 6);
+    items.forEach(([label, fn], i) => this.#item(x + 14 + i * cellW, y + 5, label, fn, cellW - 4));
+  }
+
+  #item(x, y, label, onSelect, w) {
+    const t = this.#label(x, y, label, DIM);
+    const zone = this.add.zone(x - 10, y - 2, w, ROW).setOrigin(0).setInteractive({ useHandCursor: true });
+    this.ui.add(zone);
     const index = this.items.length;
-    bg.on('pointerover', () => { this.focus = index; this.#showFocus(); });
-    bg.on('pointerdown', () => onTap());
-    this.items.push(item);
-    return item;
+    zone.on('pointerover', () => { if (this.focus !== index) { this.focus = index; this.#showFocus(); this.#sound('move'); } });
+    zone.on('pointerdown', () => this.#select(index));
+    this.items.push({ t, x, y, onSelect });
   }
 
-  #column(buttons, y) {
-    const { width } = this.scale.gameSize;
-    const gap = 54 * this.s;
-    buttons.forEach(([label, fn], i) => this.#button(width / 2, y + i * gap + 22 * this.s, label, fn));
-  }
-
-  #row(buttons, y) {
-    const { width } = this.scale.gameSize;
-    const bw = 150 * this.s, gap = 14 * this.s;
-    const total = buttons.length * bw + (buttons.length - 1) * gap;
-    buttons.forEach(([label, fn], i) => this.#button(width / 2 - total / 2 + bw / 2 + i * (bw + gap), y, label, fn, bw));
+  #select(index) {
+    const it = this.items[index];
+    if (!it) return;
+    this.#sound('select');
+    it.onSelect();
   }
 
   #showFocus() {
-    this.items.forEach((it, i) => {
-      const on = i === this.focus;
-      it.bg.setFillStyle(on ? GREEN : 0x1c2126, on ? 1 : 0.95).setStrokeStyle(2, on ? 0xffffff : 0x3a424a);
-      it.t.setColor(on ? '#0b1a15' : '#ffffff');
-    });
+    this.items.forEach((it, i) => it.t.setTint(i === this.focus ? WHITE : DIM));
+    const it = this.items[this.focus];
+    if (!it) return;
+    if (!this.cursor) this.cursor = this.#label(0, 0, '▶', GOLD);
+    this.cursorX = it.x - 10;
+    this.cursor.setPosition(this.cursorX, it.y);
+  }
+
+  #scanlines(width, height) {
+    const key = `scanline-${this.k}`;
+    if (!this.textures.exists(key)) {
+      const c = new PixelCanvas(1, this.k);
+      c.setPixel(0, this.k - 1, 0x000000, 60);
+      addCanvasTexture(this, key, c);
+    }
+    this.add.tileSprite(0, 0, width, height, key).setOrigin(0).setDepth(10);
   }
 
   #key(e) {
     const n = this.items.length;
+    const move = (d) => {
+      this.focus = (this.focus + d + n) % n;
+      this.#showFocus();
+      this.#sound('move');
+    };
     switch (e.code) {
-      case 'ArrowUp': case 'KeyW': case 'ArrowLeft': case 'KeyA':
-        if (this.screen === 'help' && (e.code === 'ArrowLeft' || e.code === 'KeyA')) return this.#turn(-1);
-        this.focus = (this.focus - 1 + n) % n;
-        return this.#showFocus();
-      case 'ArrowDown': case 'KeyS': case 'ArrowRight': case 'KeyD': case 'Tab':
-        if (this.screen === 'help' && (e.code === 'ArrowRight' || e.code === 'KeyD')) return this.#turn(1);
+      case 'ArrowUp': case 'KeyW':
+        return move(-1);
+      case 'ArrowDown': case 'KeyS': case 'Tab':
         e.preventDefault?.();
-        this.focus = (this.focus + 1) % n;
-        return this.#showFocus();
+        return move(1);
+      case 'ArrowLeft': case 'KeyA':
+        return this.screen === 'help' ? this.#turn(-1) : move(-1);
+      case 'ArrowRight': case 'KeyD':
+        return this.screen === 'help' ? this.#turn(1) : move(1);
       case 'Enter': case 'Space':
-        return this.items[this.focus]?.onTap();
+        return this.#select(this.focus);
       case 'Escape': case 'KeyP':
         if (this.screen === 'pause') return this.#resume();
         if (this.screen !== 'main') return this.#back();
