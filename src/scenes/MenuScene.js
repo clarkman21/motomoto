@@ -23,7 +23,7 @@ const HELP = [
     lines: [
       'You are a moto taxi rider in Kigali. Carry passengers and cargo, and make money.',
       'Each level has a savings goal: school fees, a phone, an electric moto and more. Save the goal plus 5,000 RWF of working money. Then buy the milestone at the end of a day. The next level starts, and a new part of the city opens.',
-      'Each shift ends at a fixed hour. Then you pay the rent for the bike. If you have no cash, you can take one loan. After that, the game is over for the level, and you start the level again.',
+      'Each shift ends at a fixed hour. Then you pay the rent for the bike. If your cash is below zero after the rent, the game is over. If the tank is empty and you have no cash for fuel, the game is over too. Then you ride a bicycle taxi again, and you start again at level 1.',
     ],
   },
   {

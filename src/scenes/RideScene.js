@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES } from '../config.js';
+import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER } from '../config.js';
 import { World } from '../world/world.js';
 import { buildKigaliMap } from '../world/maps/kigali.js';
 import { ChunkStreamer } from './chunks.js';
@@ -13,7 +13,7 @@ import {
 import { createBike, stepBike, forwardSpeed, shiftGear, bestGear, resetToRoad } from '../sim/bike.js';
 import { readControls, STEERING_MODES, STEERING_LABELS } from '../sim/controls.js';
 import { EngineSound } from '../audio/engine-sound.js';
-import { createWallet, earn, spend, buyFuel, swapBattery, fuelFillCost, fuelChoices, repairCost, endDay, takeLoan, payGarage } from '../sim/economy.js';
+import { createWallet, earn, spend, buyFuel, swapBattery, fuelFillCost, fuelChoices, repairCost, endDay, stranded, payGarage } from '../sim/economy.js';
 import { garageQuote, serviceDue } from '../sim/maintenance.js';
 import { createJobBoard, updateBoard, acceptOffer, cancelJob, updateJob, jobTarget, acceptHail, tripMetres, passengerWaits } from '../sim/jobs.js';
 import { createCameraState, checkCameras, speedLimitAt } from '../sim/law.js';
@@ -26,7 +26,7 @@ import { startRace, chaseHail, stepRivals, cancelMission } from '../sim/rivals.j
 import { PeopleView } from './PeopleView.js';
 import { PERSON_LOOKS } from '../world/vehicle-sprites.js';
 import { trafficHonks } from '../sim/honk.js';
-import { levelSettings, milestoneReady, buyMilestone, restartLevel, streakMultiplier, updateStreak, savingsTarget } from '../sim/levels.js';
+import { levelSettings, milestoneReady, buyMilestone, streakMultiplier, updateStreak, savingsTarget } from '../sim/levels.js';
 import { loadGame, saveGame, clearSave, loadSettings, saveSettings } from './save.js';
 import { deliveryLine } from '../sim/family.js';
 import { jobFuel, legFuel } from '../sim/fuel.js';
@@ -457,7 +457,7 @@ export class RideScene extends Phaser.Scene {
       this.events.emit('bark', 'You have enough fuel for that');
       return;
     }
-    if (this.wallet.cash < 10) {
+    if (this.wallet.cash < MONEY.minFuelCash) {
       this.events.emit('bark', 'No cash for fuel');
       return;
     }
@@ -601,26 +601,32 @@ export class RideScene extends Phaser.Scene {
     saveGame({ wallet, bike: { energy, serviceWear, brokenDown, brakeWearKm } });
   }
 
-  #endDay() {
+  /** The end of the shift. reason 'stranded': the game is over before the shift ends (see #updateStranded). */
+  #endDay(reason = null) {
     if (this.board.active) cancelJob(this.board, this.bike);
     cancelMission(this.raceRival);
     this.raceRival = null;
     this.refuel = null;
     const summary = endDay(this.wallet, this.bike, this.level.rent);
     summary.level = this.level;
-    summary.milestoneReady = !summary.outOfCash && milestoneReady(this.wallet);
+    // Game over: stranded (an empty tank and no cash), or below zero cash after the rent. There is no loan.
+    summary.gameOver = reason ?? (summary.outOfCash ? 'cash' : null);
+    summary.career = { days: summary.day, totalIncome: this.wallet.totalIncome, milestones: this.wallet.milestones.length };
+    summary.milestoneReady = !summary.gameOver && milestoneReady(this.wallet);
     summary.savingsTarget = savingsTarget(this.wallet);
     this.dayOver = true;
     // The engine stops (it used to keep humming the last note), and a short tune says the shift is over.
     this.engineSound.silence();
-    this.engineSound.jingle(summary.outOfCash === 'gameOver' ? 'gameOver' : 'shiftEnd');
+    this.engineSound.jingle(summary.gameOver ? 'gameOver' : 'shiftEnd');
+    // The game is over: remove the save now, so that a reload of the page cannot bring the moto back.
+    if (summary.gameOver) clearSave();
     this.scene.pause();
     this.scene.launch('dayEnd', { summary, onContinue: (choice) => this.#startDay(choice) });
   }
 
   /**
-   * choice: 'next' (next day), 'loan' (take the loan, then the next day), 'restart' (game over: restart this level),
-   * 'buy' (buy the milestone, then show the new level), 'newGame' (start again at level 1).
+   * choice: 'next' (next day), 'buy' (buy the milestone, then show the new level),
+   * 'newGame' (start again at level 1: after a game over, or from the day end screen).
    */
   #startDay(choice = 'next') {
     if (choice === 'buy') {
@@ -636,14 +642,12 @@ export class RideScene extends Phaser.Scene {
     this.dayOver = false;
     this.officeHint = false;
     this.honkBarked = false;
+    this.strandedTime = null;
+    this.debtTime = null;
     const { autoShift, energy, serviceWear, brokenDown, brakeWearKm } = this.bike;
     if (choice === 'newGame') {
       clearSave();
       this.wallet = createWallet();
-    } else if (choice === 'restart') {
-      restartLevel(this.wallet);
-    } else if (choice === 'loan') {
-      takeLoan(this.wallet);
     }
     const type = levelSettings(this.wallet).bikeType;
     this.bike = createBike(this.world, type);
@@ -809,6 +813,31 @@ export class RideScene extends Phaser.Scene {
     } else this.engineSound.update(this.bike.type, Math.min(1, this.bike.revs), this.controls.throttle);
     this.dayTime += dt;
     if (this.dayTime >= this.level.shift.realSeconds) this.#endDay();
+    else this.#updateStranded(dt);
+  }
+
+  /**
+   * Out of cash. Below zero: a warning (earn it back before the shift ends). An empty tank or battery
+   * with no cash to fill it, and nobody on the bike to pay you: a warning, then the game is over.
+   */
+  #updateStranded(dt) {
+    if (this.wallet.cash >= 0) this.debtTime = null;
+    else if (this.debtTime === null || this.debtTime === undefined) this.debtTime = 0;
+    else if (this.debtTime >= 0 && (this.debtTime += dt) > 2.5) {
+      // A short wait, so that the bark about the fine or the crash comes first.
+      this.debtTime = -1;
+      this.events.emit('bark', 'Your cash is below zero! Earn it back before the shift ends, or the game is over');
+    }
+    const carrying = this.board.active?.stage === 'toDropoff';
+    if (this.refuel || !stranded(this.wallet, this.bike, carrying)) {
+      this.strandedTime = null;
+      return;
+    }
+    if (this.strandedTime === null || this.strandedTime === undefined) {
+      this.strandedTime = 0;
+      this.events.emit('bark', this.bike.type === 'electric' ? 'The battery is empty, and you have no cash for a swap...' : 'The tank is empty, and you have no cash for fuel...');
+    }
+    if ((this.strandedTime += dt) >= GAME_OVER.strandedSeconds) this.#endDay('stranded');
   }
 
   /** The road graph edge that passes a bus stop. */

@@ -1,12 +1,14 @@
 import Phaser from 'phaser';
-import { INCOME, COSTS, loanPayment } from '../sim/economy.js';
-import { MONEY } from '../config.js';
-import { dayEndStory } from '../sim/family.js';
+import { INCOME, COSTS } from '../sim/economy.js';
+import { GAME_OVER } from '../config.js';
+import { dayEndStory, gameOverStory } from '../sim/family.js';
+import { drawBicycleTaxi, drawGameOverBackdrop, BICYCLE_CANVAS, BACKDROP_ROAD } from '../world/bicycle-sprites.js';
+import { addCanvasTexture } from './textures.js';
 import { wrapRetro, RETRO_CELL } from '../world/retro-font.js';
 import { UI, pixelScale, ensureRetroFont, ensureIcons, retroLabel, retroWidth, drawWindow } from './retro-ui.js';
 
-// The day end summary (what you earned, what you spent, your profit) and the level up screen,
-// in the same retro 16-bit look as the menus and the HUD: low resolution, the pixel font, blue
+// The day end summary (what you earned, what you spent, your profit), the level up screen and the
+// game over screen (you lost the moto and ride a bicycle taxi again), in the same retro 16-bit look as the menus and the HUD: low resolution, the pixel font, blue
 // windows, scaled up by a whole number.
 
 const money = (n) => `${n < 0 ? '−' : ''}${Math.abs(Math.round(n)).toLocaleString('en')} RWF`;
@@ -29,6 +31,7 @@ export class DayEndScene extends Phaser.Scene {
     this.g = this.add.graphics();
     this.ui.add(this.g);
     if (levelUp) return this.#levelUp(levelUp, onContinue);
+    if (summary.gameOver) return this.#gameOver(summary, onContinue);
     this.#summary(summary, onContinue);
   }
 
@@ -56,12 +59,11 @@ export class DayEndScene extends Phaser.Scene {
     const W = Math.min(this.vw - 8, 300);
     const x = Math.floor((this.vw - W) / 2);
     const n = Math.floor((W - 20) / RETRO_CELL.width);
-    if (summary.declinedLoan) this.scene.get('ride').engineSound.jingle('gameOver');
     // Measure first (the window is drawn under the text), so draw the text into a list.
     let y = 0;
     const draw = [];
     const T = (dx, dy, text, tint, scale) => draw.push(() => this.#text(x + dx, dy, text, tint, scale));
-    T(10, 8, summary.outOfCash === 'gameOver' ? `GAME OVER · DAY ${summary.day}` : `END OF DAY ${summary.day}`, UI.white, 2);
+    T(10, 8, `END OF DAY ${summary.day}`, UI.white, 2);
     const bikeName = summary.bikeType === 'electric' ? 'Electric moto' : 'Petrol moto';
     const offRoad = summary.offRoadKm >= 0.05 ? ` (${summary.offRoadKm.toFixed(1)} off road)` : '';
     y = 30;
@@ -93,25 +95,19 @@ export class DayEndScene extends Phaser.Scene {
     T(10, y, 'PROFIT', UI.white, 2);
     T(W - 10 - retroWidth(p, 2), y, p, summary.profit >= 0 ? UI.green : UI.red, 2);
     y += 24;
-    // Notes: cash, regen, loan, out of cash, the savings goal.
+    // Notes: cash, regen, the savings goal.
     const notes = [`Cash now: ${money(summary.cash)}`];
     if (summary.regenSaved > 0) notes.push(`Regen put back ${Math.round(summary.regenFraction * 100)}% of a battery (about ${money(summary.regenSaved)} saved)`);
-    if (summary.loan) notes.push(`Loan: ${money(summary.loan.payment)} each day, ${summary.loan.daysLeft} days left`);
-    const loanOffer = summary.outOfCash === 'loan';
-    const gameOver = summary.outOfCash === 'gameOver';
-    if (loanOffer) notes.push(`You are out of cash. Take a loan of ${money(MONEY.loan.amount)}? You pay back ${money(loanPayment())} each day for ${MONEY.loan.days} days. You can take only one loan.`);
-    if (gameOver) notes.push('GAME OVER. You are out of cash.', `You restart level ${summary.level.n} (${summary.level.name}) with ${money(MONEY.startCash)}. Your earlier milestones stay.`);
     const atOffice = summary.level.buyAt === 'office';
     const ready = summary.milestoneReady && !atOffice; // the electric moto: you buy it at the showroom
-    if (!gameOver && !loanOffer) {
-      notes.push(summary.milestoneReady && atOffice
-        ? `You saved enough for: ${summary.level.milestone}! Tomorrow, ride to the Ampersand showroom on Kacyiru boulevard and press F to buy it.`
-        : ready
-        ? `You saved enough for: ${summary.level.milestone} (${money(summary.level.goal)}).`
-        : `Level ${summary.level.n} goal: ${summary.level.milestone}. Save ${money(summary.savingsTarget)} (goal + ${money(summary.savingsTarget - summary.level.goal)} working money).`);
-    }
+    notes.push(summary.milestoneReady && atOffice
+      ? `You saved enough for: ${summary.level.milestone}! Tomorrow, ride to the Ampersand showroom on Kacyiru boulevard and press F to buy it.`
+      : ready
+      ? `You saved enough for: ${summary.level.milestone} (${money(summary.level.goal)}).`
+      : `Level ${summary.level.n} goal: ${summary.level.milestone}. Save ${money(summary.savingsTarget)} (goal + ${money(summary.savingsTarget - summary.level.goal)} working money).`);
+    if (summary.cash < GAME_OVER.warnBelowCash) notes.push(`Be careful: if your cash is below zero after the rent, or the ${summary.bikeType === 'electric' ? 'battery is empty and you have no cash for a swap' : 'tank is empty and you have no cash for fuel'}, the game is over.`);
     for (const note of notes) {
-      const tint = /GAME OVER|out of cash/i.test(note) ? UI.red : /saved enough/i.test(note) ? UI.gold : UI.dim;
+      const tint = /game is over/i.test(note) ? UI.orange : /saved enough/i.test(note) ? UI.gold : UI.dim;
       for (const l of wrapRetro(note, n)) { T(10, y, l, tint); y += LINE; }
       y += 2;
     }
@@ -130,26 +126,114 @@ export class DayEndScene extends Phaser.Scene {
       this.scene.stop();
       onContinue(choice);
     };
-    const restartGameOver = () => this.scene.restart({ summary: { ...summary, outOfCash: 'gameOver', declinedLoan: true }, onContinue });
     const by = H + 6;
-    if (loanOffer) {
-      this.#buttons(by, [['L · TAKE THE LOAN', () => finish('loan')], ['ENTER · END THE GAME', restartGameOver]]);
-      this.input.keyboard.once('keydown-L', () => finish('loan'));
-      this.input.keyboard.once('keydown-ENTER', restartGameOver);
-      return;
-    }
     if (ready) {
       this.#buttons(by, [['M · BUY THE MILESTONE', () => finish('buy')], ['ENTER · KEEP SAVING', () => finish('next')]]);
       this.input.keyboard.once('keydown-M', () => finish('buy'));
       this.input.keyboard.once('keydown-ENTER', () => finish('next'));
       return;
     }
-    const choice = gameOver ? 'restart' : 'next';
     const touch = this.sys.game.device.input.touch;
-    this.#buttons(by, [[touch ? (gameOver ? 'TAP: RESTART THE LEVEL' : 'TAP: NEXT DAY') : (gameOver ? `ENTER · RESTART LEVEL ${summary.level.n}` : 'ENTER · NEXT DAY'), () => finish(choice)], ...(touch ? [] : [['N · NEW GAME', () => finish('newGame')]])]);
-    this.input.keyboard.once('keydown-ENTER', () => finish(choice));
+    this.#buttons(by, [[touch ? 'TAP: NEXT DAY' : 'ENTER · NEXT DAY', () => finish('next')], ...(touch ? [] : [['N · NEW GAME', () => finish('newGame')]])]);
+    this.input.keyboard.once('keydown-ENTER', () => finish('next'));
     this.input.keyboard.once('keydown-N', () => finish('newGame'));
-    this.input.once('pointerdown', (p) => { if (!p.hitButton) finish(choice); });
+    this.input.once('pointerdown', (p) => { if (!p.hitButton) finish('next'); });
+  }
+
+  /**
+   * Game over: why, a picture of you on a bicycle taxi (it moves), the story, what you did in this
+   * game, and one choice: start again at level 1.
+   */
+  #gameOver(summary, onContinue) {
+    const W = Math.min(this.vw - 8, 300);
+    const x = Math.floor((this.vw - W) / 2);
+    const n = Math.floor((W - 20) / RETRO_CELL.width);
+    const story = gameOverStory(summary);
+    const { career = {}, level } = summary;
+    const days = career.days ?? summary.day, earned = money(career.totalIncome ?? summary.totalIncomeAllDays ?? 0);
+    // Measure the full text first. On a small screen (a phone), use the short text, so that the button is on the screen.
+    const layout = (compact) => {
+      const draw = [];
+      const T = (dx, dy, text, tint, scale) => draw.push(() => this.#text(x + dx, dy, text, tint, scale));
+      const title = 'GAME OVER';
+      T(Math.floor((W - retroWidth(title, 2)) / 2), compact ? 6 : 8, title, UI.red, 2);
+      let y = compact ? 26 : 30;
+      for (const l of wrapRetro(story.reason, n)) { T(10, y, l, UI.gold); y += LINE; }
+      y += compact ? 2 : 4;
+      const pic = { x: x + 10, y, w: W - 20, h: compact ? BICYCLE_CANVAS.height + 4 : 80 };
+      draw.push(() => this.#bicyclePicture(pic));
+      y += pic.h + (compact ? 4 : 6);
+      const lines = compact ? [story.short] : story.lines;
+      for (const line of lines) {
+        for (const l of wrapRetro(line, n)) { T(10, y, l, UI.white); y += LINE; }
+        y += 2;
+      }
+      y += 2;
+      const stats = compact
+        ? [`${days} ${days === 1 ? 'day' : 'days'} on the moto · ${earned} earned · level ${level.n}`]
+        : [
+            `Days on the moto: ${days}`,
+            `Money earned in this game: ${earned}`,
+            `You got to level ${level.n}: ${level.name}${career.milestones ? ` (${career.milestones} milestones)` : ''}`,
+          ];
+      for (const s of stats) for (const l of wrapRetro(s, n)) { T(10, y, l, UI.dim); y += LINE; }
+      return { draw, H: y + 6 };
+    };
+    let { draw, H } = layout(false);
+    if (H + LINE + 16 > this.vh) ({ draw, H } = layout(true));
+    const top = Math.max(2, Math.floor((this.vh - H - LINE - 14) / 2));
+    drawWindow(this.g, x, 0, W, H);
+    this.ui.setY(top * this.k);
+    for (const d of draw) d();
+    const go = () => {
+      this.scene.stop();
+      onContinue('newGame');
+    };
+    const touch = this.sys.game.device.input.touch;
+    this.#buttons(H + 4, [[touch ? 'TAP: START AGAIN' : 'ENTER · START AGAIN', go]]);
+    // A short wait, so that a key that is held down from the ride does not skip the screen.
+    this.time.delayedCall(800, () => {
+      this.input.keyboard.once('keydown-ENTER', go);
+      this.input.once('pointerdown', go);
+    });
+  }
+
+  /** The bicycle taxi on the road at dusk. The pedals turn, the road moves and the rider puffs now and then. */
+  #bicyclePicture(pic) {
+    const frames = GAME_OVER.bicycleFrames;
+    const bgKey = `gameover-backdrop-${pic.w}x${pic.h}`;
+    if (!this.textures.exists(bgKey)) addCanvasTexture(this, bgKey, drawGameOverBackdrop(pic.w, pic.h));
+    for (let f = 0; f < frames; f++) if (!this.textures.exists(`gameover-bicycle-${f}`)) addCanvasTexture(this, `gameover-bicycle-${f}`, drawBicycleTaxi(f, frames));
+    const bg = this.add.image(pic.x, pic.y, bgKey).setOrigin(0);
+    const dashes = this.add.graphics();
+    const roadMid = pic.y + pic.h - BACKDROP_ROAD + 9;
+    const bx = pic.x + Math.floor(pic.w * 0.3);
+    const bike = this.add.image(bx, pic.y + pic.h - BACKDROP_ROAD + 6 - BICYCLE_CANVAS.groundY, 'gameover-bicycle-0').setOrigin(0);
+    const puff = retroLabel(this, bx + 46, bike.y + 2, '', UI.white);
+    this.ui.add([bg, dashes, bike, puff]);
+    let f = 0, t = 0, nextPuff = 1.5;
+    const sound = this.scene.get('ride')?.engineSound;
+    this.time.addEvent({
+      delay: GAME_OVER.frameMs, loop: true, callback: () => {
+        f = (f + 1) % frames;
+        t += GAME_OVER.frameMs / 1000;
+        bike.setTexture(`gameover-bicycle-${f}`);
+        // The road dashes move to the left (the bicycle goes to the right, slowly).
+        const off = Math.floor(t * 14) % 16;
+        dashes.clear().fillStyle(0xd8d6cc, 1);
+        for (let dx = -off; dx < pic.w; dx += 16) {
+          const x0 = Math.max(0, dx), x1 = Math.min(pic.w, dx + 8);
+          if (x1 > x0) dashes.fillRect(pic.x + x0, roadMid, x1 - x0, 1);
+        }
+        // Hard work: a puff and a word now and then.
+        if (t >= nextPuff) {
+          const i = Math.floor(Math.random() * 4);
+          puff.setText(['UFF!', 'AAH...', 'OOH!', 'EEH!'][i]);
+          sound?.grunt(i);
+          nextPuff = t + 2.5 + Math.random() * 2;
+        } else if (t > nextPuff - 1.6) puff.setText('');
+      },
+    });
   }
 
   /** A row of choices in small windows (relative to the container). */

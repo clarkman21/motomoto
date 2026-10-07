@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { needFor, deliveryLine, dayEndStory } from '../src/sim/family.js';
+import { needFor, deliveryLine, dayEndStory, gameOverStory } from '../src/sim/family.js';
 import { FAMILY, LEVELS } from '../src/config.js';
 
 describe('family rewards', () => {
@@ -23,10 +23,19 @@ describe('family rewards', () => {
 
   it('a bad day and out of cash have their own words', () => {
     expect(dayEndStory({ profit: -500, cash: 3000, day: 1, level: LEVELS[0], savingsTarget: 20000 }).lines[0]).toContain('loss');
-    expect(dayEndStory({ profit: -9000, cash: -100, day: 1, outOfCash: 'loan' }).lines[0]).toContain('No money');
+    expect(dayEndStory({ profit: -9000, cash: -100, day: 1, outOfCash: true }).lines[0]).toContain('No money');
   });
 
   it('every level with a milestone has a story', () => {
     for (const l of LEVELS) expect(l.story, l.name).toBeTruthy();
+  });
+
+  it('game over: says why, and that you ride a bicycle taxi again', () => {
+    const empty = gameOverStory({ gameOver: 'stranded', bikeType: 'petrol', cash: -200 });
+    expect(empty.reason).toContain('no cash for fuel');
+    expect(gameOverStory({ gameOver: 'stranded', bikeType: 'electric', cash: 0 }).reason).toContain('swap');
+    const debt = gameOverStory({ gameOver: 'cash', bikeType: 'petrol', cash: -2300 });
+    expect(debt.reason).toContain('−2,300 RWF');
+    expect(debt.lines.join(' ')).toContain('bicycle taxi');
   });
 });

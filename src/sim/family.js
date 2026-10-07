@@ -42,4 +42,26 @@ export function dayEndStory(summary) {
   return { title: 'FOR YOUR FAMILY', lines };
 }
 
+/**
+ * The game over story: { reason, lines, short }. summary.gameOver: 'stranded' (an empty tank or battery and
+ * no cash to fill it) or 'cash' (below zero after the rent). You lose the moto and ride a bicycle taxi.
+ */
+export function gameOverStory(summary) {
+  const { partner } = FAMILY;
+  const electric = summary.bikeType === 'electric';
+  const reason = summary.gameOver === 'stranded'
+    ? (electric ? 'The battery is empty, and you have no cash for a swap.' : 'The tank is empty, and you have no cash for fuel.')
+    : `You cannot pay the rent for the moto. Your cash is −${money(-summary.cash)}.`;
+  return {
+    reason,
+    lines: [
+      'The owner takes the moto back.',
+      'Now you ride a bicycle taxi again: an igare with a soft seat on the back. You pedal your passengers up the hills of Kigali. It is slow and hard, and the fares are small.',
+      `${partner} says: we start again. One fare at a time, we save for a moto.`,
+    ],
+    // For small screens: the same story in one line.
+    short: 'The owner takes the moto back. Now you pedal a bicycle taxi up the hills again. Start again!',
+  };
+}
+
 const pick = (seed, list) => list[Math.abs(seed) % list.length];

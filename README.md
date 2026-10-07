@@ -39,7 +39,7 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Speed limit zones, signs and speed cameras with fines | Done |
 | Garage, service meter, breakdowns, crash repairs, daily rent | Done |
 | Shift clock for each level (for example 19:00–23:00 in 3 min) and day end summary | Done |
-| Out of cash: one loan, then game over | Done |
+| Out of cash = game over (no loan): below zero after the rent, or an empty tank and no cash for fuel; a bicycle taxi game over screen, then a new game at level 1 | Done |
 | Kigali map: 6 districts (Nyabugogo, Kigali town, Kacyiru, Kimihurura, Nyarutarama, Kicukiro), 192 × 128 tiles, streamed in chunks | Done |
 | Topography: valley, ridges, hills and saddles; foundations on slopes, slope shading and contour lines | Done |
 | The map grows with the levels: barriers close the districts that are not open yet | Done |
@@ -133,7 +133,6 @@ The game is about money. You earn from jobs. You spend on energy, fines and the 
 | | Crash repair: 800 RWF |
 | | Garage service: 3,500 RWF (petrol: oil change, brake pads, check), 2,000 RWF (electric: brake pads, check) |
 | | Daily rent: 6,000 RWF (petrol and electric) |
-| | Loan payment: 2,400 RWF per day for 10 days, if you took the loan |
 
 - **Jobs.** Take a job (1, 2 or 3). Ride to the green marker and stop. Then ride to the white marker and stop. Potholes, hard speed bumps, crashes and hard braking cost passenger comfort (and so the tip) and damage fragile cargo. A passenger or cargo makes the bike heavier.
 - **Speed limits.** Outside a zone the limit is 60 km/h. The market zone is 30 km/h. The city centre, the roundabout and the bottom of the steep east ramp are 40 km/h. Four cameras fine you when you pass more than 5 km/h over the limit. The HUD limit sign flashes when you are too fast.
@@ -144,7 +143,7 @@ The game is about money. You earn from jobs. You spend on energy, fines and the 
 - **Rival riders.** When you take an app job, a rival (blue vest) may race you to the pickup; a red pin shows the rival. If the rival gets there first, you lose the job. Rivals also take street hails, and app offers go away faster (15–40 s).
 - **Passengers and cargo show on the bike.** A passenger with a helmet rides behind you; cargo sacks ride on the rear rack. A person waves at a passenger pickup; sacks wait at a cargo pickup.
 - **Empty tank or battery.** Hold throttle to push the bike at walking speed to a station.
-- **Out of cash.** The game checks your cash at the end of each day, after the rent. Below zero, you can take one loan of 20,000 RWF (you pay back 2,400 RWF each day for 10 days). If you already had the loan, or your debt is larger than the loan, the game is over.
+- **Out of cash: game over.** There is no loan. The game is over when: (1) your cash is below zero at the end of the day, after the rent; or (2) the tank (or the battery) is empty, you have less cash than the smallest fuel buy (10 RWF) or a swap (2,500 RWF), and no passenger or cargo is on the bike. For (2) you get a warning, then the game over screen comes after 4 s. During the shift, cash below zero gets a warning only: earn it back before the shift ends. The game over screen shows why, a moving picture of you on a bicycle taxi (an igare, with a passenger on the soft seat at the back), and what you did in the game. Then you start again at level 1. The save is removed at the game over, so a reload does not bring the moto back.
 - **Regen.** The electric moto charges its battery when it brakes and when it rolls downhill. The day end summary shows how much regen saved.
 - **Distance.** The test map is small, so 40 m of map counts as 1 game km.
 
@@ -166,7 +165,8 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `HAZARDS` | Pothole and speed bump effects (traffic uses the same safe speeds) |
 | `LOAD` | Mass of bike and rider (a load changes pull and braking) |
 | `DAY` | Day length and hours |
-| `MONEY` | Start cash, rent, fuel, swaps, crash repair, loan |
+| `MONEY` | Start cash, rent, fuel, swaps, crash repair, the smallest fuel buy |
+| `GAME_OVER` | Warning time before the game over when you are stranded, the bicycle taxi animation, the cash below which the day end shows the game over rules |
 | `MAINTENANCE` | Service interval, wear from red zone and hits, overdue penalties, breakdown, garage price |
 | `JOBS` | Fares, tips, cargo pay, comfort and damage rules, game km scale |
 | `LAW` | Default speed limit, camera tolerance and fines |
@@ -212,10 +212,11 @@ src/
     market-sprites.js    Market vendors, kitenge, goats and sheep, MTN MoMo agents
     market.js            Where the market vendors, animals and MoMo agents stand
     minimap.js           Draws the minimap (the whole map as a small diamond)
+    bicycle-sprites.js   The game over picture: a bicycle taxi (side view) and the evening hills
   sim/
     bike.js              Arcade bike physics and energy (no Phaser)
     controls.js          The two steering models
-    economy.js           Wallet, fuel and swaps, repairs, day end bill
+    economy.js           Wallet, fuel and swaps, repairs, day end bill, out of cash (stranded)
     jobs.js              Job offers, pickup and drop off, fares and tips
     law.js               Speed limit zones and speed cameras
     roads.js             Road graph from the map's road list, lanes, shortest path
@@ -235,7 +236,7 @@ src/
     MenuScene.js         Welcome menu, pause menu, How to play, Settings
     RideScene.js         World, bike, camera, smoke, occlusion
     HudScene.js          Retro HUD: speed, energy, service, money, jobs, prompts, touch controls
-    DayEndScene.js       Day end summary and level up screen (retro)
+    DayEndScene.js       Day end summary, level up and game over screens (retro)
     chunks.js            Streams ground and buildings in chunks; texture atlas packing
     TrafficView.js       Draws traffic
     PeopleView.js        Draws people and waving customers

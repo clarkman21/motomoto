@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { World } from '../src/world/world.js';
 import { TEST_MAP } from '../src/world/map-data.js';
 import { createBike, stepBike } from '../src/sim/bike.js';
-import { createWallet, earn, buyFuel, swapBattery, fuelFillCost, repairCost, endDay, takeLoan, canTakeLoan, loanPayment, payGarage } from '../src/sim/economy.js';
+import { createWallet, earn, buyFuel, swapBattery, fuelFillCost, repairCost, endDay, stranded, payGarage } from '../src/sim/economy.js';
 import { speedLimitAt, checkCameras, createCameraState, cameraFine } from '../src/sim/law.js';
 import { createJobBoard, acceptOffer, updateJob, updateBoard, jobTarget, makeOffer, mulberry32 } from '../src/sim/jobs.js';
 import { MONEY, LAW, JOBS, WORLD, MAINTENANCE } from '../src/config.js';
@@ -183,48 +183,37 @@ describe('jobs', () => {
   });
 });
 
-describe('out of cash and the loan', () => {
-  it('a day that ends below zero offers one loan', () => {
+describe('out of cash: game over (no loan)', () => {
+  it('a day that ends below zero is game over', () => {
     const wallet = createWallet(2000);
     const bike = createBike(world, 'petrol');
     const s = endDay(wallet, bike); // rent takes the cash below zero
     expect(s.cash).toBeLessThan(0);
-    expect(s.outOfCash).toBe('loan');
+    expect(s.outOfCash).toBe(true);
+    expect(s.costs.loan).toBeUndefined();
   });
 
-  it('the loan pays now and costs a payment at every day end, with interest', () => {
-    const wallet = createWallet(-3000);
-    expect(takeLoan(wallet)).toBe(true);
-    expect(wallet.cash).toBe(-3000 + MONEY.loan.amount);
-    const payment = loanPayment();
-    expect(payment * MONEY.loan.days).toBe(MONEY.loan.amount * (1 + MONEY.loan.interest));
-    earn(wallet, 'fares', 20000);
-    const s = endDay(wallet, createBike(world, 'electric'));
-    expect(s.costs.loan).toBe(payment);
-    expect(wallet.loan.daysLeft).toBe(MONEY.loan.days - 1);
+  it('a day that ends at zero or more is not game over', () => {
+    const wallet = createWallet(MONEY.dailyRent.petrol);
+    expect(endDay(wallet, createBike(world, 'petrol')).outOfCash).toBe(false);
   });
 
-  it('the loan ends after its last payment', () => {
-    const wallet = createWallet(0);
-    takeLoan(wallet);
-    for (let d = 0; d < MONEY.loan.days; d++) {
-      earn(wallet, 'fares', 10000);
-      endDay(wallet, createBike(world, 'electric'));
-    }
-    expect(wallet.loan).toBeNull();
+  it('stranded: an empty tank, no cash for fuel and nobody on the bike', () => {
+    const bike = createBike(world, 'petrol');
+    const wallet = createWallet(-500);
+    expect(stranded(wallet, bike)).toBe(false); // fuel left: you can still ride and earn
+    bike.energy = 0;
+    expect(stranded(wallet, bike)).toBe(true);
+    expect(stranded(wallet, bike, true)).toBe(false); // a passenger on the bike pays at the drop-off
+    wallet.cash = MONEY.minFuelCash;
+    expect(stranded(wallet, bike)).toBe(false); // you can push the bike to a station and buy a little
   });
 
-  it('out of cash again is game over: only one loan', () => {
-    const wallet = createWallet(0);
-    takeLoan(wallet);
-    expect(canTakeLoan(wallet)).toBe(false);
-    wallet.cash = -50000;
-    expect(endDay(wallet, createBike(world, 'petrol')).outOfCash).toBe('gameOver');
-  });
-
-  it('no loan when the debt is larger than the loan', () => {
-    const wallet = createWallet(-MONEY.loan.amount - 100);
-    expect(canTakeLoan(wallet)).toBe(false);
+  it('stranded on an electric moto: no cash for a swap', () => {
+    const bike = createBike(world, 'electric');
+    bike.energy = 0;
+    expect(stranded(createWallet(MONEY.swapFee - 10), bike)).toBe(true);
+    expect(stranded(createWallet(MONEY.swapFee), bike)).toBe(false);
   });
 });
 

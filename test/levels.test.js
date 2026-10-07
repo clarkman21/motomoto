@@ -54,13 +54,12 @@ describe('levels', () => {
     expect(buyMilestone(w)).toBeNull();
   });
 
-  it('game over restarts the current level only', () => {
+  it('restart level keeps the level and its perks', () => {
     const w = createWallet(-9000);
     w.level = 3;
     w.perks.phone = true;
-    w.loansTaken = 1;
     restartLevel(w);
-    expect(w).toMatchObject({ cash: MONEY.startCash, level: 3, loansTaken: 0, loan: null });
+    expect(w).toMatchObject({ cash: MONEY.startCash, level: 3 });
     expect(w.perks.phone).toBe(true);
   });
 

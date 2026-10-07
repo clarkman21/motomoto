@@ -2,7 +2,8 @@ import { MONEY, JOBS, COLLISION, FUEL } from '../config.js';
 import { garageQuote, serviceBike, serviceDue } from './maintenance.js';
 
 // Money: everything the rider earns and spends. No Phaser here.
-// Income: fares, tips, cargo. Costs: fuel, swaps, fines, crash repairs, garage, rent, loan.
+// Income: fares, tips, cargo. Costs: fuel, swaps, fines, crash repairs, garage, rent.
+// There is no loan: when you are out of cash, the game is over (see stranded and endDay).
 
 export const INCOME = { fares: 'Fares', tips: 'Tips', cargo: 'Cargo' };
 export const COSTS = {
@@ -12,7 +13,6 @@ export const COSTS = {
   repairs: 'Crash repairs',
   garage: 'Garage (service, brake pads)',
   rent: 'Daily bike rent',
-  loan: 'Loan payment',
 };
 
 const emptyLedger = () => ({
@@ -24,7 +24,7 @@ const emptyLedger = () => ({
 export const round10 = (x) => Math.round(x / 10) * 10;
 
 export function createWallet(cash = MONEY.startCash) {
-  return { cash, day: 1, ledger: emptyLedger(), loan: null, loansTaken: 0, totalIncome: 0, level: 1, perks: {}, milestones: [], streak: 0 };
+  return { cash, day: 1, ledger: emptyLedger(), totalIncome: 0, level: 1, perks: {}, milestones: [], streak: 0 };
 }
 
 export function earn(wallet, category, amount) {
@@ -32,26 +32,6 @@ export function earn(wallet, category, amount) {
   wallet.ledger.income[category] += amount;
   wallet.totalIncome += amount;
   return amount;
-}
-
-/** Daily payment of a new loan. */
-export function loanPayment() {
-  const { amount, days, interest } = MONEY.loan;
-  return round10((amount * (1 + interest)) / days);
-}
-
-/** You can take one loan, and only when it brings your cash back to zero or more. */
-export function canTakeLoan(wallet) {
-  return !wallet.loan && wallet.loansTaken === 0 && wallet.cash + MONEY.loan.amount >= 0;
-}
-
-/** Take the loan: the cash comes now, the payments come at each day end. */
-export function takeLoan(wallet) {
-  if (!canTakeLoan(wallet)) return false;
-  wallet.cash += MONEY.loan.amount;
-  wallet.loan = { payment: loanPayment(), daysLeft: MONEY.loan.days };
-  wallet.loansTaken += 1;
-  return true;
 }
 
 /** Spend money. Fines, repairs and rent can take the cash below zero (debt). */
@@ -75,7 +55,7 @@ export function buyFuel(wallet, bike, priceFactor = 1, upTo = 1) {
   const missing = Math.min(1, upTo) - bike.energy;
   const fullTank = MONEY.fuelFullTank * priceFactor;
   if (missing < 0.005) return { ok: false, cost: 0, reason: 'full' };
-  if (wallet.cash < 10) return { ok: false, cost: 0, reason: 'cash' };
+  if (wallet.cash < MONEY.minFuelCash) return { ok: false, cost: 0, reason: 'cash' };
   const fraction = Math.min(missing, wallet.cash / fullTank);
   const cost = Math.min(wallet.cash, round10(fraction * fullTank));
   spend(wallet, 'fuel', cost);
@@ -92,6 +72,16 @@ export function swapBattery(wallet, bike) {
   return { ok: true, cost: MONEY.swapFee };
 }
 
+/**
+ * Stranded: the tank or the battery is empty, you cannot pay for more, and nobody on the bike will
+ * pay you at a drop-off. You cannot earn money again, so the game is over at once.
+ * carrying: true when a passenger or cargo is on the bike (they pay when you push the bike there).
+ */
+export function stranded(wallet, bike, carrying = false) {
+  if (bike.energy > 0 || carrying) return false;
+  return wallet.cash < (bike.type === 'electric' ? MONEY.swapFee : MONEY.minFuelCash);
+}
+
 /** Repair cost for a damage event, or 0. Only a crash costs money at once; other hits add wear. */
 export function repairCost(event) {
   if (event.type === 'wall' && event.hit?.kind === 'person') return 0; // hitting a person: a police fine instead (see PEOPLE)
@@ -103,7 +93,7 @@ export function repairCost(event) {
 /**
  * Service the bike at the garage. Returns { ok, cost, reason }. Call when the work is done.
  * After a breakdown, the mechanic repairs the bike on credit (cash can go below zero), so you are never
- * stuck. The day end check then decides: a loan, or game over. A normal service needs the cash.
+ * stuck. If the cash is below zero at the day end, the game is over. A normal service needs the cash.
  */
 export function payGarage(wallet, bike) {
   const q = garageQuote(bike);
@@ -121,11 +111,6 @@ export function payGarage(wallet, bike) {
 export function endDay(wallet, bike, rent = MONEY.dailyRent[bike.type]) {
   const gameKm = bike.odometer / JOBS.gameKmMetres;
   spend(wallet, 'rent', rent);
-  if (wallet.loan) {
-    spend(wallet, 'loan', wallet.loan.payment);
-    wallet.loan.daysLeft -= 1;
-    if (wallet.loan.daysLeft <= 0) wallet.loan = null;
-  }
 
   const { income, costs } = wallet.ledger;
   const totalIncome = Object.values(income).reduce((a, b) => a + b, 0);
@@ -145,9 +130,8 @@ export function endDay(wallet, bike, rent = MONEY.dailyRent[bike.type]) {
     // Regen: energy put back into the battery. A full battery costs one swap, so this is the money saved.
     regenFraction: bike.regenToday,
     regenSaved: bike.type === 'electric' ? round10(bike.regenToday * MONEY.swapFee) : 0,
-    loan: wallet.loan ? { ...wallet.loan } : null,
-    // Out of cash: 'loan' = you can choose a loan or game over; 'gameOver' = no choice.
-    outOfCash: wallet.cash < 0 ? (canTakeLoan(wallet) ? 'loan' : 'gameOver') : null,
+    // Below zero after the rent: you cannot pay for the moto, so the game is over.
+    outOfCash: wallet.cash < 0,
     totalIncomeAllDays: wallet.totalIncome,
   };
   wallet.ledger = emptyLedger();

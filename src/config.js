@@ -199,8 +199,19 @@ export const MONEY = {
   swapFee: 2500, // spec: flat fee, whatever charge is left in the old battery
   swapSeconds: 15, // spec
   repairs: { wall: 800 }, // a crash costs money at once; potholes and bumps add wear instead (see MAINTENANCE) — guess
-  // Out of cash at day end = game over, or one loan. The loan makes the next days harder. All guesses.
-  loan: { amount: 20000, days: 10, interest: 0.2 }, // repay 2,400 RWF per day for 10 days
+  minFuelCash: 10, // the smallest amount of fuel you can buy
+};
+
+// ---------------------------------------------------------------------------
+// Game over: there is no loan. Below zero cash at the day end (after the rent), or an empty tank
+// with no cash for fuel (or a swap) and nobody on the bike to pay you, ends the game. Then you
+// start again at level 1 (decision by Alp: the game is hard enough without a way back from debt).
+// ---------------------------------------------------------------------------
+export const GAME_OVER = {
+  strandedSeconds: 4, // the time you see the warning before the game over screen — guess
+  bicycleFrames: 4, // pedal frames of the bicycle taxi on the game over screen
+  frameMs: 140,
+  warnBelowCash: 10000, // the day end screen tells you the game over rules when your cash is below this
 };
 
 // ---------------------------------------------------------------------------

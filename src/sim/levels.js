@@ -44,11 +44,12 @@ export function buyMilestone(wallet) {
   return def;
 }
 
-/** Game over: restart the current level with start cash. Level, perks and milestones stay. */
+/**
+ * Restart the current level with start cash. Level, perks and milestones stay. The game over does
+ * not use it (you start again at level 1); it is for a later "Restart level" choice in the menu.
+ */
 export function restartLevel(wallet) {
   wallet.cash = MONEY.startCash;
-  wallet.loan = null;
-  wallet.loansTaken = 0;
   wallet.streak = 0;
 }
 
