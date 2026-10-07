@@ -38,3 +38,54 @@ describe('traffic police', () => {
     expect(blue).toBeGreaterThan(10);
   });
 });
+
+describe('police chase', async () => {
+  const { createPolice, stepPolice } = await import('../src/sim/police.js');
+  const { POLICE } = await import('../src/config.js');
+  const ctx = (illegal, speedKmh = 20) => ({ speedKmh, limitKmh: 40, illegal });
+
+  it('an officer who sees you on the pavement runs after you; you pay if you stay', () => {
+    const police = createPolice([{ x: 0, y: 0, phase: 0 }]);
+    const bike = { x: 10, y: 0 };
+    const start = stepPolice(police, bike, ctx('pavement'), 0.1);
+    expect(start.map((e) => e.type)).toEqual(['chase']);
+    let caught = null;
+    for (let t = 0; t < 5 && !caught; t += 0.1) caught = stepPolice(police, bike, ctx(null, 0), 0.1).find((e) => e.type === 'caught');
+    expect(caught.reason).toBe('pavement');
+    expect(police.officers[0].state).toBe('return');
+    // A cooldown: no new chase at once.
+    expect(stepPolice(police, bike, ctx('offRoad'), 0.1).some((e) => e.type === 'chase')).toBe(false);
+  });
+
+  it('you get away if you ride faster than the officer runs', () => {
+    const police = createPolice([{ x: 0, y: 0, phase: 0 }]);
+    const bike = { x: 10, y: 0 };
+    stepPolice(police, bike, ctx('offRoad'), 0.1);
+    let end = null;
+    for (let t = 0; t < 20 && !end; t += 0.1) {
+      bike.x += (40 / 3.6) * 0.1; // 40 km/h on the road
+      end = stepPolice(police, bike, ctx(null, 40), 0.1).find((e) => e.type === 'escaped' || e.type === 'caught');
+    }
+    expect(end.type).toBe('escaped');
+  });
+
+  it('the officer runs fast: pushing the bike, you do not get away', () => {
+    const police = createPolice([{ x: 0, y: 0, phase: 0 }]);
+    const bike = { x: 10, y: 0 };
+    stepPolice(police, bike, ctx('offRoad'), 0.1);
+    let end = null;
+    for (let t = 0; t < 20 && !end; t += 0.1) {
+      bike.x += (4 / 3.6) * 0.1;
+      end = stepPolice(police, bike, ctx(null, 4), 0.1).find((e) => e.type === 'escaped' || e.type === 'caught');
+    }
+    expect(end.type).toBe('caught');
+    expect(POLICE.runKmh).toBeGreaterThan(15);
+  });
+
+  it('far away officers do not see you; speeding past one gives a whistle, not a chase', () => {
+    const police = createPolice([{ x: 0, y: 0, phase: 0 }]);
+    expect(stepPolice(police, { x: POLICE.seeMetres + 5, y: 0 }, ctx('pavement'), 0.1)).toHaveLength(0);
+    const e = stepPolice(police, { x: 3, y: 0 }, ctx(null, 70), 0.1);
+    expect(e.map((x) => x.type)).toEqual(['whistle']);
+  });
+});

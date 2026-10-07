@@ -31,6 +31,9 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Job cards in a small 3 × 5 pixel font, so the jobs window takes less of the screen | Done |
 | MTN MoMo agents across the city: a lady in a yellow vest, a yellow stand and umbrella (decoration; airtime comes later) | Done |
 | Traffic police on the corners of most junctions (dark blue uniform, hi-vis POLICE vest); they blow the whistle when you speed past | Done |
+| Ride on the pavement or off road near an officer: the officer runs after you (22 km/h); caught = 5,000 RWF fine; you can get away on the road | Done |
+| Dashed white lane lines on tarmac roads (gaps at junctions) | Done |
+| Fix: you can push the bike with no fuel on grass, sand and up moderate hills | Done |
 | Passenger and cargo jobs, cash, fares and tips | Done |
 | Fuel station (pay per litre) and Ampersand swap station (flat fee) | Done |
 | Speed limit zones, signs and speed cameras with fines | Done |
@@ -181,7 +184,7 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `MINIMAP` | Minimap zoom (pixels per tile), window size, hill shading, padlock spacing |
 | `MARKET` | How many vendors, umbrellas, goats and sheep, and street vendors |
 | `MOMO` | How many MTN MoMo agents, and the space between them |
-| `POLICE` | How many junctions have an officer, and when they blow the whistle |
+| `POLICE` | How many junctions have an officer, the whistle, the chase (how far they see, how fast they run, when they give up) and the fine |
 
 The game map is built in code in [`src/world/maps/kigali.js`](src/world/maps/kigali.js): district rectangles, hills, roads, landmarks, stations and places. Each block has a building style (`h` house, `s` shop, `o` office, `t` tower, `g` government, `c` school, `w` warehouse, `v` villa). The district rules set the style, and a landmark sets the style, the height in levels and the sign text of its block. The small test map for the unit tests is an ASCII grid in [`src/world/map-data.js`](src/world/map-data.js). The legend is at the top of the file. Hills are plateaus with ramps; each hill has a height and a ramp length for each side. The same file has the job places, speed limit zones, cameras and signs.
 
@@ -218,6 +221,7 @@ src/
     roads.js             Road graph from the map's road list, lanes, shortest path
     traffic.js           Vehicles: lane following, gaps, junctions, bus stops, hills
     honk.js              Traffic that waits behind a stopped bike honks
+    police.js            Police rules: the whistle, the chase and the fine
     people.js            Walkers, dodging, street hail customers
     rivals.js            Rival riders who race you to customers
     collide.js           Collisions of the bike with vehicles, people and poles (by mass)

@@ -523,4 +523,15 @@ export const POLICE = {
   radius: 0.35, // metres, for collisions
   whistleKmh: 10, // the officer blows the whistle when you pass faster than the limit + this
   whistleRange: 8, // metres
+  // Riding on the pavement or off road near an officer: a chase, and a fine if you get caught. Guesses.
+  seeMetres: 14, // the officer sees you this close
+  ridingKmh: 6, // faster than this is riding (slower is walking or pushing the bike)
+  runKmh: 22, // the officer runs fast: you get away only on a good road
+  walkKmh: 5, // back to the corner
+  catchMetres: 1.6,
+  giveUpMetres: 30,
+  maxChaseSeconds: 12,
+  cooldownSeconds: 20, // after a fine, no new chase for this long
+  fine: 5000, // RWF
+  graceMetres: 8, // no chase this close to your job target or a station (you pull in to stop)
 };

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS } from '../config.js';
+import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES } from '../config.js';
 import { World } from '../world/world.js';
 import { buildKigaliMap } from '../world/maps/kigali.js';
 import { ChunkStreamer } from './chunks.js';
@@ -791,11 +791,7 @@ export class RideScene extends Phaser.Scene {
     this.garages.update(this.time.now);
     this.markets.update(this.time.now);
     this.attendant.update(this, dt, this.time.now);
-    const officer = this.police.update(this.time.now, dt, this.bike, Math.abs(forwardSpeed(this.bike)) * 3.6, this.speedLimit.limitKmh);
-    if (officer) {
-      this.engineSound.whistle();
-      this.#bubble(officer.x, officer.y, 30, 'PRRRT!', 0xffffff);
-    }
+    this.#updatePolice(dt);
     this.daylight = daylight(this.clockHours);
     this.chunks.night = this.daylight.night;
     this.lights.update(this.daylight, this.cameras.main.worldView, this.bike, this.controls.brake > 0.1);
@@ -910,6 +906,46 @@ export class RideScene extends Phaser.Scene {
     const i = Math.floor(this.rng() * 4);
     this.engineSound.grunt(i);
     this.#bubble(this.bike.x, this.bike.y, 40, ['UFF!', 'AAH...', 'OOH!', 'EEH!'][i], 0xd8e0ff);
+  }
+
+  /**
+   * Police: a whistle when you speed past. On the pavement or off road near an officer: a chase,
+   * and a fine if the officer gets to you.
+   */
+  #updatePolice(dt) {
+    const b = this.bike;
+    const kmh = Math.abs(forwardSpeed(b)) * 3.6;
+    let illegal = null;
+    if (kmh > POLICE.ridingKmh && !b.crashed) {
+      if (b.surface === SURFACES.pavement) illegal = 'pavement';
+      else if (b.surface.offRoad) illegal = 'offRoad';
+    }
+    // You may pull in to stop at your job target or at a station.
+    if (illegal) {
+      const T = WORLD.tileMetres, g = POLICE.graceMetres;
+      const job = this.board.active, t = job && jobTarget(job);
+      const nearTarget = t && Math.hypot(t.x * T - b.x, t.y * T - b.y) < g;
+      const nearStation = ['fuel', 'swap', 'garage', 'office'].some((tag) => this.world.placesWithTag(tag).some((p) => Math.hypot(p.x * T - b.x, p.y * T - b.y) < g));
+      if (nearTarget || nearStation) illegal = null;
+    }
+    const where = { pavement: 'on the pavement', offRoad: 'off the road' };
+    for (const e of this.police.update(this.time.now, dt, b, { speedKmh: kmh, limitKmh: this.speedLimit.limitKmh, illegal })) {
+      const o = e.officer;
+      if (e.type === 'whistle') {
+        this.engineSound.whistle();
+        this.#bubble(o.x, o.y, 30, 'PRRRT!', 0xffffff);
+      } else if (e.type === 'chase') {
+        this.engineSound.whistle();
+        this.#bubble(o.x, o.y, 30, 'HAGARARA!', 0xffffff);
+        this.events.emit('bark', `Police! You ride ${where[e.reason]}. Get back on the road and get away!`);
+      } else if (e.type === 'caught') {
+        this.#pay('fines', POLICE.fine, `Police: riding ${where[e.reason]}`);
+        this.#bubble(o.x, o.y, 30, 'FINE!', 0xffa080);
+        this.events.emit('bark', `Caught! The police fine you ${POLICE.fine.toLocaleString('en')} RWF for riding ${where[e.reason]}`);
+      } else if (e.type === 'escaped') {
+        this.events.emit('bark', 'You got away from the police. Phew!');
+      }
+    }
   }
 
   /** Traffic behind a bike that stands in the road honks (a cyclist rings the bell). */

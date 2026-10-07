@@ -9,10 +9,14 @@ import { VEST } from './sprites.js';
 const T = WORLD.tileMetres;
 const UNIFORM = 0x1c2a5a, CAP = 0x141e44, SKIN = 0x5a3820;
 
-/** A police officer. frame 0: stands; frame 1: one arm up (directs the traffic, blows the whistle). */
+/**
+ * A police officer. frame 0: stands; 1: one arm up (directs the traffic, blows the whistle);
+ * 2 and 3: runs (long steps, arms swing; the officer looks to the right).
+ */
 export function drawOfficer(frame = 0) {
   const c = new PixelCanvas(PERSON_CANVAS.width, PERSON_CANVAS.height);
   const gx = PERSON_CANVAS.groundX, gy = PERSON_CANVAS.groundY;
+  if (frame >= 2) return drawRunning(c, gx, gy, frame === 2 ? 1 : -1);
   c.line(gx - 1, gy - 1, gx - 1, gy - 8, 2.2, UNIFORM); // trousers
   c.line(gx + 1, gy - 1, gx + 1, gy - 8, 2.2, UNIFORM);
   c.line(gx, gy - 9, gx, gy - 15, 4.6, VEST.colour); // the high visibility vest
@@ -33,6 +37,23 @@ export function drawOfficer(frame = 0) {
   for (let x = gx - 1; x <= gx + 2; x++) c.plot(x, gy - 22, CAP);
   c.plot(gx + 4, gy - 20, CAP);
   c.plot(gx, gy - 21, VEST.colour); // the badge
+  c.outline(0x161616);
+  return c;
+}
+
+function drawRunning(c, gx, gy, step) {
+  c.line(gx, gy - 8, gx + 3 * step, gy - 1, 2.2, UNIFORM); // legs far apart
+  c.line(gx, gy - 8, gx - 3 * step, gy - 2, 2.2, UNIFORM);
+  c.line(gx + 0.5, gy - 9, gx + 1.5, gy - 15, 4.6, VEST.colour); // leaning forward
+  for (let x = gx - 1; x <= gx + 3; x++) c.plot(x, gy - 12, UNIFORM);
+  for (const x of [gx - 1, gx + 1, gx + 3]) c.plot(x, gy - 12, 0xf2f2f2);
+  c.line(gx + 1, gy - 14, gx + 1 + 3 * step, gy - 10, 1.6, UNIFORM); // arms swing
+  c.line(gx + 1, gy - 14, gx + 1 - 3 * step, gy - 11, 1.6, UNIFORM);
+  c.fillDisc(gx + 2, gy - 18.5, 2.5, SKIN);
+  for (let x = gx; x <= gx + 5; x++) c.plot(x, gy - 21, CAP);
+  for (let x = gx + 1; x <= gx + 4; x++) c.plot(x, gy - 22, CAP);
+  c.plot(gx + 6, gy - 20, CAP);
+  c.plot(gx + 4, gy - 16, 0xc0c0c0); // the whistle in the mouth
   c.outline(0x161616);
   return c;
 }
