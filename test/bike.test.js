@@ -338,3 +338,16 @@ describe('reset (R)', () => {
     expect(bike).toMatchObject({ energy: 0.2, brakeWearKm: 4, serviceWear: 90, loadKg: 60, brokenDown: true });
   });
 });
+
+describe('standing at a station', () => {
+  it('the brake holds the bike still and does not walk it backwards', () => {
+    const world = straight();
+    const bike = createBike(world, 'petrol');
+    const x0 = bike.x;
+    run(bike, world, { brake: 1, hold: true }, 5);
+    expect(Math.abs(bike.x - x0)).toBeLessThan(0.05);
+    // Without hold (the rider holds the brake at a stop) the bike walks back, as before.
+    run(bike, world, { brake: 1 }, 2);
+    expect(bike.x).toBeLessThan(x0 - 0.3);
+  });
+});

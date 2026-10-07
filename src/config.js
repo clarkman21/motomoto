@@ -472,12 +472,11 @@ export const FAMILY = {
 // The minimap in the lower left corner (key M shows or hides it). Like in GTA, it shows the area
 // around you and moves as you ride. It does not turn.
 export const MINIMAP = {
-  pxPerTile: 2.5, // pixels along each diagonal for one tile (one map pixel is about 1.6 m)
-  pxPerTileSmall: 1.75, // on short screens (phones in landscape)
-  viewWidth: 240, // the window, in HUD pixels (× the HUD scale)
-  viewHeight: 136,
+  pxPerTile: 1, // virtual HUD pixels along each diagonal for one tile (the HUD scales them up by a whole number)
+  viewWidth: 124, // the window, in virtual HUD pixels
+  viewHeight: 72,
   heightContrast: 0.45, // higher ground is up to this much lighter
-  padlockSpacing: 56, // map pixels between the padlocks on a closed district
+  padlockSpacing: 40, // map pixels between the padlocks on a closed district
 };
 
 // Market life (see MarketView.js): vendors on mats and goats and sheep for sale. Guesses.

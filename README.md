@@ -43,6 +43,9 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Levels 1–4: savings goals, milestones (phone, electric moto), streak bonus, save game | Done |
 | Welcome menu, How to play, Settings, pause menu with Restart shift | Done |
 | Retro 16-bit menus: pixel font, blue windows, ▶ cursor, scanlines, menu blips | Done |
+| Retro 16-bit HUD, minimap, end of day and level up screens: pixel font, pixel icons, segmented bars, blue windows, low resolution scaled by a whole number | Done |
+| Buy the electric moto at the Ampersand showroom on Kacyiru boulevard (level 4 mission) | Done |
+| Station attendants: an SP attendant with the fuel nozzle, an Ampersand attendant with the new battery; the bike stands still while you fill up | Done |
 | Family rewards: what the money means at home after each job, each shift and each milestone | Done |
 | Sounds: the engine stops at the end of a shift; short tunes for shift end, milestone, game over, delivery | Done |
 | Hi-vis vests for all moto riders; banana and rice cargo; cyclists from level 3; detailed fuel stations | Done |
@@ -190,7 +193,9 @@ src/
     terrain-render.js    Draws the ground into one image
     sprites.js           Draws the bike (16 directions), buildings (8 styles), trees, lit windows
     light-sprites.js     Light pools, headlight cones, light dots, lamp posts
-    retro-font.js        5 × 7 pixel font for the retro menus
+    retro-font.js        5 × 7 pixel font for the retro menus and HUD
+    hud-icons.js         9 × 9 pixel icons for the HUD (fuel, battery, spanner, coin, clock, star, …)
+    attendant-sprites.js Station attendants (SP fuel, Ampersand swap)
     garage-sprites.js    Garage and building signs (pixel font), mechanics, oil stains, tyres, oil drum
     market-sprites.js    Market vendors, kitenge, goats and sheep
     market.js            Where the market vendors and animals stand
@@ -215,14 +220,16 @@ src/
   scenes/
     MenuScene.js         Welcome menu, pause menu, How to play, Settings
     RideScene.js         World, bike, camera, smoke, occlusion
-    HudScene.js          HUD, jobs, money and touch controls
-    DayEndScene.js       Day end summary
+    HudScene.js          Retro HUD: speed, energy, service, money, jobs, prompts, touch controls
+    DayEndScene.js       Day end summary and level up screen (retro)
     chunks.js            Streams ground and buildings in chunks; texture atlas packing
     TrafficView.js       Draws traffic
     PeopleView.js        Draws people and waving customers
     LightsView.js        Night colour, street lamps, headlights and tail lights
     BarrierView.js       Barriers at the edge of closed districts
     GarageView.js        The garage yards: motos, mechanics, oil stains, sign
+    retro-ui.js          Shared retro parts: pixel font, icons, blue windows, segmented bars, pixel scale
+    AttendantView.js     The station attendant who walks out to your bike
     SignView.js          Landmark signs: roof and entrance signs on towers, wall signs on the others
     MarketView.js        Market vendors, goats and sheep (animated)
     MinimapView.js       The minimap in the HUD

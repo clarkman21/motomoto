@@ -33,6 +33,7 @@ import { LightsView } from './LightsView.js';
 import { BarrierView } from './BarrierView.js';
 import { GarageView } from './GarageView.js';
 import { MarketView } from './MarketView.js';
+import { AttendantView } from './AttendantView.js';
 import { SignView } from './SignView.js';
 import { daylight } from '../sim/daylight.js';
 
@@ -94,6 +95,7 @@ export class RideScene extends Phaser.Scene {
     // The moto garages: motos, mechanics, oil stains and the name sign.
     this.garages = new GarageView(this, this.world);
     this.markets = new MarketView(this, this.world);
+    this.attendant = new AttendantView(this, this.world);
     this.signs = new SignView(this, this.world); // names on landmark buildings
     // Night lights and the colour of the day (see LightsView.js).
     this.lights = new LightsView(this, this.world);
@@ -717,7 +719,7 @@ export class RideScene extends Phaser.Scene {
     this.#updateTraffic(dt);
     while (this.accumulator >= FIXED_DT) {
       // While you fill up or swap, the bike stands still.
-      this.controls = this.refuel ? { throttle: 0, brake: 1, steer: 0 } : readControls(this.steeringMode, raw, this.bike);
+      this.controls = this.refuel ? { throttle: 0, brake: 1, steer: 0, hold: true } : readControls(this.steeringMode, raw, this.bike);
       const events = stepBike(this.bike, this.controls, this.world, FIXED_DT);
       const crashed = events.some((e) => e.type === 'crash');
       for (const e of events) {
@@ -777,6 +779,7 @@ export class RideScene extends Phaser.Scene {
     this.peopleView.update(this.world, this.cameras.main.worldView, this.time.now);
     this.garages.update(this.time.now);
     this.markets.update(this.time.now);
+    this.attendant.update(this, dt, this.time.now);
     this.daylight = daylight(this.clockHours);
     this.chunks.night = this.daylight.night;
     this.lights.update(this.daylight, this.cameras.main.worldView, this.bike, this.controls.brake > 0.1);

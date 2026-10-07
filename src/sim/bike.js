@@ -160,7 +160,8 @@ export function stepBike(bike, input, world, dt) {
     frictionBrake = (demand - regenBrake) * brakeFactor(bike);
     accel -= regenBrake + frictionBrake;
   }
-  const reversing = brake > 0 && throttle === 0 && v < 0.3;
+  // input.hold: the bike stands at a station (fuel, swap, garage). The brake holds it; it never walks back.
+  const reversing = brake > 0 && throttle === 0 && v < 0.3 && !input.hold;
   if (reversing) {
     // Walk the bike backwards slowly, to get away from a wall.
     const target = -spec.reverseSpeedKmh * KMH;

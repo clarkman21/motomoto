@@ -59,7 +59,8 @@ export function drawRetroFontSheet(shadow = 0x0a0a28) {
 
 /** Text in capitals with only the characters that the font has (others become a space). */
 export function retroText(text) {
-  return [...String(text).toUpperCase()].map((ch) => (G[ch] ? ch : ch === '’' ? "'" : ch === '—' ? '-' : ' ')).join('');
+  const same = { '’': "'", '‘': "'", '—': '-', '−': '-', '“': '"', '”': '"', 'É': 'E', 'È': 'E' };
+  return [...String(text).toUpperCase()].map((ch) => (G[ch] ? ch : same[ch] ?? ' ')).join('');
 }
 
 /** Wrap text to lines of at most n characters (at spaces). */

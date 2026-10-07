@@ -62,8 +62,29 @@ describe('retro menu font', () => {
 
   it('shows text in capitals and wraps it at spaces', () => {
     expect(retroText('Go to Kiyovu')).toBe('GO TO KIYOVU');
+    expect(retroText('−3,000 RWF · Lycée')).toBe('-3,000 RWF · LYCEE');
     const lines = wrapRetro('one two three four five', 9);
     expect(lines.every((l) => l.length <= 9)).toBe(true);
     expect(lines.join(' ')).toBe('ONE TWO THREE FOUR FIVE');
+  });
+});
+
+describe('HUD icons', () => {
+  it('draws every icon 9 × 9, and only the battery uses Surge Yellow', async () => {
+    const { drawIconSheet, ICONS } = await import('../src/world/hud-icons.js');
+    const { COLOURS } = await import('../src/config.js');
+    const { canvas, frames } = drawIconSheet();
+    expect(Object.keys(frames)).toEqual(Object.keys(ICONS));
+    for (const [name, f] of Object.entries(frames)) {
+      let surge = 0, opaque = 0;
+      for (let y = 0; y < f.h; y++) for (let x = 0; x < f.w; x++) {
+        const i = (y * canvas.width + f.x + x) * 4;
+        if (!canvas.data[i + 3]) continue;
+        opaque++;
+        if (((canvas.data[i] << 16) | (canvas.data[i + 1] << 8) | canvas.data[i + 2]) === COLOURS.ampersandYellow) surge++;
+      }
+      expect(opaque).toBeGreaterThan(15);
+      if (name !== 'battery') expect(surge).toBe(0);
+    }
   });
 });
