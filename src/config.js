@@ -515,3 +515,11 @@ export const MOMO = {
   clearTiles: 3, // no agent this close to a job place or a station
   radius: 0.6, // metres, for collisions
 };
+
+// Traffic police on the corners of the junctions (decoration; later levels add helmet checks).
+export const POLICE = {
+  junctionChance: 0.8, // part of the junctions with an officer
+  radius: 0.35, // metres, for collisions
+  whistleKmh: 10, // the officer blows the whistle when you pass faster than the limit + this
+  whistleRange: 8, // metres
+};

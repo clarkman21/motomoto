@@ -30,6 +30,7 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | A passenger loses patience at a station stop or while you push: the tip goes down, and they complain | Done |
 | Job cards in a small 3 × 5 pixel font, so the jobs window takes less of the screen | Done |
 | MTN MoMo agents across the city: a lady in a yellow vest, a yellow stand and umbrella (decoration; airtime comes later) | Done |
+| Traffic police on the corners of most junctions (dark blue uniform, hi-vis POLICE vest); they blow the whistle when you speed past | Done |
 | Passenger and cargo jobs, cash, fares and tips | Done |
 | Fuel station (pay per litre) and Ampersand swap station (flat fee) | Done |
 | Speed limit zones, signs and speed cameras with fines | Done |
@@ -180,6 +181,7 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `MINIMAP` | Minimap zoom (pixels per tile), window size, hill shading, padlock spacing |
 | `MARKET` | How many vendors, umbrellas, goats and sheep, and street vendors |
 | `MOMO` | How many MTN MoMo agents, and the space between them |
+| `POLICE` | How many junctions have an officer, and when they blow the whistle |
 
 The game map is built in code in [`src/world/maps/kigali.js`](src/world/maps/kigali.js): district rectangles, hills, roads, landmarks, stations and places. Each block has a building style (`h` house, `s` shop, `o` office, `t` tower, `g` government, `c` school, `w` warehouse, `v` villa). The district rules set the style, and a landmark sets the style, the height in levels and the sign text of its block. The small test map for the unit tests is an ASCII grid in [`src/world/map-data.js`](src/world/map-data.js). The legend is at the top of the file. Hills are plateaus with ramps; each hill has a height and a ramp length for each side. The same file has the job places, speed limit zones, cameras and signs.
 
@@ -202,6 +204,7 @@ src/
     retro-font.js        5 × 7 pixel font for the retro menus and HUD
     hud-icons.js         9 × 9 pixel icons for the HUD (fuel, battery, spanner, coin, clock, star, …)
     attendant-sprites.js Station attendants (SP fuel, Ampersand swap)
+    police.js            Traffic police: the sprite and where they stand (junction corners)
     garage-sprites.js    Garage and building signs (pixel font), mechanics, oil stains, tyres, oil drum
     market-sprites.js    Market vendors, kitenge, goats and sheep, MTN MoMo agents
     market.js            Where the market vendors, animals and MoMo agents stand
@@ -237,6 +240,7 @@ src/
     GarageView.js        The garage yards: motos, mechanics, oil stains, sign
     retro-ui.js          Shared retro parts: pixel font, icons, blue windows, segmented bars, pixel scale
     AttendantView.js     The station attendant who walks out to your bike
+    PoliceView.js        Traffic police on the junction corners, and the whistle
     SignView.js          Landmark signs: roof and entrance signs on towers, wall signs on the others
     MarketView.js        Market vendors, goats and sheep (animated)
     MinimapView.js       The minimap in the HUD

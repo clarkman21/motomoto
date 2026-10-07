@@ -350,4 +350,27 @@ export class EngineSound {
       o.stop(t + dt + len + 0.02);
     });
   }
+
+  /** A police whistle: two sharp trills ("prrrt prrrt"). */
+  whistle() {
+    if (!this.ctx || !this.enabled) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    for (const [dt, len] of [[0, 0.22], [0.3, 0.4]]) {
+      const o = ctx.createOscillator(), g = ctx.createGain(), lfo = ctx.createOscillator(), lg = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.value = 2900;
+      lfo.frequency.value = 32; // the ball in the whistle makes the trill
+      lg.gain.value = 180;
+      lfo.connect(lg).connect(o.frequency);
+      g.gain.setValueAtTime(0.0001, t + dt);
+      g.gain.exponentialRampToValueAtTime(0.12, t + dt + 0.02);
+      g.gain.setValueAtTime(0.12, t + dt + len - 0.03);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dt + len);
+      o.connect(g).connect(this.master);
+      for (const n of [o, lfo]) {
+        n.start(t + dt);
+        n.stop(t + dt + len + 0.02);
+      }
+    }
+  }
 }

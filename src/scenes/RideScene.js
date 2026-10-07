@@ -35,6 +35,7 @@ import { BarrierView } from './BarrierView.js';
 import { GarageView } from './GarageView.js';
 import { MarketView } from './MarketView.js';
 import { AttendantView } from './AttendantView.js';
+import { PoliceView } from './PoliceView.js';
 import { SignView } from './SignView.js';
 import { daylight } from '../sim/daylight.js';
 
@@ -100,6 +101,8 @@ export class RideScene extends Phaser.Scene {
     this.garages = new GarageView(this, this.world);
     this.markets = new MarketView(this, this.world);
     this.attendant = new AttendantView(this, this.world);
+    // Police on the junction corners of the whole map (the full road network, not only the open roads).
+    this.police = new PoliceView(this, this.world, buildRoadGraph(this.world.roads));
     this.signs = new SignView(this, this.world); // names on landmark buildings
     // Night lights and the colour of the day (see LightsView.js).
     this.lights = new LightsView(this, this.world);
@@ -788,6 +791,11 @@ export class RideScene extends Phaser.Scene {
     this.garages.update(this.time.now);
     this.markets.update(this.time.now);
     this.attendant.update(this, dt, this.time.now);
+    const officer = this.police.update(this.time.now, dt, this.bike, Math.abs(forwardSpeed(this.bike)) * 3.6, this.speedLimit.limitKmh);
+    if (officer) {
+      this.engineSound.whistle();
+      this.#bubble(officer.x, officer.y, 30, 'PRRRT!', 0xffffff);
+    }
     this.daylight = daylight(this.clockHours);
     this.chunks.night = this.daylight.night;
     this.lights.update(this.daylight, this.cameras.main.worldView, this.bike, this.controls.brake > 0.1);
