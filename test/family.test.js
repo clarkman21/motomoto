@@ -38,4 +38,11 @@ describe('family rewards', () => {
     expect(debt.reason).toContain('−2,300 RWF');
     expect(debt.lines.join(' ')).toContain('bicycle taxi');
   });
+
+  it('jail: you hit a police officer', () => {
+    const jail = gameOverStory({ gameOver: 'jail', bikeType: 'petrol', cash: 300, hitKmh: 34 });
+    expect(jail.reason).toContain('police officer at 34 km/h');
+    expect(jail.lines.join(' ')).toContain('jail');
+    expect(jail.short).toContain('Jail');
+  });
 });

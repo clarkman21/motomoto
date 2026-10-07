@@ -44,11 +44,23 @@ export function dayEndStory(summary) {
 
 /**
  * The game over story: { reason, lines, short }. summary.gameOver: 'stranded' (an empty tank or battery and
- * no cash to fill it) or 'cash' (below zero after the rent). You lose the moto and ride a bicycle taxi.
+ * no cash to fill it), 'cash' (below zero after the rent) or 'jail' (you hit a police officer). You lose the
+ * moto and ride a bicycle taxi.
  */
 export function gameOverStory(summary) {
   const { partner } = FAMILY;
   const electric = summary.bikeType === 'electric';
+  if (summary.gameOver === 'jail') {
+    return {
+      reason: `You hit a police officer${summary.hitKmh ? ` at ${summary.hitKmh} km/h` : ''}. The police arrest you.`,
+      lines: [
+        'You go to jail. The owner takes the moto back, and your licence is gone.',
+        'When you come out, you ride a bicycle taxi again: an igare with a soft seat on the back. It is slow and hard, and the fares are small.',
+        `${partner} says: we start again. And this time, slow down near the police.`,
+      ],
+      short: 'Jail! The owner takes the moto back. Later you pedal a bicycle taxi again. Start again!',
+    };
+  }
   const reason = summary.gameOver === 'stranded'
     ? (electric ? 'The battery is empty, and you have no cash for a swap.' : 'The tank is empty, and you have no cash for fuel.')
     : `You cannot pay the rent for the moto. Your cash is −${money(-summary.cash)}.`;

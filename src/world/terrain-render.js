@@ -1,6 +1,7 @@
 import { WORLD } from '../config.js';
 import { toScreen } from './iso.js';
 import { PixelCanvas, shadeColour, hash2 } from './pixel-canvas.js';
+import { crossings } from './road-signs.js';
 
 // Draws the ground of the whole map into one PixelCanvas at 1× scale.
 // The bike never goes below the ground, so the ground is one image under all
@@ -25,8 +26,12 @@ const PALETTE = {
   puddleShine: 0x9fb3bf,
   pothole: 0x2a2c2e,
   potholeRim: 0x46494c,
-  bumpLight: 0xe8e4d8,
-  bumpDark: 0x2b2b2b,
+  // A speed bump is a raised hump with yellow and black paint (not white: white bars are a zebra crossing).
+  bumpPaint: 0xd8a823, // a dull road paint yellow (not Ampersand yellow)
+  bumpDark: 0x262626,
+  bumpTop: 0x6e6e6e, // the light top edge of the hump
+  bumpShadow: 0x1c1d1f, // the shadow on the far side of the hump
+  zebra: 0xeceae2, // the white bars of a zebra crossing
   curb: 0xb8b2a2,
   laneLine: 0xe8e6dc, // the white dashed line between the two lanes
   flowers: [0xd04a6a, 0x9a5ad0, 0xf0f0f0],
@@ -200,7 +205,8 @@ function tileContext(world, tile) {
     ? !marks.has(`${tile.tx - 1},${tile.ty}`) || !marks.has(`${tile.tx + 1},${tile.ty}`)
     : !marks.has(`${tile.tx},${tile.ty - 1}`) || !marks.has(`${tile.tx},${tile.ty + 1}`));
   const lane = tile.surface === 'tarmac' && !tile.hazard && !besideJunction ? mark ?? null : null;
-  return { tile, curbs, bumpAcrossX: bumpN, nearMonument, lane };
+  const crossing = crossings(world).get(`${tile.tx},${tile.ty}`) ?? null;
+  return { tile, curbs, bumpAcrossX: bumpN, nearMonument, lane: crossing ? null : lane, crossing };
 }
 
 function surfaceColour(ctx, u, v, sx, sy) {
@@ -264,9 +270,17 @@ function surfaceColour(ctx, u, v, sx, sy) {
         if (d < 0.24) col = PALETTE.pothole;
         else if (d < 0.29) col = PALETTE.potholeRim;
       } else if (tile.hazard === 'speedBump') {
-        const across = ctx.bumpAcrossX ? u : v; // position across the band
-        const along = ctx.bumpAcrossX ? wv : wu; // position along the band
-        if (across > 0.38 && across < 0.62) col = Math.floor(along * 4) & 1 ? PALETTE.bumpLight : PALETTE.bumpDark;
+        const across = ctx.bumpAcrossX ? u : v; // position in the direction of travel, across the band
+        const along = ctx.bumpAcrossX ? wv : wu; // position along the band (across the road)
+        // The hump: a shadow on one side, yellow and black diagonal paint on top, a light edge.
+        if (across > 0.34 && across <= 0.39) col = PALETTE.bumpShadow;
+        else if (across > 0.39 && across < 0.61) col = Math.floor((along + across) * 5) & 1 ? PALETTE.bumpPaint : PALETTE.bumpDark;
+        else if (across >= 0.61 && across < 0.65) col = PALETTE.bumpTop;
+      } else if (ctx.crossing) {
+        // A zebra crossing: white bars in the direction of travel, side by side across the road.
+        const travel = ctx.crossing.alongX ? u : v;
+        const side = ctx.crossing.alongX ? wv : wu;
+        if (travel > 0.12 && travel < 0.88 && (Math.floor(side * 4) & 1) === 0) col = PALETTE.zebra;
       }
       return col;
     }

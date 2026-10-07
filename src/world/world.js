@@ -1,4 +1,5 @@
 import { WORLD, SURFACES, COLLISION } from '../config.js';
+import { roadSigns } from './road-signs.js';
 
 // The world is a grid of 4 m tiles. Ground height is stored at the tile
 // corners (vertices) and is smooth inside a tile, so hills and ramps have no
@@ -69,6 +70,12 @@ export class World {
     for (const p of this.places) if (!p.district) p.district = this.districtAt(Math.floor(p.x), Math.floor(p.y));
     this.vertexLevels = this.#buildHeights(mapData.hills ?? []);
     this.blocks = this.#buildBlocks();
+    // The big map makes its road signs from its roads: speed limits, speed bump warnings, crossings.
+    if (mapData.autoSigns) {
+      const extra = roadSigns(this, this.signs);
+      this.signs = [...this.signs, ...extra];
+      for (const p of extra) this.poles.push({ kind: 'pole', x: p.x * WORLD.tileMetres, y: p.y * WORLD.tileMetres, radius: COLLISION.poleRadius });
+    }
   }
 
   get widthMetres() {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { drawBicycleTaxi, drawGameOverBackdrop, BICYCLE_CANVAS, BACKDROP_ROAD } from '../src/world/bicycle-sprites.js';
+import { drawBicycleTaxi, drawGameOverBackdrop, drawJailCell, BICYCLE_CANVAS, BACKDROP_ROAD } from '../src/world/bicycle-sprites.js';
 import { COLOURS, GAME_OVER } from '../src/config.js';
 
 const opaque = (c) => { let n = 0; for (let i = 3; i < c.data.length; i += 4) if (c.data[i]) n++; return n; };
@@ -34,5 +34,12 @@ describe('game over picture: the bicycle taxi', () => {
   it('does not use Surge Yellow (only for Ampersand)', () => {
     expect(hasColour(drawBicycleTaxi(1), COLOURS.ampersandYellow)).toBe(false);
     expect(hasColour(drawGameOverBackdrop(120, 60), COLOURS.ampersandYellow)).toBe(false);
+  });
+
+  it('draws the jail cell: two frames (head down, head up), full size', () => {
+    const a = drawJailCell(200, 70, 0), b = drawJailCell(200, 70, 1);
+    expect(opaque(a)).toBe(200 * 70);
+    expect(Buffer.from(a.data).equals(Buffer.from(b.data))).toBe(false);
+    expect(hasColour(a, COLOURS.ampersandYellow)).toBe(false);
   });
 });

@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { INCOME, COSTS } from '../sim/economy.js';
 import { GAME_OVER } from '../config.js';
 import { dayEndStory, gameOverStory } from '../sim/family.js';
-import { drawBicycleTaxi, drawGameOverBackdrop, BICYCLE_CANVAS, BACKDROP_ROAD } from '../world/bicycle-sprites.js';
+import { drawBicycleTaxi, drawGameOverBackdrop, drawJailCell, BICYCLE_CANVAS, BACKDROP_ROAD } from '../world/bicycle-sprites.js';
 import { addCanvasTexture } from './textures.js';
 import { wrapRetro, RETRO_CELL } from '../world/retro-font.js';
 import { UI, pixelScale, ensureRetroFont, ensureIcons, retroLabel, retroWidth, drawWindow } from './retro-ui.js';
@@ -161,7 +161,7 @@ export class DayEndScene extends Phaser.Scene {
       for (const l of wrapRetro(story.reason, n)) { T(10, y, l, UI.gold); y += LINE; }
       y += compact ? 2 : 4;
       const pic = { x: x + 10, y, w: W - 20, h: compact ? BICYCLE_CANVAS.height + 4 : 80 };
-      draw.push(() => this.#bicyclePicture(pic));
+      draw.push(() => (summary.gameOver === 'jail' ? this.#jailPicture(pic) : this.#bicyclePicture(pic)));
       y += pic.h + (compact ? 4 : 6);
       const lines = compact ? [story.short] : story.lines;
       for (const line of lines) {
@@ -195,6 +195,28 @@ export class DayEndScene extends Phaser.Scene {
     this.time.delayedCall(800, () => {
       this.input.keyboard.once('keydown-ENTER', go);
       this.input.once('pointerdown', go);
+    });
+  }
+
+  /** Jail: you sit in a cell behind bars. Now and then you look up at the window and sigh. */
+  #jailPicture(pic) {
+    for (const f of [0, 1]) {
+      const key = `gameover-jail-${pic.w}x${pic.h}-${f}`;
+      if (!this.textures.exists(key)) addCanvasTexture(this, key, drawJailCell(pic.w, pic.h, f));
+    }
+    const img = this.add.image(pic.x, pic.y, `gameover-jail-${pic.w}x${pic.h}-0`).setOrigin(0);
+    const sigh = retroLabel(this, pic.x + Math.floor(pic.w * 0.3) + 10, pic.y + pic.h - 40, '', UI.white);
+    this.ui.add([img, sigh]);
+    const sound = this.scene.get('ride')?.engineSound;
+    let t = 0;
+    this.time.addEvent({
+      delay: 400, loop: true, callback: () => {
+        t += 0.4;
+        const up = t % 5 > 3; // head up for 2 s in each 5 s
+        img.setTexture(`gameover-jail-${pic.w}x${pic.h}-${up ? 1 : 0}`);
+        if (up && t % 5 < 3.5) { sigh.setText('EH...'); sound?.grumble(); }
+        else if (!up) sigh.setText('');
+      },
     });
   }
 

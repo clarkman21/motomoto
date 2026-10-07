@@ -1,6 +1,6 @@
-import { WORLD, POLICE } from '../config.js';
+import { WORLD, POLICE, COLLISION } from '../config.js';
 import { toScreen } from '../world/iso.js';
-import { drawOfficer, policeSpots } from '../world/police.js';
+import { drawOfficer, drawPolicePost, policeSpots, POLICE_POST } from '../world/police.js';
 import { PERSON_CANVAS } from '../world/vehicle-sprites.js';
 import { createPolice, stepPolice } from '../sim/police.js';
 import { addCanvasTexture } from './textures.js';
@@ -15,10 +15,22 @@ export class PoliceView {
     this.scene = scene;
     this.world = world;
     for (const f of [0, 1, 2, 3]) if (!scene.textures.exists(`officer-${f}`)) addCanvasTexture(scene, `officer-${f}`, drawOfficer(f));
+    for (const f of [0, 1]) if (!scene.textures.exists(`police-post-${f}`)) addCanvasTexture(scene, `police-post-${f}`, drawPolicePost(f));
     this.police = createPolice(policeSpots(world, graph));
+    // The POLICE post at each corner (it stays when the officer runs). Its light flashes blue and red.
+    this.posts = [];
+    for (const o of this.police.officers) {
+      if (!o.post) continue;
+      const { x, y } = o.post;
+      const s = toScreen(x, y, world.heightAt(x, y));
+      const img = scene.add.image(s.x, s.y, 'police-post-0').setOrigin(POLICE_POST.groundX / POLICE_POST.width, POLICE_POST.groundY / POLICE_POST.height).setDepth((x + y) / T);
+      img.noAmbient = true; // the sign and the light are easy to see at night
+      this.posts.push(img);
+      world.poles.push({ kind: 'pole', x, y, radius: COLLISION.poleRadius });
+    }
     for (const o of this.police.officers) {
       o.img = scene.add.image(0, 0, 'officer-0').setOrigin(PERSON_CANVAS.groundX / PERSON_CANVAS.width, PERSON_CANVAS.groundY / PERSON_CANVAS.height);
-      o.pole = { kind: 'pole', x: o.x, y: o.y, radius: POLICE.radius };
+      o.pole = { kind: 'pole', officer: true, x: o.x, y: o.y, radius: POLICE.radius };
       world.poles.push(o.pole); // the pole moves with the officer
       o.frame = -1;
       this.#place(o, 0);
@@ -38,6 +50,11 @@ export class PoliceView {
   update(time, dt, bike, ctx) {
     const solid = (x, y) => this.world.isSolidAt(x, y, false);
     const events = stepPolice(this.police, bike, ctx, dt, solid);
+    const light = Math.floor(time / POLICE.postFlashMs) % 2;
+    if (light !== this.light) {
+      this.light = light;
+      for (const p of this.posts) p.setTexture(`police-post-${light}`);
+    }
     for (const e of events) if (e.type === 'whistle') e.officer.whistleTime = 1.2;
     for (const o of this.police.officers) {
       o.whistleTime = Math.max(0, (o.whistleTime ?? 0) - dt);

@@ -390,8 +390,7 @@ export class HudScene extends Phaser.Scene {
       row.text.setVisible(!!c);
       row.zone.input.enabled = !!c;
       if (!c) return;
-      const what = c.label.replace(/^enough for the /i, '');
-      row.text.setText(`${this.isTouch ? '' : `${i + 1} `}${what}: ${c.cost ? `${money(c.cost)} RWF` : 'ENOUGH'}`).setTint(c.cost ? UI.white : UI.grey);
+      row.text.setText(`${this.isTouch ? '' : `${i + 1} `}${c.label}: ${c.cost ? `${money(c.cost)} RWF` : 'FULL'}`).setTint(c.cost ? UI.white : UI.grey);
     });
     if (choices) {
       const rows = this.fuelRows.filter((r) => r.text.visible);

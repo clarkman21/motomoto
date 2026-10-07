@@ -7,7 +7,7 @@ import { addCanvasTexture } from './textures.js';
 import { toScreen } from '../world/iso.js';
 import {
   drawBike, drawBlock, drawShadow, drawGlow, drawPuff, bikeFrameForHeading, BIKE_CANVAS, BIKE_DIRECTIONS,
-  drawCamera, drawSpeedSign, drawMarkerRing, drawMarkerPin, drawArrow, PROP_CANVAS,
+  drawCamera, drawSpeedSign, drawRoadSign, drawMarkerRing, drawMarkerPin, drawArrow, PROP_CANVAS,
   BIKE_LOADS, drawWaitingPassenger, drawCargoPile,
 } from '../world/sprites.js';
 import { createBike, stepBike, forwardSpeed, shiftGear, bestGear, resetToRoad } from '../sim/bike.js';
@@ -29,7 +29,7 @@ import { trafficHonks } from '../sim/honk.js';
 import { levelSettings, milestoneReady, buyMilestone, streakMultiplier, updateStreak, savingsTarget } from '../sim/levels.js';
 import { loadGame, saveGame, clearSave, loadSettings, saveSettings } from './save.js';
 import { deliveryLine } from '../sim/family.js';
-import { jobFuel, legFuel } from '../sim/fuel.js';
+import { jobFuel } from '../sim/fuel.js';
 import { LightsView } from './LightsView.js';
 import { BarrierView } from './BarrierView.js';
 import { GarageView } from './GarageView.js';
@@ -440,7 +440,7 @@ export class RideScene extends Phaser.Scene {
     }
     // At a fuel station you choose how much to buy (see chooseFuel).
     if (this.station === 'fuel') {
-      this.fuelChoice = this.fuelChoice ? null : fuelChoices(this.bike, this.fuelPrice, this.#nextJobFuel());
+      this.fuelChoice = this.fuelChoice ? null : fuelChoices(this.bike, this.fuelPrice);
       return;
     }
     const total =
@@ -450,12 +450,12 @@ export class RideScene extends Phaser.Scene {
     this.#passengerAtStop();
   }
 
-  /** Buy fuel choice i (0: the next job, 1: the next two jobs, 2: a full tank). */
+  /** Buy fuel choice i (0: 25% of a tank, 1: 50%, 2: a full tank). */
   chooseFuel(i) {
     const c = this.fuelChoice?.[i];
     if (!c) return;
     if (c.cost === 0) {
-      this.events.emit('bark', 'You have enough fuel for that');
+      this.events.emit('bark', 'The tank is full');
       return;
     }
     if (this.wallet.cash < MONEY.minFuelCash) {
@@ -467,16 +467,6 @@ export class RideScene extends Phaser.Scene {
     const total = MONEY.fuelSeconds * Math.max(0.3, c.upTo - this.bike.energy) + Math.random() * MONEY.fuelQueueMaxSeconds;
     this.refuel = { kind: 'fuel', timeLeft: total, total, upTo: c.upTo };
     this.#passengerAtStop();
-  }
-
-  /** Fuel (tank fraction) of the next jobs, with their weight and hills: the active job first, then the cheapest offers. */
-  #nextJobFuel() {
-    const jobs = [];
-    if (this.board.active) jobs.push({ fuel: jobFuel(this.world, this.bike, this.board.active) });
-    const offers = this.board.offers.map((o) => ({ fuel: jobFuel(this.world, this.bike, o) })).sort((p, q) => p.fuel - q.fuel);
-    jobs.push(...offers);
-    while (jobs.length < 2) jobs.push({ fuel: legFuel(this.bike.type, FUEL.approachMetres + 1500, 5, 65) });
-    return jobs;
   }
 
   /** Fuel estimate for each job card (updated a few times each second). */
@@ -602,7 +592,10 @@ export class RideScene extends Phaser.Scene {
     saveGame({ wallet, bike: { energy, serviceWear, brokenDown, brakeWearKm } });
   }
 
-  /** The end of the shift. reason 'stranded': the game is over before the shift ends (see #updateStranded). */
+  /**
+   * The end of the shift. reason: the game is over before the shift ends: 'stranded' (see #updateStranded)
+   * or 'jail' (you hit a police officer).
+   */
   #endDay(reason = null) {
     if (this.board.active) cancelJob(this.board, this.bike);
     cancelMission(this.raceRival);
@@ -612,6 +605,7 @@ export class RideScene extends Phaser.Scene {
     summary.level = this.level;
     // Game over: stranded (an empty tank and no cash), or below zero cash after the rent. There is no loan.
     summary.gameOver = reason ?? (summary.outOfCash ? 'cash' : null);
+    if (reason === 'jail') summary.hitKmh = this.jailKmh;
     summary.career = { days: summary.day, totalIncome: this.wallet.totalIncome, milestones: this.wallet.milestones.length };
     summary.milestoneReady = !summary.gameOver && milestoneReady(this.wallet);
     summary.savingsTarget = savingsTarget(this.wallet);
@@ -645,6 +639,7 @@ export class RideScene extends Phaser.Scene {
     this.honkBarked = false;
     this.strandedTime = null;
     this.debtTime = null;
+    this.jailTimer = null;
     const { autoShift, energy, serviceWear, brokenDown, brakeWearKm } = this.bike;
     if (choice === 'newGame') {
       clearSave();
@@ -746,6 +741,20 @@ export class RideScene extends Phaser.Scene {
           e.barrier = true; // a road barrier: no repair bill
           continue;
         }
+        // You hit a police officer: at speed, that is jail (the game is over); a touch is a warning.
+        if (e.type === 'wall' && e.hit?.officer && this.jailTimer == null) {
+          const kmh = Math.round(e.speed * 3.6);
+          if (kmh >= POLICE.jailKmh) {
+            this.jailTimer = POLICE.jailDelaySeconds;
+            this.jailKmh = kmh;
+            this.engineSound.whistle();
+            this.events.emit('bark', `You hit a police officer at ${kmh} km/h! The police arrest you`);
+          } else if (this.time.now - (this.officerTouch ?? -1e9) > 3000) {
+            this.officerTouch = this.time.now;
+            this.events.emit('bark', 'Careful! You touched a police officer');
+          }
+          continue;
+        }
         if (e.type === 'wall' && crashed && e.hit?.kind !== 'person') continue; // the crash message says it all
         if (e.type === 'wall' && e.speed > 3) {
           this.cameras.main.shake(120, 0.002);
@@ -813,6 +822,11 @@ export class RideScene extends Phaser.Scene {
       this.#updatePushing(dt);
     } else this.engineSound.update(this.bike.type, Math.min(1, this.bike.revs), this.controls.throttle);
     this.dayTime += dt;
+    if (this.jailTimer != null && (this.jailTimer -= dt) <= 0) {
+      this.jailTimer = null;
+      this.#endDay('jail');
+      return;
+    }
     if (this.dayTime >= this.level.shift.realSeconds) this.#endDay();
     else this.#updateStranded(dt);
   }
@@ -876,7 +890,7 @@ export class RideScene extends Phaser.Scene {
   // A hard hit: the rider falls off. The passenger is upset, fragile cargo breaks (see jobs), repairs cost money.
   #crash(e) {
     const kmh = Math.round(e.speed * 3.6);
-    const what = !e.hit ? 'a wall' : e.hit.kind === 'pole' ? 'a pole' : e.hit.kind === 'person' ? 'a person' : e.hit.kind === 'bus' ? 'a minibus' : `a ${e.hit.kind}`;
+    const what = !e.hit ? 'a wall' : e.hit.officer ? 'a police officer' : e.hit.kind === 'pole' ? 'a pole' : e.hit.kind === 'person' ? 'a person' : e.hit.kind === 'bus' ? 'a minibus' : `a ${e.hit.kind}`;
     this.cameras.main.shake(300, 0.008);
     this.engineSound.crash(e.speed / 12);
     this.events.emit('bark', `Crash! You hit ${what} at ${kmh} km/h and fell off`);
@@ -1114,9 +1128,11 @@ export class RideScene extends Phaser.Scene {
       this.add.image(s.x, s.y, key).setOrigin(ox, oy).setDepth(x + y);
     };
     for (const c of this.world.cameras) place('camera', c.x, c.y);
+    // Speed limit signs (from the map, and made from the roads), speed bump warnings and crossing signs.
     for (const sign of this.world.signs) {
-      const key = `sign-${sign.limitKmh}`;
-      if (!this.textures.exists(key)) addCanvasTexture(this, key, drawSpeedSign(sign.limitKmh));
+      const kind = sign.kind ?? 'limit';
+      const key = kind === 'limit' ? `sign-${sign.limitKmh}` : `sign-${kind}`;
+      if (!this.textures.exists(key)) addCanvasTexture(this, key, kind === 'limit' ? drawSpeedSign(sign.limitKmh) : drawRoadSign(kind));
       place(key, sign.x, sign.y);
     }
     addCanvasTexture(this, 'ring-pickup', drawMarkerRing(0x44bc9d));

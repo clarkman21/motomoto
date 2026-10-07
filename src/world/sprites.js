@@ -655,6 +655,46 @@ export function drawSpeedSign(limitKmh) {
   return c;
 }
 
+/**
+ * Warning and information signs on a pole. kind:
+ * - 'bump': a white triangle with a red edge and a black hump (a speed bump ahead).
+ * - 'crossing': a blue square with a white triangle and a walking person (a zebra crossing).
+ */
+export function drawRoadSign(kind) {
+  const c = new PixelCanvas(PROP_CANVAS.width, PROP_CANVAS.height);
+  pole(c, 12);
+  const cx = PROP_CANVAS.groundX;
+  if (kind === 'bump') {
+    // The triangle: 15 pixels wide, point up, rows 1 to 13.
+    for (let y = 1; y <= 13; y++) {
+      const half = Math.floor((y - 1) * 0.58);
+      for (let x = cx - half; x <= cx + half; x++) {
+        const edge = y >= 12 || x <= cx - half + 1 || x >= cx + half - 1;
+        c.setPixel(x, y, edge ? 0xd0302a : 0xffffff);
+      }
+    }
+    // The hump: a low black arc on a line.
+    for (let x = cx - 4; x <= cx + 4; x++) c.setPixel(x, 10, 0x111111);
+    for (let x = cx - 2; x <= cx + 2; x++) c.setPixel(x, 9, 0x111111);
+    c.setPixel(cx - 1, 8, 0x111111); c.setPixel(cx, 8, 0x111111); c.setPixel(cx + 1, 8, 0x111111);
+  } else {
+    // The blue square with a white triangle, and a black person who walks across.
+    for (let y = 1; y <= 14; y++) for (let x = cx - 6; x <= cx + 6; x++) c.setPixel(x, y, 0x1f5fb0);
+    for (let y = 3; y <= 12; y++) {
+      const half = Math.floor((y - 3) * 0.6);
+      for (let x = cx - half; x <= cx + half; x++) c.setPixel(x, y, 0xffffff);
+    }
+    for (let x = cx - 5; x <= cx + 5; x += 2) c.setPixel(x, 13, 0xffffff); // the zebra bars
+    const ink = 0x111111;
+    c.setPixel(cx, 5, ink); // the head
+    c.setPixel(cx, 7, ink); c.setPixel(cx, 8, ink); // the body
+    c.setPixel(cx - 1, 7, ink); c.setPixel(cx + 1, 8, ink); // the arms
+    c.setPixel(cx - 1, 9, ink); c.setPixel(cx + 1, 9, ink); c.setPixel(cx - 2, 10, ink); c.setPixel(cx + 2, 10, ink); // the legs
+  }
+  c.outline(0x161616);
+  return c;
+}
+
 // ---------------------------------------------------------------------------
 // Job marker (ring on the ground and a pin above it) and the direction arrow
 // ---------------------------------------------------------------------------

@@ -7,6 +7,7 @@ import { KITENGE } from './market-sprites.js';
 // - drawBicycleTaxi(frame, frames): the rider pedals, with a passenger on the padded seat at the
 //   back. The sprite looks to the right. The pedals turn and the wheels turn with the frame.
 // - drawGameOverBackdrop(w, h): an evening sky, the green hills of Kigali with small houses, and a road.
+// - drawJailCell(w, h, frame): the jail game over (you hit a police officer): you sit in a cell.
 
 export const BICYCLE_CANVAS = { width: 60, height: 50, groundY: 48 };
 export const BACKDROP_ROAD = 14; // the height of the road at the bottom of the backdrop
@@ -178,5 +179,50 @@ export function drawGameOverBackdrop(w, h) {
     for (let y = roadTop + 2; y < h; y++) c.setPixel(x, y, hash2(x, y, 2) < 0.08 ? 0x4a4a50 : 0x3a3a40);
     c.setPixel(x, roadTop + 3, 0xd8d6cc);
   }
+  return c;
+}
+
+/**
+ * The jail picture, w × h: a cell with a brick wall, a small window with bars and moonlight, and you
+ * on a bench in orange prison clothes, behind the bars of the door. frame 0: the head is down; 1: up.
+ */
+export function drawJailCell(w, h, frame = 0) {
+  const c = new PixelCanvas(w, h);
+  const floor = h - 10;
+  // The wall: grey bricks with dark joints. The floor: dark concrete.
+  for (let y = 0; y < floor; y++) {
+    for (let x = 0; x < w; x++) {
+      const row = Math.floor(y / 5), off = (row & 1) * 6;
+      const joint = y % 5 === 4 || (x + off) % 12 === 11;
+      const tone = hash2(Math.floor((x + off) / 12), row, 31) < 0.3 ? 0x6a6660 : 0x77736c;
+      c.setPixel(x, y, joint ? 0x4e4b46 : tone);
+    }
+  }
+  for (let y = floor; y < h; y++) for (let x = 0; x < w; x++) c.setPixel(x, y, hash2(x, y, 5) < 0.1 ? 0x3e3e40 : 0x48484a);
+  // The window, high on the wall: night sky, the moon, three bars, and moonlight on the floor.
+  const wx = Math.floor(w * 0.62), wy = 8, ww = 22, wh = 14;
+  for (let y = wy; y < wy + wh; y++) for (let x = wx; x < wx + ww; x++) c.setPixel(x, y, 0x1e2448);
+  c.fillDisc(wx + 15, wy + 5, 3, 0xf0ecd0);
+  for (const bx of [wx + 5, wx + 11, wx + 17]) for (let y = wy; y < wy + wh; y++) c.setPixel(bx, y, 0x2a2a2a);
+  for (let y = floor; y < h; y++) {
+    const spread = (y - floor) * 1.5;
+    for (let x = Math.floor(wx - 10 - spread); x < wx + ww - 6 - spread * 0.5; x++) if (hash2(x, y, 9) < 0.5) c.setPixel(x, y, 0x5c5c5e);
+  }
+  // The bench and you: orange prison clothes, sitting, the arms on the knees.
+  const bx = Math.floor(w * 0.3), by = floor - 10;
+  for (let x = bx - 18; x <= bx + 18; x++) { c.setPixel(x, by, 0x6a4a2a); c.setPixel(x, by + 1, 0x6a4a2a); c.setPixel(x, by + 2, 0x4a3420); }
+  for (const lx of [bx - 16, bx + 16]) for (let y = by + 3; y < floor + 1; y++) { c.setPixel(lx, y, 0x4a3420); c.setPixel(lx + 1, y, 0x4a3420); }
+  const ORANGE = 0xe0782a, ORANGE_DARK = 0xb85c1c;
+  c.line(bx, by - 1, bx, by - 17, 8, ORANGE); // the body
+  c.line(bx + 2, by - 2, bx + 11, by - 2, 4.4, ORANGE_DARK); // the thighs
+  c.line(bx + 11, by - 1, bx + 11, floor - 1, 3.6, ORANGE_DARK); // the lower legs
+  c.line(bx + 11, floor, bx + 14, floor, 2, 0x202020); // the shoes
+  c.line(bx + 2, by - 15, bx + 10, by - 5, 2.6, ORANGE); // the arm on the knee
+  const head = frame ? { x: bx + 1, y: by - 23 } : { x: bx + 4, y: by - 20 };
+  c.fillDisc(head.x, head.y, 4.2, SKIN);
+  if (frame) { c.setPixel(head.x + 2, head.y - 1, 0x101010); c.setPixel(head.x + 2, head.y - 2, 0xffffff); } // the prisoner looks up at the window
+  // The bars of the door in front of everything, with a cross bar.
+  for (let x = 4; x < w; x += 16) for (let y = 0; y < h; y++) { c.setPixel(x, y, 0x1a1a1a); c.setPixel(x + 1, y, 0x3a3a3a); }
+  for (let x = 0; x < w; x++) { c.setPixel(x, 4, 0x1a1a1a); c.setPixel(x, h - 18, 0x1a1a1a); c.setPixel(x, h - 17, 0x3a3a3a); }
   return c;
 }

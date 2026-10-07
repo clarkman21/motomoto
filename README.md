@@ -13,7 +13,8 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | 2:1 isometric map with real height (64 × 32 px tiles, 16 px per level) | Done |
 | Gentle ramps (19%) and steep ramps (37%) | Done |
 | Surfaces: tarmac, cobblestone, murram (dry and wet), grass verge | Done |
-| Potholes (speed −30%) and speed bumps | Done |
+| Potholes (speed −30%) and speed bumps (a raised hump with yellow and black paint) | Done |
+| Zebra crossings (white bars) next to some junctions, separate from the speed bumps | Done |
 | Roundabout, buildings and trees (solid) | Done |
 | Petrol and electric moto with the spec values | Done |
 | Energy bar, uphill and downhill cost, electric regen | Done (placeholder values) |
@@ -30,13 +31,14 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | A passenger loses patience at a station stop or while you push: the tip goes down, and they complain | Done |
 | Job cards in a small 3 × 5 pixel font, so the jobs window takes less of the screen | Done |
 | MTN MoMo agents across the city: a lady in a yellow vest, a yellow stand and umbrella (decoration; airtime comes later) | Done |
-| Traffic police on the corners of most junctions (dark blue uniform, hi-vis POLICE vest); they blow the whistle when you speed past | Done |
+| Traffic police on the corners of most junctions: dark blue uniform, white cap and gloves, a green hi-vis vest with blue and white checks, and a blue POLICE post with a flashing blue and red light; they blow the whistle when you speed past | Done |
+| Hit a police officer at 15 km/h or more: jail, and the game is over (a jail cell game over screen) | Done |
 | Ride on the pavement or off road near an officer: the officer runs after you (22 km/h); caught = 5,000 RWF fine; you can get away on the road | Done |
 | Dashed white lane lines on tarmac roads (gaps at junctions) | Done |
 | Fix: you can push the bike with no fuel on grass, sand and up moderate hills | Done |
 | Passenger and cargo jobs, cash, fares and tips | Done |
 | Fuel station (pay per litre) and Ampersand swap station (flat fee) | Done |
-| Speed limit zones, signs and speed cameras with fines | Done |
+| Speed limit zones, signs and speed cameras with fines; about 250 speed limit signs made from the roads (where the limit changes and every 96 m), speed bump warning signs and crossing signs | Done |
 | Garage, service meter, breakdowns, crash repairs, daily rent | Done |
 | Shift clock for each level (for example 19:00–23:00 in 3 min) and day end summary | Done |
 | Out of cash = game over (no loan): below zero after the rent, or an empty tank and no cash for fuel; a bicycle taxi game over screen, then a new game at level 1 | Done |
@@ -59,7 +61,7 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Family rewards: what the money means at home after each job, each shift and each milestone | Done |
 | Sounds: the engine stops at the end of a shift; short tunes for shift end, milestone, game over, delivery | Done |
 | Hi-vis vests for all moto riders; banana and rice cargo; cyclists from level 3; detailed fuel stations | Done |
-| Buy the bare minimum of fuel (next job, next two jobs, or full); itemized service (oil change, brake pads, check) | Done |
+| Buy fuel in fixed amounts: 25% of a tank (1,000 RWF at the base price), 50%, or a full tank (your choice, not from the jobs); itemized service (oil change, brake pads, check) | Done |
 | One MOTO SERVICE meter: engine oil, brake pads, chain and tyres; the bike breaks down if you do not service it | Done |
 | Fuel estimate on each job card, from the distance, the climb and the load | Done |
 | Moto garages (Kazi ni Kazi, Sonatubes): open workshop, motos, mechanics, oil stains, painted sign | Done |
@@ -145,6 +147,8 @@ The game is about money. You earn from jobs. You spend on energy, fines and the 
 - **Passengers and cargo show on the bike.** A passenger with a helmet rides behind you; cargo sacks ride on the rear rack. A person waves at a passenger pickup; sacks wait at a cargo pickup.
 - **Fuel and shifting.** A full petrol tank lasts 6 min at full throttle (the electric battery 8 min). A new game starts with 60%. Fuel use rises fast with the revs: in the green part of the RPM bar the engine uses about 0.6–0.9× fuel, in the red zone 1.45×, and lugging in a high gear also costs more. Shift up (E) before the gold. If you stay in the red zone for 1.5 s with the manual shift, the game tells you to shift up (at most once in 25 s).
 - **Empty tank or battery.** Hold throttle to push the bike at walking speed to a station.
+- **Police.** Do not hit a police officer. At 15 km/h or more, the police arrest you: after 2.5 s the game over screen shows a jail cell, and you start again at level 1. A slow touch is only a warning.
+- **Buying fuel.** At a fuel station, press F, then 1 (25% of a tank), 2 (50%) or 3 (a full tank). At the base price, 25% costs 1,000 RWF; each district has its own price. The job cards still show the fuel that each job needs.
 - **Out of cash: game over.** There is no loan. The game is over when: (1) your cash is below zero at the end of the day, after the rent; or (2) the tank (or the battery) is empty, you have less cash than the smallest fuel buy (10 RWF) or a swap (2,500 RWF), and no passenger or cargo is on the bike. For (2) you get a warning, then the game over screen comes after 4 s. During the shift, cash below zero gets a warning only: earn it back before the shift ends. The game over screen shows why, a moving picture of you on a bicycle taxi (an igare, with a passenger on the soft seat at the back), and what you did in the game. Then you start again at level 1. The save is removed at the game over, so a reload does not bring the moto back.
 - **Regen.** The electric moto charges its battery when it brakes and when it rolls downhill. The day end summary shows how much regen saved.
 - **Distance.** The test map is small, so 40 m of map counts as 1 game km.
@@ -186,7 +190,8 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `MINIMAP` | Minimap zoom (pixels per tile), window size, hill shading, padlock spacing |
 | `MARKET` | How many vendors, umbrellas, goats and sheep, and street vendors |
 | `MOMO` | How many MTN MoMo agents, and the space between them |
-| `POLICE` | How many junctions have an officer, the whistle, the chase (how far they see, how fast they run, when they give up) and the fine |
+| `POLICE` | How many junctions have an officer, the whistle, the chase (how far they see, how fast they run, when they give up), the fine, the speed that sends you to jail, the flashing light of the post |
+| `ROAD_SIGNS` | How often speed limit signs repeat, where the bump warnings stand, how many junction arms have a zebra crossing |
 
 The game map is built in code in [`src/world/maps/kigali.js`](src/world/maps/kigali.js): district rectangles, hills, roads, landmarks, stations and places. Each block has a building style (`h` house, `s` shop, `o` office, `t` tower, `g` government, `c` school, `w` warehouse, `v` villa). The district rules set the style, and a landmark sets the style, the height in levels and the sign text of its block. The small test map for the unit tests is an ASCII grid in [`src/world/map-data.js`](src/world/map-data.js). The legend is at the top of the file. Hills are plateaus with ramps; each hill has a height and a ramp length for each side. The same file has the job places, speed limit zones, cameras and signs.
 
@@ -209,12 +214,13 @@ src/
     retro-font.js        5 × 7 pixel font for the retro menus and HUD
     hud-icons.js         9 × 9 pixel icons for the HUD (fuel, battery, spanner, coin, clock, star, …)
     attendant-sprites.js Station attendants (SP fuel, Ampersand swap)
-    police.js            Traffic police: the sprite and where they stand (junction corners)
+    police.js            Traffic police: the sprite, the POLICE post and where they stand (junction corners)
+    road-signs.js        Speed limit, speed bump and crossing signs, and the zebra crossings, made from the roads
     garage-sprites.js    Garage and building signs (pixel font), mechanics, oil stains, tyres, oil drum
     market-sprites.js    Market vendors, kitenge, goats and sheep, MTN MoMo agents
     market.js            Where the market vendors, animals and MoMo agents stand
     minimap.js           Draws the minimap (the whole map as a small diamond)
-    bicycle-sprites.js   The game over picture: a bicycle taxi (side view) and the evening hills
+    bicycle-sprites.js   The game over pictures: a bicycle taxi (side view) and the evening hills; the jail cell
   sim/
     bike.js              Arcade bike physics and energy (no Phaser)
     controls.js          The two steering models

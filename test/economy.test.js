@@ -338,18 +338,35 @@ describe('maintenance and the garage', () => {
   });
 });
 
-import { fuelChoices, fuelForMetres } from '../src/sim/economy.js';
+import { fuelChoices } from '../src/sim/economy.js';
 import { FUEL } from '../src/config.js';
-describe('buying the bare minimum of fuel', () => {
-  it('offers enough for the next job, the next two jobs, or a full tank, in round amounts', () => {
+describe('buying fuel: fixed amounts', () => {
+  it('offers 25% and 50% of a tank and a full tank, in round amounts, whatever the jobs are', () => {
     const bike = createBike(new World(TEST_MAP), 'petrol');
     bike.energy = 0.1;
-    const [one, two, full] = fuelChoices(bike, 1, [{ fuel: fuelForMetres(800) }, { fuel: fuelForMetres(1000) }]);
-    expect(one.cost % FUEL.roundToRwf).toBe(0);
-    expect(one.cost).toBeLessThan(two.cost);
-    expect(two.cost).toBeLessThan(full.cost);
-    expect(one.upTo).toBeGreaterThanOrEqual(fuelForMetres(800));
+    const [quarter, half, full] = fuelChoices(bike, 1);
+    expect(quarter.cost).toBe(MONEY.fuelFullTank * 0.25); // 1,000 RWF at the base price
+    expect(half.cost).toBe(MONEY.fuelFullTank * 0.5);
+    expect(quarter.upTo).toBeCloseTo(0.35);
     expect(full.upTo).toBe(1);
+    expect(full.cost).toBe(MONEY.fuelFullTank * 0.9);
+    for (const c of [quarter, half]) expect(c.cost % FUEL.roundToRwf).toBe(0);
+  });
+
+  it('a step that does not fit fills the tank; a full tank costs nothing', () => {
+    const bike = createBike(new World(TEST_MAP), 'petrol');
+    bike.energy = 0.8;
+    const [quarter, half, full] = fuelChoices(bike, 1);
+    expect(quarter.upTo).toBe(1);
+    expect(half.cost).toBe(full.cost);
+    bike.energy = 1;
+    expect(fuelChoices(bike, 1).every((c) => c.cost === 0)).toBe(true);
+  });
+
+  it('the price of the district changes the cost', () => {
+    const bike = createBike(new World(TEST_MAP), 'petrol');
+    bike.energy = 0.1;
+    expect(fuelChoices(bike, 1.2)[0].cost).toBe(1200);
   });
 
   it('buys only up to the level you chose', () => {
@@ -362,11 +379,6 @@ describe('buying the bare minimum of fuel', () => {
     expect(r.cost).toBe(MONEY.fuelFullTank * 0.3);
   });
 
-  it('a choice that buys nothing costs nothing', () => {
-    const bike = createBike(new World(TEST_MAP), 'petrol');
-    bike.energy = 0.95;
-    expect(fuelChoices(bike, 1, [{ fuel: 0.02 }, { fuel: 0.02 }])[0].cost).toBe(0);
-  });
 });
 
 describe('the service at the garage', () => {

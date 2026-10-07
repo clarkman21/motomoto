@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { World } from '../src/world/world.js';
 import { buildKigaliMap } from '../src/world/maps/kigali.js';
 import { buildRoadGraph } from '../src/sim/roads.js';
-import { policeSpots, drawOfficer } from '../src/world/police.js';
+import { policeSpots, drawOfficer, drawPolicePost } from '../src/world/police.js';
 import { VEST } from '../src/world/sprites.js';
-import { WORLD } from '../src/config.js';
+import { WORLD, COLOURS } from '../src/config.js';
 
 const T = WORLD.tileMetres;
 const world = new World(buildKigaliMap());
@@ -26,16 +26,36 @@ describe('traffic police', () => {
     }
   });
 
-  it('wear a high visibility vest over a dark blue uniform', () => {
-    const c = drawOfficer(1);
-    let vest = 0, blue = 0;
-    for (let i = 0; i < c.data.length; i += 4) {
-      const rgb = (c.data[i] << 16) | (c.data[i + 1] << 8) | c.data[i + 2];
-      if (rgb === VEST.colour) vest++;
-      if (rgb === 0x1c2a5a) blue++;
+  it('wear a police vest (not the yellow vest of the moto riders) over a dark blue uniform, and a white cap', () => {
+    const count = (c, colour) => {
+      let n = 0;
+      for (let i = 0; i < c.data.length; i += 4) if (((c.data[i] << 16) | (c.data[i + 1] << 8) | c.data[i + 2]) === colour) n++;
+      return n;
+    };
+    for (const f of [0, 1, 2, 3]) {
+      const c = drawOfficer(f);
+      expect(count(c, COLOURS.policeVest)).toBeGreaterThan(8);
+      expect(count(c, COLOURS.policeBlue)).toBeGreaterThan(3); // the blue and white checks
+      expect(count(c, 0x1c2a5a)).toBeGreaterThan(10);
+      expect(count(c, 0xf4f4f4)).toBeGreaterThan(5); // the cap, the gloves, the belt
+      expect(count(c, VEST.colour)).toBe(0);
     }
-    expect(vest).toBeGreaterThan(10);
-    expect(blue).toBeGreaterThan(10);
+    expect(COLOURS.policeVest).not.toBe(VEST.colour);
+  });
+
+  it('have a blue POLICE post with a light that flashes blue and red', () => {
+    const blue = drawPolicePost(0), red = drawPolicePost(1);
+    expect(Buffer.from(blue.data).equals(Buffer.from(red.data))).toBe(false);
+    let n = 0;
+    for (let i = 0; i < blue.data.length; i += 4) if (((blue.data[i] << 16) | (blue.data[i + 1] << 8) | blue.data[i + 2]) === COLOURS.policeBlue) n++;
+    expect(n).toBeGreaterThan(60);
+  });
+
+  it('most spots have a post near the officer', () => {
+    const spots = policeSpots(world, graph);
+    const posts = spots.filter((s) => s.post);
+    expect(posts.length).toBeGreaterThan(spots.length * 0.6);
+    for (const s of posts) expect(Math.hypot(s.post.x - s.x, s.post.y - s.y)).toBeLessThan(T);
   });
 });
 

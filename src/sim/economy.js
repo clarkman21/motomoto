@@ -142,25 +142,19 @@ export function endDay(wallet, bike, rent = MONEY.dailyRent[bike.type]) {
   return summary;
 }
 
-/** The tank fraction needed to ride a distance in metres (an estimate, with hills and a margin). */
-export function fuelForMetres(metres) {
-  return (metres / 1000) * FUEL.tankPerKm * FUEL.margin;
-}
-
 /**
- * The choices at a fuel station: enough for the next job, for the next two jobs, or a full tank.
- * jobs: [{ fuel }] the tank fraction of the next jobs (the active job first; see sim/fuel.js).
- * Each choice: { label, upTo, cost }. Amounts are round (FUEL.roundToRwf). A choice that buys nothing costs 0.
+ * The choices at a fuel station: fixed amounts that do not depend on the jobs (you decide).
+ * FUEL.buySteps (for example 25% and 50% of a tank), then a full tank. Each choice:
+ * { label, upTo, cost }. Amounts are round (FUEL.roundToRwf). When the tank is too full for a step,
+ * the step fills it. When the tank is full, a choice costs 0.
  */
-export function fuelChoices(bike, priceFactor, jobs) {
+export function fuelChoices(bike, priceFactor) {
   const perUnit = MONEY.fuelFullTank * priceFactor;
-  const choice = (label, need) => {
-    const upTo = Math.min(1, need);
-    if (upTo <= bike.energy + 0.005) return { label, upTo: bike.energy, cost: 0 };
-    const cost = Math.min(Math.ceil(((upTo - bike.energy) * perUnit) / FUEL.roundToRwf) * FUEL.roundToRwf, round10((1 - bike.energy) * perUnit));
+  const fill = round10((1 - bike.energy) * perUnit);
+  const choice = (label, add) => {
+    if (bike.energy > 0.995) return { label, upTo: bike.energy, cost: 0 };
+    const cost = Math.min(Math.round((add * perUnit) / FUEL.roundToRwf) * FUEL.roundToRwf, fill);
     return { label, upTo: Math.min(1, bike.energy + cost / perUnit), cost };
   };
-  const one = (jobs[0]?.fuel ?? 0) + FUEL.reserveAt / 2;
-  const two = one + (jobs[1]?.fuel ?? jobs[0]?.fuel ?? 0);
-  return [choice('Enough for the next job', one), choice('Enough for the next two jobs', two), choice('Fill up the tank', 1)];
+  return [...FUEL.buySteps.map((step) => choice(`${Math.round(step * 100)}% of a tank`, step)), choice('Fill up the tank', 1)];
 }

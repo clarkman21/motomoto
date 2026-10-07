@@ -169,6 +169,9 @@ export const COLOURS = {
   // MTN MoMo agents: MTN yellow and a dark blue. This yellow is more orange than Surge Yellow, so the
   // two do not mix up (Surge Yellow is only for Ampersand).
   mtnYellow: 0xffc20e,
+  // Traffic police: a greener high visibility vest than the moto riders' yellow vest, and police blue.
+  policeVest: 0x9ee83a,
+  policeBlue: 0x1f4fb8,
   mtnBlue: 0x0b3d6e,
   // SP fuel stations: blue and yellow. This yellow is darker and more orange than Surge Yellow,
   // so the two do not mix up.
@@ -214,6 +217,16 @@ export const MONEY = {
 // with no cash for fuel (or a swap) and nobody on the bike to pay you, ends the game. Then you
 // start again at level 1 (decision by Alp: the game is hard enough without a way back from debt).
 // ---------------------------------------------------------------------------
+// Road signs and zebra crossings, made from the road list (see world/road-signs.js). Guesses.
+export const ROAD_SIGNS = {
+  repeatTiles: 24, // a speed limit sign again after this many tiles (96 m) on the same road
+  bumpWarnTiles: 3, // the speed bump warning stands this many tiles before the bump
+  crossingChance: 0.4, // part of the junction arms (on tarmac) that have a zebra crossing
+  minGapTiles: 1.6, // no two signs (or a sign and a street lamp) nearer than this
+  vergeInset: 0.3, // how far from the road edge a sign stands, in tiles
+  tries: 4, // when the verge is not free, try this many tiles further on
+};
+
 export const GAME_OVER = {
   strandedSeconds: 4, // the time you see the warning before the game over screen — guess
   bicycleFrames: 4, // pedal frames of the bicycle taxi on the game over screen
@@ -463,16 +476,15 @@ export const FUEL = {
   idleUse: 0.08, // fraction of the full throttle use while the engine runs with no throttle (petrol only)
   lowAt: 0.25, // "Fuel low": the HUD arrow points to the nearest station
   reserveAt: 0.1, // "Reserve!"
-  // Buying fuel: riders buy the bare minimum, not a full tank. The station offers enough for the
-  // next job, for the next two jobs, or a full tank. Estimate: tank per km of riding (with hills), plus a margin.
-  tankPerKm: 0.24, // a rough average (with hills), for a job that is not known yet (petrol)
+  // Buying fuel: fixed amounts, your choice (not from the jobs): a quarter or a half of a tank, or a full tank.
+  // At the base price, 25% of a tank is 1,000 RWF. Job cards still show the fuel that each job needs.
+  buySteps: [0.25, 0.5],
   // The estimate for a known job, as a fraction of the tank or the battery (measured in a test ride with
   // stops; see test/fuel.test.js). The electric moto goes further: a bigger battery and no gears.
   flatTankPerKm: { petrol: 0.19, electric: 0.1 }, // riding on the flat with no load
   tankPerClimbMetre: { petrol: 0.001, electric: 0.0006 }, // each metre of climb (the engine works harder)
   margin: 1.15,
   roundToRwf: 100, // fuel is sold in round amounts
-  approachMetres: 500, // the ride to a pickup that is not known yet
 };
 
 // Collisions: the bike and other things push each other by mass. A hard hit throws you off the bike.
@@ -538,6 +550,9 @@ export const MOMO = {
 
 // Traffic police on the corners of the junctions (decoration; later levels add helmet checks).
 export const POLICE = {
+  jailKmh: 15, // hit an officer at this speed or more: jail, and the game is over — guess
+  jailDelaySeconds: 2.5, // the time from the hit to the game over screen
+  postFlashMs: 450, // the light on the POLICE post changes between blue and red
   junctionChance: 0.8, // part of the junctions with an officer
   radius: 0.35, // metres, for collisions
   whistleKmh: 10, // the officer blows the whistle when you pass faster than the limit + this

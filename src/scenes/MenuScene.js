@@ -33,7 +33,7 @@ const HELP = [
       'A D or ← →: steer.   C: change the steering mode.',
       'E and Q: shift up and down (petrol moto).   G: automatic shift on or off.',
       '1 to 4: take a job. Stop next to a person who waves and press 1 to take a street hail.   Backspace: cancel the job.',
-      'F: buy fuel (then 1, 2 or 3: enough for the next job, the next two jobs, or a full tank), swap the battery, or service the bike at the garage.',
+      'F: buy fuel (then 1, 2 or 3: 25% of a tank, 50% of a tank, or a full tank), swap the battery, or service the bike at the garage.',
       'H: horn.   V: sound.   R: put the bike back on the nearest road (your fuel and the bike wear stay as they are).   M: map on or off.   Esc or P: pause menu.',
       'Touch: the stick on the left steers. GO and STOP are on the right, + and − shift. Tap a job card to take it.',
     ],
@@ -43,7 +43,7 @@ const HELP = [
     lines: [
       'Income: fares, cargo, tips (a smooth ride gives a bigger tip) and a bonus for a row of clean rides.',
       'Costs: fuel or battery swaps, the rent, the service at the garage, repairs after a crash, and fines from speed cameras and the police.',
-      'Fuel: like real riders, buy only what you need for the next job or two. A full tank ties up cash that you may need for the rent. Learn where the stations are: there is no arrow.',
+      'Fuel: like real riders, buy only what you need. 25% of a tank costs about 1,000 RWF (prices change by district). Each job card shows the fuel that the job needs. A full tank ties up cash that you may need for the rent. Learn where the stations are: there is no arrow.',
       'Save fuel: shift up while the RPM bar is green. Gold uses more fuel, and the red zone uses almost twice as much as green. Manual shifting with E saves more fuel than the automatic shift (G).',
       'Service: the SERVICE meter fills as you ride, faster on bad roads, off the road, at high revs and when you brake hard. The garage does an oil change, new brake pads and a check. At 100% the bike loses power and the brakes get weak. At 150% it breaks down, and you must push it to the garage.',
     ],

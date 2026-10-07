@@ -444,6 +444,7 @@ export function buildKigaliMap(seed = 7) {
       { x: 127.6, y: 22.4, limitKmh: 30 },
       { x: 155.6, y: 98.4, limitKmh: 30 },
     ],
+    autoSigns: true, // speed limit, speed bump and crossing signs from the roads (world/road-signs.js)
     busStops: [
       { x: 29, y: 12, side: 'north', park: true }, // Nyabugogo bus park
       { x: 52, y: 22, side: 'south' },
