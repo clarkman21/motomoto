@@ -1,4 +1,4 @@
-import { WORLD, MARKET } from '../config.js';
+import { WORLD, MARKET, MOMO } from '../config.js';
 import { hash2 } from './pixel-canvas.js';
 import { MARKET_GOODS, KITENGE, GOAT_COATS } from './market-sprites.js';
 
@@ -51,6 +51,32 @@ export function marketSpots(world) {
     if (t.surface !== 'pavement' || !MARKET.streetDistricts.includes(t.district) || nearPlace(t.tx, t.ty)) continue;
     if (areas.some((a) => t.tx >= a.x0 && t.tx < a.x1 && t.ty >= a.y0 && t.ty < a.y1)) continue;
     if (free(t) && hash2(t.tx, t.ty, 93) < MARKET.streetVendorChance) vendor(t, spots.length);
+  }
+  return spots;
+}
+
+const ROADS = ['tarmac', 'cobble', 'murram', 'murramWet'];
+
+/**
+ * Where the MTN MoMo agents sit: a pavement or a grass verge beside a road, across the whole map, spaced out.
+ * Not near job places, stations or lamp posts, and not on a market vendor's tile.
+ */
+export function momoSpots(world, taken = []) {
+  const spots = [];
+  const near = (list, tx, ty, d) => list.some((p) => Math.hypot(p.x - tx, p.y - ty) < d);
+  const lamps = (world.lamps ?? []).map((l) => ({ x: l.x, y: l.y }));
+  const used = taken.map((s) => ({ x: s.x / T, y: s.y / T }));
+  const byRoad = (t) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => {
+    const n = world.tile(t.tx + dx, t.ty + dy);
+    return n && ROADS.includes(n.surface) && !n.block;
+  });
+  for (const t of world.tiles) {
+    if (!['pavement', 'grass'].includes(t.surface) || t.block || t.solid || t.hazard || hash2(t.tx, t.ty, 120) >= MOMO.chance || !byRoad(t)) continue;
+    const cx = t.tx + 0.5, cy = t.ty + 0.5;
+    if (near(world.places, cx, cy, MOMO.clearTiles) || near(lamps, cx, cy, 2.2) || near(used, cx, cy, 1.5)) continue;
+    if (near(spots.map((s) => ({ x: s.x / T, y: s.y / T })), cx, cy, MOMO.minTiles)) continue;
+    // No mirror (flip: false): the MOMO sign on the stand must read the right way.
+    spots.push({ kind: 'momo', x: cx * T, y: cy * T, seed: Math.floor(hash2(t.tx, t.ty, 121) * 3), flip: false, phase: hash2(t.ty, t.tx, 123) * 4 });
   }
   return spots;
 }

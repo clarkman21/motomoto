@@ -158,6 +158,10 @@ export const COLOURS = {
   ampersandYellow: 0xfcdc04, // Surge Yellow
   ampersandBlack: 0x000000, // Eerie Black
   ebonyGrey: 0x5c5c5e,
+  // MTN MoMo agents: MTN yellow and a dark blue. This yellow is more orange than Surge Yellow, so the
+  // two do not mix up (Surge Yellow is only for Ampersand).
+  mtnYellow: 0xffc20e,
+  mtnBlue: 0x0b3d6e,
   // SP fuel stations: blue and yellow. This yellow is darker and more orange than Surge Yellow,
   // so the two do not mix up.
   spBlue: 0x1f4fa8,
@@ -500,4 +504,14 @@ export const MARKET = {
   clearTiles: 2.5, // no vendors this close to a job place (the markers stay clear)
   vendorRadius: 0.6, // metres, for collisions
   animalRadius: 0.35,
+};
+
+// MTN MoMo agents (mobile money and airtime): a lady in a yellow vest at a yellow stand under a
+// yellow umbrella, on pavements across the city. For now they are only decoration; later levels
+// use them to buy airtime. Guesses.
+export const MOMO = {
+  chance: 0.06, // part of the pavement tiles beside a road that are a possible place
+  minTiles: 12, // tiles between two agents (48 m)
+  clearTiles: 3, // no agent this close to a job place or a station
+  radius: 0.6, // metres, for collisions
 };

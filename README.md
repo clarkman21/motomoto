@@ -29,6 +29,7 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Out of fuel or charge: the rider walks beside the bike and pushes it, with tired sounds (UFF! AAH...) | Done |
 | A passenger loses patience at a station stop or while you push: the tip goes down, and they complain | Done |
 | Job cards in a small 3 × 5 pixel font, so the jobs window takes less of the screen | Done |
+| MTN MoMo agents across the city: a lady in a yellow vest, a yellow stand and umbrella (decoration; airtime comes later) | Done |
 | Passenger and cargo jobs, cash, fares and tips | Done |
 | Fuel station (pay per litre) and Ampersand swap station (flat fee) | Done |
 | Speed limit zones, signs and speed cameras with fines | Done |
@@ -178,6 +179,7 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `LIGHTS` | Street lamp spacing, light pools, lit windows, headlights and tail lights |
 | `MINIMAP` | Minimap zoom (pixels per tile), window size, hill shading, padlock spacing |
 | `MARKET` | How many vendors, umbrellas, goats and sheep, and street vendors |
+| `MOMO` | How many MTN MoMo agents, and the space between them |
 
 The game map is built in code in [`src/world/maps/kigali.js`](src/world/maps/kigali.js): district rectangles, hills, roads, landmarks, stations and places. Each block has a building style (`h` house, `s` shop, `o` office, `t` tower, `g` government, `c` school, `w` warehouse, `v` villa). The district rules set the style, and a landmark sets the style, the height in levels and the sign text of its block. The small test map for the unit tests is an ASCII grid in [`src/world/map-data.js`](src/world/map-data.js). The legend is at the top of the file. Hills are plateaus with ramps; each hill has a height and a ramp length for each side. The same file has the job places, speed limit zones, cameras and signs.
 
@@ -201,8 +203,8 @@ src/
     hud-icons.js         9 × 9 pixel icons for the HUD (fuel, battery, spanner, coin, clock, star, …)
     attendant-sprites.js Station attendants (SP fuel, Ampersand swap)
     garage-sprites.js    Garage and building signs (pixel font), mechanics, oil stains, tyres, oil drum
-    market-sprites.js    Market vendors, kitenge, goats and sheep
-    market.js            Where the market vendors and animals stand
+    market-sprites.js    Market vendors, kitenge, goats and sheep, MTN MoMo agents
+    market.js            Where the market vendors, animals and MoMo agents stand
     minimap.js           Draws the minimap (the whole map as a small diamond)
   sim/
     bike.js              Arcade bike physics and energy (no Phaser)

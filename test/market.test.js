@@ -92,3 +92,36 @@ describe('people react to the bike', () => {
     expect(again).toHaveLength(0);
   });
 });
+
+describe('MTN MoMo agents', () => {
+  it('sit on pavements beside roads all over the city, spaced out', async () => {
+    const { momoSpots, marketSpots } = await import('../src/world/market.js');
+    const { MOMO, COLOURS: C } = await import('../src/config.js');
+    const spots = momoSpots(world, marketSpots(world));
+    expect(spots.length).toBeGreaterThan(15);
+    const districts = new Set(spots.map((s) => world.tileAt(s.x, s.y).district));
+    expect(districts.size).toBe(6);
+    for (const s of spots) {
+      expect(['pavement', 'grass']).toContain(world.tileAt(s.x, s.y).surface);
+      for (const o of spots) if (o !== s) expect(Math.hypot(o.x - s.x, o.y - s.y)).toBeGreaterThanOrEqual(MOMO.minTiles * T);
+    }
+    expect(C.mtnYellow).not.toBe(C.ampersandYellow);
+  });
+
+  it('draws the agent in MTN yellow, never in Surge Yellow', async () => {
+    const { drawMomoAgent } = await import('../src/world/market-sprites.js');
+    const { COLOURS: C } = await import('../src/config.js');
+    for (const f of [0, 1]) {
+      const c = drawMomoAgent(f, 1);
+      expect(hasColour(c, C.mtnYellow)).toBe(true);
+      expect(hasColour(c, C.ampersandYellow)).toBe(false);
+    }
+  });
+});
+
+describe('MTN MoMo agents (look)', () => {
+  it('are never mirrored, so the MOMO sign reads the right way', async () => {
+    const { momoSpots } = await import('../src/world/market.js');
+    expect(momoSpots(world).every((s) => s.flip === false)).toBe(true);
+  });
+});

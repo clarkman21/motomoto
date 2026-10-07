@@ -1,4 +1,6 @@
 import { PixelCanvas, hash2 } from './pixel-canvas.js';
+import { COLOURS } from '../config.js';
+import { drawText, textWidth } from './garage-sprites.js';
 
 // Market life, drawn small and simple: mamas in kitenge who sell fruit and vegetables on a mat
 // (some under a big umbrella), goats and sheep tied up for sale, and kitenge for the walkers.
@@ -155,6 +157,47 @@ export function drawSheep(frame = 0) {
   const hy = frame ? gy - 3 : gy - 8, hx = gx + 7;
   c.fillDisc(hx, hy, 1.8, 0x2a2a2a);
   c.plot(hx - 2, hy - 1, 0x2a2a2a); // ear
+  c.outline(0x161616);
+  return c;
+}
+
+/**
+ * An MTN MoMo agent: a lady in a yellow vest sits behind a small yellow stand with "MOMO" on it,
+ * under a big yellow umbrella. frame 1: she holds her phone to her ear. MTN yellow, not Surge Yellow.
+ */
+export function drawMomoAgent(frame = 0, seed = 0) {
+  const c = new PixelCanvas(VENDOR_CANVAS.width, VENDOR_CANVAS.height);
+  const gx = VENDOR_CANVAS.groundX, gy = VENDOR_CANVAS.groundY;
+  const Y = COLOURS.mtnYellow, B = COLOURS.mtnBlue, DARK_Y = 0xd99a00;
+  const skin = [0x6b4226, 0x5a3820, 0x7a4a2a][seed % 3];
+  const k = KITENGE[(seed + 1) % KITENGE.length];
+  // The umbrella pole, behind her.
+  c.line(gx + 4, gy - 2, gx + 4, gy - 29, 1, 0x4a4a4a);
+  // The lady: a kitenge skirt, a yellow vest, a head wrap; she sits behind the stand.
+  const by = gy - 6;
+  drawKitengeDress(c, gx - 2, by - 8, by + 1, 3.2, k, seed);
+  for (let y = by - 8; y <= by - 3; y++) for (let x = gx - 5; x <= gx + 1; x++) c.plot(x, y, Y); // the vest
+  c.plot(gx - 2, by - 6, B); // the MTN badge on the vest
+  c.line(gx - 5.5, by - 7, gx - 6, by - 2, 1.6, skin);
+  if (frame) {
+    c.line(gx + 1.5, by - 7, gx + 1, by - 12, 1.6, skin); // the phone at her ear
+    c.plot(gx + 1, by - 13, 0x1a1a1a);
+    c.plot(gx + 1, by - 12, 0x1a1a1a);
+  } else c.line(gx + 1.5, by - 7, gx + 2, by - 2, 1.6, skin);
+  c.fillDisc(gx - 1.5, by - 11, 2.6, skin);
+  drawHeadWrap(c, gx - 1.5, by - 11, 2.6, k);
+  // The stand in front: a yellow box with a blue band and MOMO in yellow letters.
+  const sx = gx - 11, sw = 22, sTop = gy - 9;
+  for (let y = sTop; y <= gy; y++) for (let x = sx; x < sx + sw; x++) c.plot(x, y, y === sTop ? 0xffe070 : x === sx + sw - 1 ? DARK_Y : Y);
+  for (let y = sTop + 2; y <= sTop + 8; y++) for (let x = sx + 1; x < sx + sw - 1; x++) c.plot(x, y, B);
+  const word = 'MOMO';
+  drawText(c, word, sx + Math.round((sw - textWidth(word)) / 2), sTop + 3, Y);
+  // The umbrella: all yellow, with darker panels, and a blue top.
+  for (let y = 0; y <= 6; y++) {
+    const w = Math.round(3 + y * 1.8);
+    for (let x = -w; x <= w; x++) c.plot(gx + 2 + x, gy - 34 + y, Math.floor((x + 40) / 4) % 2 ? Y : DARK_Y);
+  }
+  c.plot(gx + 2, gy - 35, B);
   c.outline(0x161616);
   return c;
 }
