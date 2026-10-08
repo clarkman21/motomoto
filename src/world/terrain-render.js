@@ -35,6 +35,7 @@ const PALETTE = {
   curb: 0xb8b2a2,
   laneLine: 0xe8e6dc, // the white dashed line between the two lanes
   flowers: [0xd04a6a, 0x9a5ad0, 0xf0f0f0],
+  flowerBed: [0xd04a6a, 0x9a5ad0, 0xf0f0f0, 0xe8b030, 0xe06a2a, 0xc03050],
   soil: [0x6b3a22, 0x9a4a27, 0x7d3b20],
   pavement: [0xb3ada2, 0xa59f94, 0xbfb9ae],
   pavementJoint: 0x8f897f,
@@ -169,6 +170,7 @@ export function laneMarkings(world) {
     marks.set(key, m);
   };
   for (const r of world.roads ?? []) {
+    if (r.ring) continue; // a one way ring has no centre line
     if (r.y !== undefined) {
       for (let x = r.x0; x <= r.x1; x++) {
         put(x, r.y, { alongX: true, edge: 'high' }); // the line on the south edge of the north row
@@ -206,7 +208,11 @@ function tileContext(world, tile) {
     : !marks.has(`${tile.tx},${tile.ty - 1}`) || !marks.has(`${tile.tx},${tile.ty + 1}`));
   const lane = tile.surface === 'tarmac' && !tile.hazard && !besideJunction ? mark ?? null : null;
   const crossing = crossings(world).get(`${tile.tx},${tile.ty}`) ?? null;
-  return { tile, curbs, bumpAcrossX: bumpN, nearMonument, lane: crossing ? null : lane, crossing };
+  // A roundabout near this tile: the ring and its island are drawn round, pixel by pixel.
+  const ring = (world.roads ?? []).find((r) => r.ring && Math.hypot(tile.tx + 0.5 - r.cx, tile.ty + 0.5 - r.cy) < r.r + 2) ?? null;
+  // The ground beside the ring (for the corners of ring tiles that are outside the round ring).
+  const outside = ring ? ([[1, 0], [-1, 0], [0, 1], [0, -1], [2, 0], [-2, 0], [0, 2], [0, -2]].map(([dx, dy]) => n(dx, dy)?.surface).find((q) => q && q !== 'tarmac') ?? 'grass') : null;
+  return { tile, ring, outside, curbs, bumpAcrossX: bumpN, nearMonument, lane: crossing ? null : lane, crossing };
 }
 
 function surfaceColour(ctx, u, v, sx, sy) {
@@ -214,9 +220,38 @@ function surfaceColour(ctx, u, v, sx, sy) {
   const r = hash2(sx, sy);
   const wu = tile.tx + u; // world position in tiles, for patterns that stick to the ground
   const wv = tile.ty + v;
+  if (ctx.ring) {
+    // A round roundabout: a grass island with a kerb and a band of flower beds, a round ring of
+    // tarmac with a kerb on the outside (open where the roads come in).
+    const R = ctx.ring, d = Math.hypot(wu - R.cx, wv - R.cy);
+    const onApproach = Math.abs(wu - R.cx) < 1 || Math.abs(wv - R.cy) < 1;
+    if (d < R.r - 1) {
+      if (d > R.r - 1.1) return PALETTE.curb;
+      if (d > R.r - 2 && d < R.r - 1.3 && r > 0.25) {
+        const clump = hash2(Math.floor(wu * 6), Math.floor(wv * 6), 61);
+        return PALETTE.flowerBed[Math.floor(clump * 97) % PALETTE.flowerBed.length];
+      }
+      return pick(PALETTE.grass, r, 0.14, 0.9);
+    }
+    if (d <= R.r + 1) {
+      if (d > R.r + 0.93 && !onApproach) return PALETTE.curb;
+      return pick(PALETTE.tarmac, r, 0.1, 0.86);
+    }
+    const centre = Math.hypot(tile.tx + 0.5 - R.cx, tile.ty + 0.5 - R.cy);
+    if (centre <= R.r + 1 && !onApproach) {
+      // The corner of a ring tile, outside the round ring: the ground beside it.
+      return surfaceColour({ ...ctx, ring: null, lane: null, crossing: null, tile: { ...tile, surface: ctx.outside, hazard: null } }, u, v, sx, sy);
+    }
+    if (onApproach && tile.surface === 'tarmac') return pick(PALETTE.tarmac, r, 0.1, 0.86); // no kerb across the road mouth
+  }
   switch (tile.surface) {
     case 'grass': {
       if (ctx.nearMonument && r > 0.9) return PALETTE.flowers[Math.floor(hash2(sx, sy, 3) * 3)];
+      if (tile.flowers) {
+        // Flower beds: clumps of red, purple, white and yellow flowers on short grass.
+        const clump = hash2(Math.floor(wu * 5), Math.floor(wv * 5), 61);
+        if (clump > 0.45 && r > 0.35) return PALETTE.flowerBed[Math.floor(clump * 97) % PALETTE.flowerBed.length];
+      }
       return pick(PALETTE.grass, r, 0.14, 0.9);
     }
     case 'cobble': {

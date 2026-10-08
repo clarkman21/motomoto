@@ -15,7 +15,7 @@ function roadUse(world) {
   if (world.roadUseCache) return world.roadUseCache;
   const count = new Map();
   const add = (tx, ty) => count.set(`${tx},${ty}`, (count.get(`${tx},${ty}`) ?? 0) + 1);
-  for (const r of world.roads ?? []) {
+  for (const r of (world.roads ?? []).filter((q) => !q.ring)) {
     if (r.y !== undefined) for (let x = r.x0; x <= r.x1; x++) { add(x, r.y); add(x, r.y + 1); }
     else for (let y = r.y0; y <= r.y1; y++) { add(r.x, y); add(r.x + 1, y); }
   }
@@ -39,7 +39,7 @@ export function crossings(world) {
   const use = roadUse(world);
   const out = new Map();
   const isJunction = (tx, ty) => (use.get(`${tx},${ty}`) ?? 0) > 1;
-  for (const r of world.roads ?? []) {
+  for (const r of (world.roads ?? []).filter((q) => !q.ring)) {
     const [a, b] = range(r);
     const alongX = r.y !== undefined;
     for (let i = a; i <= b; i++) {
@@ -80,7 +80,7 @@ export function roadSigns(world, taken = []) {
   };
 
   // Three passes: crossing signs and bump warnings first (they must stand in one place), then the limits.
-  for (const pass of ['crossing', 'bump', 'limit']) for (const r of world.roads ?? []) {
+  for (const pass of ['crossing', 'bump', 'limit']) for (const r of (world.roads ?? []).filter((q) => !q.ring)) {
     const alongX = r.y !== undefined;
     const [a, b] = range(r);
     for (const dir of [1, -1]) {

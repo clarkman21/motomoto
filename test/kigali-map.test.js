@@ -38,7 +38,7 @@ describe('Kigali map (6 districts)', () => {
     expect(world.placesWithTag('fuel').length).toBeGreaterThanOrEqual(6);
     expect(world.placesWithTag('swap').length).toBeGreaterThanOrEqual(4);
     expect(world.placesWithTag('garage')).toHaveLength(2);
-    for (const kind of ['fuel', 'swap', 'garage', 'dome', 'monument']) expect(world.blocks.some((b) => b.kind === kind), kind).toBe(true);
+    for (const kind of ['fuel', 'swap', 'garage', 'dome', 'fountain']) expect(world.blocks.some((b) => b.kind === kind), kind).toBe(true);
   });
 
   it('starts the bike on the northern road in the Nyabugogo valley', () => {

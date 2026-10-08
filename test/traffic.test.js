@@ -11,12 +11,54 @@ const world = new World(data);
 const graph = buildRoadGraph(data.roads);
 
 describe('road graph', () => {
-  it('has junction nodes and two way edges', () => {
+  it('has junction nodes and two way edges (the roundabouts are one way)', () => {
     expect(graph.nodes.length).toBeGreaterThan(30);
     for (const e of graph.edges) {
+      if (e.road.ring) {
+        expect(e.reverse).toBeNull();
+        continue;
+      }
       expect(e.reverse).not.toBeNull();
       expect(e.reverse.reverse).toBe(e);
     }
+  });
+
+  it('has 3 round roundabouts, driven anticlockwise on the screen (right hand traffic)', () => {
+    const rings = data.roads.filter((r) => r.ring);
+    expect(rings.map((r) => r.name).sort()).toEqual(['KCC roundabout', 'MTN roundabout', 'Town roundabout']);
+    for (const R of rings) {
+      const edges = graph.edges.filter((e) => e.road === R);
+      expect(edges).toHaveLength(16);
+      for (const e of edges) {
+        // Anticlockwise seen from above with y down: the cross product of (from − centre) and the direction is < 0.
+        const rx = e.from.x - R.cx * 4, ry = e.from.y - R.cy * 4;
+        expect(rx * e.dy - ry * e.dx).toBeLessThan(0);
+      }
+      // Four roads meet each ring: each meeting point has a way onto the ring and a way off it.
+      const meet = graph.nodes.filter((n) => n.out.some((e) => e.road === R) && n.out.some((e) => !e.road.ring));
+      expect(meet.length).toBe(4);
+    }
+  });
+
+  it('a route across a roundabout goes round it, the right way', () => {
+    const R = data.roads.find((r) => r.name === 'Town roundabout');
+    const T = 4;
+    const north = nearestNode(graph, R.cx * T, (R.cy - 9) * T), west = nearestNode(graph, (R.cx - 9) * T, R.cy * T);
+    const path = shortestPath(graph, north, west);
+    expect(path).not.toBeNull();
+    const onRing = path.filter((e) => e.road === R);
+    expect(onRing.length).toBeGreaterThan(0);
+    // From the north to the west, anticlockwise is the short way (a quarter of the ring).
+    expect(onRing.length).toBe(4);
+  });
+
+  it('puts the ring on tarmac with a grass island', () => {
+    const R = data.roads.find((r) => r.name === 'KCC roundabout');
+    for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * Math.PI * 2;
+      expect(world.tileAt((R.cx + R.r * Math.cos(a)) * 4, (R.cy + R.r * Math.sin(a)) * 4).surface).toBe('tarmac');
+    }
+    expect(world.tileAt(R.cx * 4 + 2, R.cy * 4 + 2).surface).toBe('grass');
   });
 
   it('puts every lane point on a road you can ride on', () => {
@@ -78,6 +120,29 @@ describe('traffic', () => {
     for (let i = 0; i < 120; i++) stepTraffic(t, world, [bike], 1 / 30);
     expect(car.speed).toBeLessThan(0.5);
     expect(Math.hypot(car.x - bike.x, car.y - bike.y)).toBeGreaterThan(car.length / 2 + 1);
+  });
+
+  it('a car gives way to the traffic on a roundabout, then goes round it', () => {
+    const R = data.roads.find((r) => r.name === 'KCC roundabout');
+    const t = createTraffic(world, graph, mulberry32(5));
+    const [a, b] = t.vehicles.filter((v) => v.kind === 'car');
+    t.vehicles.length = 0;
+    t.vehicles.push(a, b);
+    // The meeting point at the north of the ring, the road that comes in from the north, and the ring edges.
+    const north = graph.nodes.find((n) => Math.abs(n.x - R.cx * 4) < 0.1 && Math.abs(n.y - (R.cy - R.r) * 4) < 0.1);
+    const inEdge = graph.edges.find((e) => e.to === north && !e.road.ring);
+    const ringOut = north.out.find((e) => e.road === R);
+    const ringIn = graph.edges.find((e) => e.road === R && e.to === north);
+    const before = graph.edges.find((e) => e.road === R && e.to === ringIn.from);
+    Object.assign(a, { edge: inEdge, prev: null, next: ringOut, s: inEdge.length - 8, speed: 6, route: [] });
+    Object.assign(b, { edge: before, prev: null, next: ringIn, s: 2, speed: 6, route: [] });
+    let waited = false;
+    for (let i = 0; i < 30 * 8; i++) {
+      stepTraffic(t, world, [], 1 / 30);
+      if (a.why === 'giveWay') waited = true;
+    }
+    expect(waited).toBe(true);
+    expect(a.edge.road === R || a.prev?.road === R).toBe(true); // a got onto the ring in the end
   });
 
   it('a truck is much slower uphill', () => {

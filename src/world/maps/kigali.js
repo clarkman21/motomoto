@@ -50,17 +50,13 @@ const HILLS = [
   { name: 'Kicukiro plateau', x0: 134, y0: 72, x1: 192, y1: 128, level: 4, run: { west: 2, east: 1, north: 2, south: 1 } },
 ];
 
-// Roundabouts: a ring of 4 roads around a centre island. (cx, cy): the crossing of the two roads.
-function ringRoads(name, cx, cy, surface = '#') {
-  return [
-    { name, y: cy - 5, x0: cx - 5, x1: cx + 6, surface },
-    { name, y: cy + 5, x0: cx - 5, x1: cx + 6, surface },
-    { name, x: cx - 5, y0: cy - 5, y1: cy + 6, surface },
-    { name, x: cx + 5, y0: cy - 5, y1: cy + 6, surface },
-  ];
-}
-const TOWN_RING = { cx: 26, cy: 96 };
-const KCC_RING = { cx: 100, cy: 96 };
+// Roundabouts: a round, one way ring (see sim/roads.js) around an island. (cx, cy): the tile where
+// the two roads cross (the old grid crossing); the ring's centre is the grid point (cx + 1, cy + 1).
+// r: the radius of the ring's centre line, in tiles. The roads stop at the ring.
+const ring = (name, cx, cy, r, island) => ({ name, ring: true, cx: cx + 1, cy: cy + 1, r, surface: '#', island });
+const TOWN_RING = { cx: 26, cy: 96, r: 5 }; // the big town roundabout (grass and flowers) to the car free zone
+const KCC_RING = { cx: 100, cy: 96, r: 5 }; // the KCC roundabout (grass and flowers)
+const MTN_RING = { cx: 40, cy: 84, r: 4 }; // the MTN roundabout in the financial centre (the yellow fountain)
 
 const ROADS = [
   // Arterials across the whole map
@@ -68,7 +64,8 @@ const ROADS = [
   { name: 'Southern road (town to Kicukiro)', y: 96, x0: 0, x1: TOWN_RING.cx - 5, surface: '#' },
   { name: 'Southern road (town to Kicukiro)', y: 96, x0: TOWN_RING.cx + 6, x1: KCC_RING.cx - 5, surface: '#' },
   { name: 'Southern road (town to Kicukiro)', y: 96, x0: KCC_RING.cx + 6, x1: 191, surface: '#' },
-  { name: 'Muhima road', x: 40, y0: 5, y1: 127, surface: '#' },
+  { name: 'Muhima road', x: 40, y0: 5, y1: MTN_RING.cy - MTN_RING.r, surface: '#' },
+  { name: 'Muhima road', x: 40, y0: MTN_RING.cy + MTN_RING.r + 1, y1: 127, surface: '#' },
   { name: 'Kacyiru–Kimihurura road', x: 100, y0: 0, y1: KCC_RING.cy - 5, surface: '#' },
   { name: 'Kacyiru–Kimihurura road', x: 100, y0: KCC_RING.cy + 6, y1: 127, surface: '#' },
   { name: 'Remera road', x: 160, y0: 0, y1: 127, surface: '#' },
@@ -83,11 +80,13 @@ const ROADS = [
   { name: 'Kimisagara cobble', y: 54, x0: 4, x1: 40, surface: 'c' },
   { name: 'Kinamba road', x: 61, y0: 20, y1: 63, surface: '#' },
   // Kigali town
-  ...ringRoads('Town roundabout', TOWN_RING.cx, TOWN_RING.cy),
+  ring('Town roundabout', TOWN_RING.cx, TOWN_RING.cy, TOWN_RING.r, 'garden'),
+  ring('MTN roundabout', MTN_RING.cx, MTN_RING.cy, MTN_RING.r, 'fountain'),
   { name: 'Town avenue', x: TOWN_RING.cx, y0: 78, y1: TOWN_RING.cy - 5, surface: '#' },
   { name: 'Town avenue', x: TOWN_RING.cx, y0: TOWN_RING.cy + 6, y1: 127, surface: '#' },
   { name: 'Nyamirambo road', x: 10, y0: 64, y1: 127, surface: '#' },
-  { name: 'Town north street', y: 84, x0: 0, x1: 50, surface: '#' },
+  { name: 'Town north street', y: 84, x0: 0, x1: MTN_RING.cx - MTN_RING.r, surface: '#' },
+  { name: 'Town north street', y: 84, x0: MTN_RING.cx + MTN_RING.r + 1, x1: 50, surface: '#' },
   { name: 'Town south street', y: 110, x0: 0, x1: 50, surface: '#' },
   { name: 'Kiyovu cobble', y: 120, x0: 10, x1: 63, surface: 'c' },
   { name: 'Rugando valley murram', x: 61, y0: 64, y1: 127, surface: 'm' },
@@ -96,7 +95,7 @@ const ROADS = [
   { name: 'Kacyiru street', x: 84, y0: 0, y1: 54, surface: '#' },
   { name: 'Embassy lane', y: 48, x0: 84, x1: 120, surface: 'c' },
   // Kimihurura
-  ...ringRoads('Kimihurura roundabout', KCC_RING.cx, KCC_RING.cy),
+  ring('KCC roundabout', KCC_RING.cx, KCC_RING.cy, KCC_RING.r, 'garden'),
   { name: 'Kimihurura upper lane', y: 80, x0: 64, x1: 127, surface: 'c' },
   { name: 'Kimihurura lower lane', y: 114, x0: 64, x1: 127, surface: 'c' },
   { name: 'Kimihurura west lane', x: 86, y0: 72, y1: 127, surface: 'c' },
@@ -171,17 +170,23 @@ export function buildKigaliMap(seed = 7) {
 
   // Roads.
   for (const r of ROADS) {
+    if (r.ring) continue;
     if (r.y !== undefined) rect(r.x0, r.y, r.x1, r.y + 1, r.surface);
     else rect(r.x, r.y0, r.x + 1, r.y1, r.surface);
   }
 
-  // Roundabout islands: the town monument, and a garden at the Kimihurura roundabout.
-  for (const [ring, centre] of [[TOWN_RING, 'M'], [KCC_RING, 't']]) {
-    const { cx, cy } = ring;
-    rect(cx - 3, cy - 3, cx + 4, cy + 4, '.');
-    reserve(cx - 3, cy - 3, cx + 4, cy + 4);
-    if (centre === 'M') rect(cx, cy, cx + 1, cy + 1, 'M');
-    else for (const [dx, dy] of [[-2, -2], [3, -2], [-2, 3], [3, 3]]) set(cx + dx, cy + dy, 't');
+  // Roundabouts: a round band of tarmac (2 tiles wide) around a round island. The island is grass
+  // with flower beds (Alp: "grass and flowers"); the MTN island holds the yellow fountain.
+  for (const r of ROADS.filter((q) => q.ring)) {
+    for (let y = Math.floor(r.cy - r.r - 2); y <= r.cy + r.r + 2; y++) for (let x = Math.floor(r.cx - r.r - 2); x <= r.cx + r.r + 2; x++) {
+      const d = Math.hypot(x + 0.5 - r.cx, y + 0.5 - r.cy);
+      if (d >= r.r - 1 && d <= r.r + 1) set(x, y, r.surface);
+      else if (d < r.r - 1) {
+        set(x, y, '.'); // grass (the terrain draws the round island, the kerb and the flower beds)
+        reserve(x, y, x, y);
+      }
+    }
+    if (r.island === 'fountain') set(r.cx - 1, r.cy - 1, 'Y'); // the fountain stands on the centre point
   }
 
   // Stations and garages (2 tiles each, beside a road). facing: the side of the road.
@@ -219,8 +224,8 @@ export function buildKigaliMap(seed = 7) {
     reserve(x0 - 1, y0 - 1, x1 + 1, y1 + 1);
     landmarks.push({ x0, y0, x1, y1, style: kind, ...extra });
   };
-  landmark(34, 86, 36, 88, '9', 't', { levels: 18, sign: 'KIGALI CITY TOWER' });
-  landmark(43, 87, 47, 91, '9', 't', { levels: 12, sign: 'CHIC' }); // shopping centre in town
+  landmark(33, 86, 35, 88, '9', 't', { levels: 18, sign: 'KIGALI CITY TOWER' });
+  landmark(44, 76, 48, 79, '9', 't', { levels: 12, sign: 'CHIC' }); // shopping centre in town (behind the MTN roundabout)
   landmark(5, 86, 8, 90, '9', 't', { levels: 14, sign: 'KPC' });
   landmark(14, 100, 18, 104, '3', 's', { sign: 'ISOKO RYA KIGALI', sign2: 'TOWN MARKET' });
   landmark(28, 112, 33, 117, '4', 'g', { sign: "IBIRO BY'AKARERE", sign2: 'KA NYARUGENGE' });
@@ -330,7 +335,7 @@ export function buildKigaliMap(seed = 7) {
   const lampFree = (c) => c === '.' || c === 'p';
   const step = LIGHTS.lampSpacingTiles;
   for (const r of ROADS) {
-    if (r.surface !== '#') continue;
+    if (r.surface !== '#' || r.ring) continue;
     if (r.y !== undefined) {
       for (let x = r.x0 + 2, i = 0; x <= r.x1 - 2; x += step, i++) {
         const north = i % 2 === 0;
@@ -372,7 +377,8 @@ export function buildKigaliMap(seed = 7) {
   P('kinamba', 'Kinamba', 62, 30, []);
   P('muhima', 'Muhima hill', 41, 62, []);
   P('townRoundabout', 'Town roundabout', 26, 90, [], 2);
-  P('cityTower', 'Kigali City Tower', 37.5, 89, [], 2);
+  P('cityTower', 'Kigali City Tower', 36.5, 89, [], 2);
+  P('mtnRoundabout', 'MTN roundabout', 41, 79.5, [], 2);
   P('townMarket', 'Kigali town market', 13, 104, ['market'], 2);
   P('carFree', 'Car free zone', 41, 105, [], 1);
   P('kiyovu', 'Kiyovu', 30, 121, []);
@@ -400,7 +406,7 @@ export function buildKigaliMap(seed = 7) {
   P('pmOffice', "Prime Minister's office", 106, 47, [], 1);
   P('gsKacyiru', 'G.S. Kacyiru', 115, 50, [], 1);
   P('kigaliHeights', 'Kigali Heights', 115, 89.5, [], 2);
-  P('chic', 'CHIC shopping centre', 45, 86, [], 2);
+  P('chic', 'CHIC shopping centre', 47.5, 80.5, [], 2);
   P('kicukiroOffice', 'Kicukiro district office', 184, 94.5, [], 1);
   P('gsKicukiro', 'G.S. Kicukiro', 187, 108.5, [], 1);
   P('airportRoad', 'Airport road', 189, 97, []);

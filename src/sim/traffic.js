@@ -1,5 +1,5 @@
 import { TRAFFIC, WORLD, BUS_PARK, HAZARDS } from '../config.js';
-import { lanePoint, LANE_OFFSET, shortestPath } from './roads.js';
+import { lanePoint, LANE_OFFSET, roadLane, shortestPath } from './roads.js';
 import { speedLimitAt } from './law.js';
 
 // Traffic: cars, minibuses, trucks and other motos that drive on the road network.
@@ -35,7 +35,7 @@ export function createTraffic(world, graph, rng, counts = TRAFFIC.counts) {
         speed: 0,
         length: spec.length,
         width: spec.width,
-        lane: spec.laneOffset ?? LANE_OFFSET, // metres from the centre line (cyclists keep to the edge)
+        laneExtra: (spec.laneOffset ?? LANE_OFFSET) - LANE_OFFSET, // cyclists keep further to the edge
         maxSpeed: spec.maxKmh * KMH * (0.9 + rng() * 0.2),
         x: 0, y: 0, heading: 0,
         stopTimer: 0,
@@ -59,21 +59,25 @@ function chooseNext(v, node, rng) {
   return pool[Math.floor(rng() * pool.length)];
 }
 
+/** The lane of vehicle v on edge e: metres to the right of the centre line. */
+function laneOf(v, e) {
+  return roadLane(e.road) + (e.road?.ring ? 0 : v.laneExtra ?? 0);
+}
+
 /** Position and heading from the edge and s, with a curve near the nodes. */
 function place(v) {
   const e = v.edge;
   let p, d;
   const cOut = v.next ? cornerFor(e, v.next) : 0;
   const cIn = v.prev ? cornerFor(v.prev, e) : 0;
-  const lane = v.lane ?? LANE_OFFSET;
   if (v.next && e.length - v.s < cOut) {
     const t = (v.s - (e.length - cOut)) / (2 * cOut); // 0 .. 0.5
-    ({ p, d } = curve(e, v.next, t, cOut, lane));
+    ({ p, d } = curve(e, v.next, t, cOut, laneOf(v, e), laneOf(v, v.next)));
   } else if (v.prev && v.s < cIn) {
     const t = 0.5 + v.s / (2 * cIn); // 0.5 .. 1
-    ({ p, d } = curve(v.prev, e, t, cIn, lane));
+    ({ p, d } = curve(v.prev, e, t, cIn, laneOf(v, v.prev), laneOf(v, e)));
   } else {
-    p = lanePoint(e, v.s, lane);
+    p = lanePoint(e, v.s, laneOf(v, e));
     d = { x: e.dx, y: e.dy };
   }
   v.x = p.x;
@@ -81,17 +85,21 @@ function place(v) {
   v.heading = Math.atan2(d.y, d.x);
 }
 
-/** Quadratic curve from the lane of edge a (CORNER before its end) to the lane of edge b (CORNER after its start). */
-function curve(a, b, t, c, lane = LANE_OFFSET) {
-  const p0 = lanePoint(a, a.length - c, lane);
-  const p2 = lanePoint(b, c, lane);
+/**
+ * Quadratic curve from the lane of edge a (c metres before its end) to the lane of edge b (c metres
+ * after its start). la, lb: the lanes of the two edges (they differ where a road meets a ring).
+ */
+function curve(a, b, t, c, la = LANE_OFFSET, lb = la) {
+  const p0 = lanePoint(a, a.length - c, la);
+  const p2 = lanePoint(b, c, lb);
   let p1;
   const cross = a.dx * b.dy - a.dy * b.dx;
-  if (Math.abs(cross) > 0.5) {
+  if (Math.abs(cross) > 0.2) {
     // A turn: the control point is where the two lane lines meet.
-    const end = lanePoint(a, a.length, lane);
-    const start = lanePoint(b, 0, lane);
-    p1 = { x: a.dx !== 0 ? start.x : end.x, y: a.dy !== 0 ? start.y : end.y };
+    const end = lanePoint(a, a.length, la);
+    const start = lanePoint(b, 0, lb);
+    const k = ((start.x - end.x) * b.dy - (start.y - end.y) * b.dx) / cross;
+    p1 = { x: end.x + a.dx * k, y: end.y + a.dy * k };
   } else if (a.dx * b.dx + a.dy * b.dy > 0) {
     p1 = { x: (p0.x + p2.x) / 2, y: (p0.y + p2.y) / 2 }; // straight on
   } else {
@@ -203,6 +211,17 @@ export function stepTraffic(traffic, world, obstacles, dt) {
         v.blocker = ahead;
       }
     }
+    // Give way to the traffic on a roundabout: wait at the ring until no vehicle on the ring is near.
+    const node0 = v.edge.to;
+    if (v.next?.road?.ring && !v.edge.road?.ring && toEnd < 9) {
+      const busy = vehicles.some((w) => w !== v && w.edge.road?.ring && w.edge.from !== node0
+        && (w.edge.to === node0 || w.next?.to === node0) && Math.hypot(w.x - node0.x, w.y - node0.y) < TRAFFIC.ringGiveWayMetres);
+      if (busy && (v.ringWait ?? 0) < TRAFFIC.ringPatienceSeconds) {
+        target = Math.min(target, Math.max(0, (toEnd - 5) * 1.5));
+        v.why = 'giveWay';
+        v.ringWait = (v.ringWait ?? 0) + dt;
+      }
+    } else v.ringWait = 0;
     // Give way at a junction: one vehicle at a time in the middle of a node.
     // A claim expires, and a vehicle that has waited too long goes anyway, so junctions never lock up.
     const node = v.edge.to;

@@ -1,5 +1,6 @@
 import { WORLD, COLOURS, LIGHTS, PALETTE, ROOFS } from '../config.js';
-import { tone } from './palette.js';
+import { tone, faceTone } from './palette.js';
+import { drawText } from './garage-sprites.js';
 import { toScreen } from './iso.js';
 import { PixelCanvas, shadeColour, hash2 } from './pixel-canvas.js';
 
@@ -220,6 +221,7 @@ export function drawBlock(block, world) {
   };
   // Canvas bounds: the tile footprint from base to top, with room for tree crowns.
   const pad = block.kind === 'tree' ? (block.style === 'palm' ? 18 : 16) : block.kind === 'monument' ? 8 : block.kind === 'fuel' ? 22 : block.kind === 'garage' ? 6
+    : block.kind === 'fountain' ? 64
     : block.kind === 'building' ? (block.style === 'government' ? 52 : 14 + Math.ceil((buildingLook(block, world).roof?.levels ?? 0) * WORLD.levelPx)) : 2; // room for roofs, tanks and flags
   const corners = [];
   for (const [x, y] of [[tx, ty], [tx + 1, ty], [tx + 1, ty + 1], [tx, ty + 1]]) {
@@ -228,7 +230,7 @@ export function drawBlock(block, world) {
   const minX = Math.floor(Math.min(...corners.map((p) => p.x))) - pad;
   const maxX = Math.ceil(Math.max(...corners.map((p) => p.x))) + pad;
   const minY = Math.floor(Math.min(...corners.map((p) => p.y))) - pad;
-  const maxY = Math.ceil(Math.max(...corners.map((p) => p.y))) + 2;
+  const maxY = Math.ceil(Math.max(...corners.map((p) => p.y))) + (block.kind === 'fountain' ? 40 : 2); // the fountain is round, around the tile's front corner
   const c = new PixelCanvas(maxX - minX, maxY - minY, minX, minY);
 
   // glow: the parts that shine at night (lit windows, station signs). It has the same size as the canvas.
@@ -239,6 +241,7 @@ export function drawBlock(block, world) {
   else if (block.kind === 'garage') drawGarage(c, block, pt, world);
   else if (block.kind === 'tree') drawTree(c, block, pt, world);
   else if (block.kind === 'dome') drawDome(c, block, pt, world, glow);
+  else if (block.kind === 'fountain') drawFountain(c, block, pt, world);
   else drawMonument(c, block, pt, world);
   const lit = glow.data.some((v, i) => (i & 3) === 3 && v > 0);
   return { canvas: c, depth: tx + ty + 1, glow: lit ? glow : null };
@@ -689,6 +692,57 @@ function drawDome(c, block, pt, world, glow) {
   };
   const roofShade = (u, v, px, py) => (hash2(px + c.ox, py + c.oy, 4) > 0.93 ? 0xd8dce0 : 0xf6f7f8);
   drawBox(c, tx, ty, tx + 1, ty + 1, baseLevel, topLevel, pt, roofShade, wallShade(0.72), wallShade(0.88), visibleFaces(block, world));
+}
+
+/**
+ * An upright cylinder (round wall) from z0 to z1 (levels) around (cx, cy) (tiles), radius r (tiles).
+ * side(a) gives the palette colour at the angle a; the light rule gives the tone of each part.
+ * top: the colour of the top disc, or null (open).
+ */
+function cylinder(c, pt, cx, cy, r, z0, z1, side, top) {
+  const n = 28;
+  const at = (k, z) => pt(cx + r * Math.cos((k / n) * Math.PI * 2), cy + r * Math.sin((k / n) * Math.PI * 2), z);
+  for (let k = 0; k < n; k++) {
+    const a = ((k + 0.5) / n) * Math.PI * 2, nx = Math.cos(a), ny = Math.sin(a);
+    if (nx + ny <= 0) continue; // the back half is hidden
+    const col = tone(typeof side === 'function' ? side(a) : side, nx + ny > 1.3 ? 'left' : faceTone(nx, ny));
+    c.fillQuad(at(k, z1), at(k + 1, z1), at(k + 1, z0), at(k, z0), () => col);
+  }
+  if (top !== null) c.fillPoly(Array.from({ length: n }, (_, k) => at(k, z1)), tone(top, 'top'));
+}
+
+/**
+ * The MTN fountain on the MTN roundabout (Alp): a round basin of concrete painted MTN yellow, with
+ * a little still water in it, and a yellow column with the MTN logo in the middle. MTN yellow, not
+ * Ampersand Surge Yellow. The block is on the tile north west of the centre point.
+ */
+function drawFountain(c, block, pt, world) {
+  const cx = block.tx + 1, cy = block.ty + 1;
+  const ground = world.heightAt(cx * WORLD.tileMetres, cy * WORLD.tileMetres) / WORLD.levelMetres;
+  const Y = COLOURS.mtnYellow, B = COLOURS.mtnBlue;
+  // The basin: a low round wall, a wide rim, and the water a little below the rim.
+  cylinder(c, pt, cx, cy, 1.7, ground, ground + 0.5, Y, Y);
+  c.fillPoly(Array.from({ length: 28 }, (_, k) => pt(cx + 1.5 * Math.cos((k / 28) * Math.PI * 2), cy + 1.5 * Math.sin((k / 28) * Math.PI * 2), ground + 0.5)), P.water);
+  // Light on the water: a few ripples on the upper left.
+  for (let i = 0; i < 9; i++) {
+    const p = pt(cx - 1 + hash2(i, 1, 71) * 1.4, cy - 1 + hash2(i, 2, 71) * 1.4, ground + 0.5);
+    c.plot(p.x, p.y, P.waterLight);
+    c.plot(p.x + 1, p.y, P.waterLight);
+  }
+  // The column: a yellow plinth, then a tall yellow column with a blue band.
+  cylinder(c, pt, cx, cy, 0.6, ground + 0.5, ground + 1, Y, Y);
+  cylinder(c, pt, cx, cy, 0.34, ground + 1, ground + 3.8, Y, Y);
+  // The MTN logo on the front of the column: a yellow oval with a blue rim and MTN in blue.
+  const f = pt(cx + 0.24, cy + 0.24, ground + 2.8);
+  const w = 10, h = 6;
+  for (let y = -h; y <= h; y++) for (let x = -w; x <= w; x++) {
+    const q = (x / w) ** 2 + (y / h) ** 2;
+    if (q <= 1) c.plot(f.x + x, f.y + y, q > 0.7 ? B : Y);
+  }
+  drawText(c, 'MTN', Math.round(f.x - c.ox) - 6, Math.round(f.y - c.oy) - 2, B); // drawText takes canvas pixels
+  // A small water jet on the top (the big spray only now and then: see the scene).
+  const tip = pt(cx, cy, ground + 3.8);
+  for (let i = 1; i <= 3; i++) c.plot(tip.x, tip.y - i, P.waterLight);
 }
 
 function drawMonument(c, block, pt, world) {

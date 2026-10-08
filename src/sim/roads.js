@@ -6,9 +6,22 @@ import { WORLD } from '../config.js';
 // (one edge per direction). Positions are in metres.
 
 export const LANE_OFFSET = 2; // metres from the centre line to the middle of a lane (right hand traffic)
+export const RING_POINTS = 16; // nodes around a roundabout
+
+// Roundabouts: { ring: true, cx, cy, r } (tiles; (cx, cy) is the centre, a grid point; r: the radius
+// of the ring's centre line). The ring is one way: anticlockwise, seen from above (Rwanda drives on
+// the right). Roads that meet the ring end on it (at the north, south, west or east point).
+
+/** The lane offset (metres to the right of the centre line) of a road. One way rings: 0 (the middle). */
+export function roadLane(road) {
+  if (road?.ring) return 0;
+  return road?.laneOffset ?? LANE_OFFSET;
+}
 
 export function buildRoadGraph(roads) {
   const T = WORLD.tileMetres;
+  const rings = roads.filter((r) => r.ring);
+  roads = roads.filter((r) => !r.ring);
   // Centre lines in tile units: horizontal roads run along x, vertical ones along y.
   const lines = roads.map((r) =>
     r.y !== undefined ? { horiz: true, c: r.y + 1, a: r.x0, b: r.x1 + 1, road: r } : { horiz: false, c: r.x + 1, a: r.y0, b: r.y1 + 1, road: r },
@@ -16,7 +29,7 @@ export function buildRoadGraph(roads) {
   const nodes = [];
   const nodeAt = new Map();
   const node = (tx, ty) => {
-    const key = `${tx},${ty}`;
+    const key = `${Math.round(tx * 1000)},${Math.round(ty * 1000)}`;
     if (!nodeAt.has(key)) {
       const n = { id: nodes.length, x: tx * T, y: ty * T, out: [] };
       nodes.push(n);
@@ -52,11 +65,21 @@ export function buildRoadGraph(roads) {
       }
     }
   }
+  // The rings: nodes on a circle, one edge each way round (anticlockwise on the screen = the angle
+  // gets smaller, because y goes down). No reverse edges: you cannot drive the wrong way round.
+  for (const R of rings) {
+    const pts = [];
+    for (let k = 0; k < RING_POINTS; k++) {
+      const a = (k / RING_POINTS) * Math.PI * 2;
+      pts.push(node(R.cx + R.r * Math.cos(a), R.cy + R.r * Math.sin(a)));
+    }
+    for (let k = 0; k < RING_POINTS; k++) addEdge(pts[k], pts[(k + RING_POINTS - 1) % RING_POINTS], R);
+  }
   return { nodes, edges };
 }
 
 /** Point in the right hand lane of an edge, s metres from its start. */
-export function lanePoint(edge, s, offset = LANE_OFFSET) {
+export function lanePoint(edge, s, offset = roadLane(edge.road)) {
   return {
     x: edge.from.x + edge.dx * s - edge.dy * offset,
     y: edge.from.y + edge.dy * s + edge.dx * offset,
@@ -114,6 +137,11 @@ export function openRoads(roads, districts, open) {
   const rects = districts.filter((d) => open.includes(d.id));
   const out = [];
   for (const r of roads) {
+    if (r.ring) {
+      // A ring stays when its centre is in an open district.
+      if (rects.some((d) => r.cx >= d.x0 && r.cx < d.x1 && r.cy >= d.y0 && r.cy < d.y1)) out.push(r);
+      continue;
+    }
     const horiz = r.y !== undefined;
     const c = horiz ? r.y : r.x; // first row (or column) of the road
     const [a, b] = horiz ? [r.x0, r.x1] : [r.y0, r.y1];

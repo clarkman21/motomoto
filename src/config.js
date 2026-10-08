@@ -231,7 +231,7 @@ export const PALETTE = {
   paintLime: 0xc8dc78, paintOchre: 0xe0b860, paintCream: 0xefe4c8, paintTerracotta: 0xd07a50,
   // Roofs and walls
   tin: 0x9a9e9c, tinRust: 0x9a5a3a, clayTile: 0xb5543a, roofRed: 0x9a2f2a, roofGreen: 0x3f7f4a, roofBlue: 0x2f5f9a,
-  slate: 0x4a4e58, mudWall: 0xa8724a, mudLight: 0xc08a5a, brick: 0x9a4a32, stone: 0x6a645a,
+  slate: 0x4a4e58, water: 0x3f7fb8, waterLight: 0x8ac0e8, concrete: 0xb5b0a5, mudWall: 0xa8724a, mudLight: 0xc08a5a, brick: 0x9a4a32, stone: 0x6a645a,
   // Police
   uniform: 0x1c2a5a, policeWhite: 0xf4f4f4, boots: 0x101010, policeSilver: 0xd8dce4,
 };
@@ -389,6 +389,8 @@ export const MAINTENANCE = {
 // ---------------------------------------------------------------------------
 export const TRAFFIC = {
   counts: { car: 18, bus: 6, truck: 6, moto: 10 }, // default (tests); the game uses perDistrict
+  ringGiveWayMetres: 11, // a vehicle that comes to a roundabout waits while a vehicle on the ring is this near
+  ringPatienceSeconds: 6, // after this long it goes anyway, so the ring never locks up
   // Vehicles for each open district (× the level's traffic factor). The map grows, so traffic grows with it.
   perDistrict: { car: 8, bus: 3, truck: 2 },
   kinds: {

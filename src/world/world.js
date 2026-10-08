@@ -14,6 +14,8 @@ const CHAR_INFO = {
   o: { surface: 'tarmac', hazard: 'pothole' },
   '=': { surface: 'tarmac', hazard: 'speedBump' },
   t: { surface: 'grass', block: 'tree' },
+  Y: { surface: 'grass', block: 'fountain', blockLevels: 4 }, // the MTN fountain (drawn around the corner at tx + 1, ty + 1)
+  f: { surface: 'grass', flowers: true }, // a flower bed (roundabout islands, the boulevard median)
   M: { surface: 'grass', block: 'monument' },
   F: { surface: 'tarmac', block: 'fuel', blockLevels: 3 }, // the canopy top; the price sign is higher (see sprites.js)
   S: { surface: 'tarmac', block: 'swap', blockLevels: 2 },
@@ -100,7 +102,7 @@ export class World {
         const lm = this.landmarks.find((l) => l.levels && inLm(l));
         tiles.push({
           tx, ty, ch, district: this.districtAt(tx, ty), surface: info.surface, hazard: info.hazard ?? null, block: info.block ?? null,
-          blockLevels: lm && info.block === 'building' ? lm.levels : info.blockLevels ?? 0, solid: !!info.solid,
+          blockLevels: lm && info.block === 'building' ? lm.levels : info.blockLevels ?? 0, solid: !!info.solid, flowers: !!info.flowers,
           style: BUILDING_STYLES[this.styles?.[ty]?.[tx]] ?? null,
           landmark: info.block === 'building' && this.landmarks.some(inLm), // a named building (see the map data)
         });
