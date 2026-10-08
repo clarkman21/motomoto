@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS } from '../config.js';
+import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS } from '../config.js';
 import { World } from '../world/world.js';
 import { buildKigaliMap } from '../world/maps/kigali.js';
 import { ChunkStreamer, groupKey } from './chunks.js';
@@ -39,6 +39,7 @@ import { AttendantView } from './AttendantView.js';
 import { PoliceView } from './PoliceView.js';
 import { SignView } from './SignView.js';
 import { daylight } from '../sim/daylight.js';
+import { dayStats, pickQuests, recordDelivery, recordFine, checkQuests, maybeMission, stepMission, missionResult, findSecret } from '../sim/missions.js';
 
 const FIXED_DT = 1 / 120; // physics step in seconds
 const BARKS = {
@@ -500,8 +501,34 @@ export class RideScene extends Phaser.Scene {
   #pay(category, amount, label) {
     if (amount <= 0) return;
     if ((category === 'fines' || category === 'repairs') && this.board.active) this.board.active.clean = false; // breaks the streak
+    if (category === 'fines' && this.dayStats) recordFine(this.dayStats);
     spend(this.wallet, category, amount);
     this.events.emit('money', -amount, label);
+  }
+
+  /** Pay the daily quests that are done now. */
+  #checkQuests() {
+    for (const q of checkQuests(this.quests ?? [], this.dayStats)) {
+      earn(this.wallet, 'bonus', q.reward);
+      this.time.delayedCall(1900, () => {
+        this.events.emit('money', q.reward, `Quest done: ${q.text.toLowerCase()}`);
+        this.events.emit('bark', `App quest done! ${q.text}`);
+        this.engineSound.jingle('reward');
+      });
+    }
+  }
+
+  /** A bonus once in a game: a secret place (sim/missions.js findSecret). */
+  #checkSecrets() {
+    const found = (this.wallet.secrets ??= []);
+    const s = findSecret(this.world.secrets, found, this.bike, { night: (this.chunks.night ?? 0) > 0.5, spraying: this.signs.sprays?.some((img) => img.visible) });
+    if (!s) return;
+    found.push(s.id);
+    earn(this.wallet, 'bonus', MISSIONS.secretBonus);
+    this.events.emit('money', MISSIONS.secretBonus, `Secret place: ${s.name}`);
+    this.events.emit('bark', `You found a secret place: ${s.name} (${found.length} of ${this.world.secrets.length})`);
+    this.engineSound.jingle('levelUp');
+    this.#save();
   }
 
   /** Money and law effects of one physics step. */
@@ -511,14 +538,25 @@ export class RideScene extends Phaser.Scene {
       const cost = repairCost(e);
       if (cost) this.#pay('repairs', cost, REPAIR_LABELS[e.type]);
     }
+    stepMission(this.board.active, FIXED_DT); // the clock of a rush delivery or a hotel guest
     for (const e of updateJob(this.board, b, bikeEvents, FIXED_DT)) {
       if (e.type === 'pickup') {
         if (this.raceRival) {
           cancelMission(this.raceRival);
           this.raceRival = null;
         }
-        this.events.emit('bark', e.job.type === 'passenger' ? `Passenger on board. Go to ${e.job.to.name}` : `${e.job.kg} kg of ${e.job.goods === 'bananas' ? 'bananas' : 'rice'} loaded. Go to ${e.job.to.name}`);
+        this.events.emit('bark', e.job.type === 'passenger' ? `Passenger on board. Go to ${e.job.to.name}` : `${e.job.kg} kg of ${e.job.goods ?? 'rice'} loaded. Go to ${e.job.to.name}`);
       } else {
+        // A side mission: a bonus when you meet its condition, or less pay (a late rush).
+        const result = missionResult(e.job);
+        if (result?.farePenalty) e.fare = Math.max(0, e.fare - result.farePenalty);
+        if (result) {
+          if (result.bonus) earn(this.wallet, 'bonus', result.bonus);
+          this.time.delayedCall(1000, () => {
+            if (result.bonus) this.events.emit('money', result.bonus, `${e.job.mission.title.toLowerCase()} bonus`);
+            this.events.emit('bark', result.text);
+          });
+        }
         earn(this.wallet, e.job.type === 'passenger' ? 'fares' : 'cargo', e.fare);
         this.events.emit('money', e.fare, e.job.type === 'passenger' ? 'Fare' : 'Cargo delivered');
         // What the money means at home (see sim/family.js).
@@ -530,7 +568,10 @@ export class RideScene extends Phaser.Scene {
           earn(this.wallet, 'tips', bonus);
           this.time.delayedCall(1300, () => this.events.emit('money', bonus, `Streak bonus ×${streakMultiplier(this.wallet).toFixed(1)}`));
         }
-        updateStreak(this.wallet, e.job.clean && (e.job.type !== 'passenger' || e.job.comfort >= STREAK.minComfort) && e.job.damage < 0.05);
+        const clean = e.job.clean && (e.job.type !== 'passenger' || e.job.comfort >= STREAK.minComfort) && e.job.damage < 0.05;
+        updateStreak(this.wallet, clean);
+        recordDelivery(this.dayStats, e.job, e.fare, this.clockHours, clean);
+        this.#checkQuests();
         if (e.tip > 0) {
           earn(this.wallet, 'tips', e.tip);
           this.time.delayedCall(700, () => this.events.emit('money', e.tip, `Tip (comfort ${Math.round(e.job.comfort)}%)`));
@@ -591,8 +632,14 @@ export class RideScene extends Phaser.Scene {
     this.lights.setTraffic(this.traffic);
     this.people = createPeople(this.world, this.rng, { hailEvery: L.hailEvery, districts: L.districts, walkers: PEOPLE.walkersPerDistrict * L.districts.length });
     this.peopleView = new PeopleView(this, this.people);
-    this.board = createJobBoard(this.world, Date.now() & 0xffff, { fareMultiplier: L.fare, offerLife: L.offerLife, districts: L.districts, maxOffers: L.maxOffers });
+    // Side missions: some new offers become special jobs (sim/missions.js).
+    const decorate = (offer, board) => maybeMission(offer, board, this.world, L.n, board.rng);
+    this.board = createJobBoard(this.world, Date.now() & 0xffff, { fareMultiplier: L.fare, offerLife: L.offerLife, districts: L.districts, maxOffers: L.maxOffers, decorate });
     this.raceRival = null;
+    // The daily app quests (from level 3) and the stats they follow.
+    this.dayStats = dayStats();
+    const hasHotels = this.world.places.some((p) => p.tags.includes('hotel') && L.districts.includes(p.district));
+    this.quests = pickQuests(L.n, mulberry32(this.wallet.day * 977 + L.n), hasHotels);
   }
 
   #save() {
@@ -1250,6 +1297,7 @@ export class RideScene extends Phaser.Scene {
     addCanvasTexture(this, 'waiting-passenger', drawWaitingPassenger());
     addCanvasTexture(this, 'waiting-bananas', drawCargoPile('bananas'));
     addCanvasTexture(this, 'waiting-rice', drawCargoPile('rice'));
+    addCanvasTexture(this, 'waiting-ikivuguto', drawCargoPile('ikivuguto'));
     this.waiting = this.add.image(0, 0, 'waiting-passenger').setOrigin(ox, oy).setVisible(false);
     this.markerRing = this.add.image(0, 0, 'ring-pickup').setVisible(false);
     this.markerPin = this.add.image(0, 0, 'pin-pickup').setOrigin(0.5, 1).setDepth(1e5).setVisible(false);
@@ -1366,6 +1414,7 @@ export class RideScene extends Phaser.Scene {
     }
     this.signs.fade(hidingGroups); // the names on the buildings fade with them
     this.signs.update(this.time.now); // flags in the wind, the fountain spray
+    this.#checkSecrets();
     const occluded = hidingGroups.size > 0;
     this.occluded = occluded;
     this.ghost.setVisible(occluded);

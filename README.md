@@ -51,6 +51,10 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Round roundabouts: one way (anticlockwise), cars give way to the ring, a grass island with flower beds; the MTN roundabout with the yellow MTN fountain; the town, KCC and US Embassy roundabouts | Done |
 | The Kacyiru boulevard: a double carriageway with palms, flower beds and lamps in the median; you turn only at junctions; it ends at the US Embassy roundabout (a concrete castle with a US flag) | Done |
 | The KCC dome: one egg shape like a woven basket, in the colours of the flag of Rwanda (blue with the sun, yellow, green); it shines in these colours at night. Government buildings and named ministries (MINEDUC, MINAGRI, MINISANTE) fly a waving flag of Rwanda; other offices do not | Done |
+| Levels 5 to 10 from the spec, then free play; the balance model counts the hired riders' rent | Done |
+| Daily app quests (from level 3): two goals each day (jobs before 12:00, cargo, fares, clean rides, no fines, hotel guests), with a bonus that grows with the level | Done |
+| Side missions (gold job cards): a VIP passenger (no fine, no crash, comfort 85%+), a rush delivery against the clock, ikivuguto from an Inyange Milk Zone (do not spill it), a hotel guest in a hurry | Done |
+| Secret places: 6 hidden spots (some only at night, or when the fountain sprays), 2,500 RWF each, once in a game | Done |
 | Moving city details: the flags wave in the wind; the MTN fountain sprays now and then (9 s in every 40 s), and the drops fall back into the basin (`CITY_ANIM` in config) | Done |
 | From Alp's terrain map: Mount Kigali (a high, steep ridge with dark green forest on the west side of town), a stream in the valley between town and Kimihurura (roads cross it on bridges), the Kigali Marriott Hotel in town | Done |
 | Hotels with their names on the roof (lit at night) and job places: Hotel des Mille Collines and the Kigali Serena (Kiyovu), the Umubano (Kacyiru boulevard), the Radisson Blu (beside the KCC). A named building has one flat roof, on a stone base on a slope | Done |
@@ -222,6 +226,8 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `PALETTE` | The colours of the game (the lit tone of each material); sprites get the mid and dark tones from `LIGHT` |
 | `LIGHT` | The light rule: top faces, faces to the left of the screen, faces to the right |
 | `TRAFFIC.ringGiveWayMetres`, `ringPatienceSeconds` | How near a car on a roundabout must be for a new car to wait, and how long it waits at most |
+| `MISSIONS` | Quests from which level, how many each day, rewards, how often an offer is a side mission, the rules and rewards of each mission kind, the secret place bonus |
+| `FLEET` | Hired riders: rent, costs, bad days, calls for help |
 | `CITY_ANIM` | The moving city details: flag frames and speed, how often and how long the MTN fountain sprays |
 | `ROOFS` | Pitched roofs: the pitch and the highest ridge of each house type, how many villas are new steep apartments, how many Nyabugogo houses are mud houses |
 

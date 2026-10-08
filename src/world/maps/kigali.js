@@ -274,6 +274,10 @@ export function buildKigaliMap(seed = 7) {
   landmark(14, 113, 19, 118, '9', 'H', { levels: 11, sign: 'KIGALI SERENA', sign2: 'HOTEL' });
   landmark(66, 41, 73, 46, '7', 'H', { sign: 'UMUBANO', sign2: 'HOTEL' });
   landmark(103, 82, 105, 87, '9', 'H', { levels: 10, sign: 'RADISSON BLU', sign2: 'HOTEL' });
+  // Milk bars (Alp: Inyange Milk Zone, milk and ikivuguto). Side missions start here.
+  landmark(50, 46, 53, 47, '2', 's', { sign: 'INYANGE', sign2: 'MILK ZONE' });
+  landmark(22, 106, 25, 107, '2', 's', { sign: 'INYANGE', sign2: 'MILK ZONE' });
+  landmark(166, 109, 169, 110, '2', 's', { sign: 'INYANGE', sign2: 'MILK ZONE' });
   // The US Embassy (Alp): a big concrete building like a castle, with an American flag that waves.
   landmark(123, 23, 127, 28, '5', 'e', { sign: 'EMBASSY OF THE', sign2: 'UNITED STATES' });
   landmark(112, 51, 118, 53, '2', 'c', { sign: 'G.S. KACYIRU', sign2: 'WE STRIVE FOR SUCCESS' });
@@ -467,6 +471,9 @@ export function buildKigaliMap(seed = 7) {
   P('gsKacyiru', 'G.S. Kacyiru', 115, 50, [], 1);
   P('kigaliHeights', 'Kigali Heights', 115, 89.5, [], 2);
   P('marriott', 'Kigali Marriott Hotel', 55, 98.5, ['hotel'], 2);
+  P('milkValley', 'Inyange Milk Zone, Valley road', 51.5, 45.5, ['milk'], 1);
+  P('milkTown', 'Inyange Milk Zone, town', 23.5, 109.5, ['milk'], 1);
+  P('milkKicukiro', 'Inyange Milk Zone, Kicukiro', 167.5, 108.5, ['milk'], 1);
   P('chic', 'CHIC shopping centre', 47.5, 80.5, [], 2);
   P('kicukiroOffice', 'Kicukiro district office', 184, 94.5, [], 1);
   P('gsKicukiro', 'G.S. Kicukiro', 187, 108.5, [], 1);
@@ -510,6 +517,15 @@ export function buildKigaliMap(seed = 7) {
       { x: 75.6, y: 98.4, limitKmh: 30 },
       { x: 127.6, y: 22.4, limitKmh: 30 },
       { x: 155.6, y: 98.4, limitKmh: 30 },
+    ],
+    // Secret places: a bonus once in a game. when: 'night' (only at night) or 'spray' (the fountain sprays).
+    secrets: [
+      { id: 'loveNight', name: 'I LOVE KIGALI at night', x: 43.5, y: 105, radius: 1.5, when: 'night' },
+      { id: 'mountKigali', name: 'the top of Mount Kigali', x: 1.5, y: 100.5, radius: 2 },
+      { id: 'fountainSpray', name: 'the MTN fountain when it sprays', x: 41, y: 79.5, radius: 1.6, when: 'spray' },
+      { id: 'golfLake', name: 'the lake on the golf course', x: 150, y: 36.5, radius: 1.6 },
+      { id: 'kccNight', name: 'the KCC lit up at night', x: 110, y: 90.5, radius: 1.8, when: 'night' },
+      { id: 'riverBank', name: 'the bank of the Nyabugogo river', x: 30, y: 3.5, radius: 1.5 },
     ],
     police: [{ x: 39.5, y: 106.5, post: true }], // the car free zone has its own officer (Alp)
     autoSigns: true, // speed limit, speed bump and crossing signs from the roads (world/road-signs.js)

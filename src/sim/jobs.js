@@ -98,7 +98,11 @@ export function createJobBoard(world, seed = 1, opts = {}) {
 }
 
 function refill(board, world) {
-  while (board.offers.length < (board.opts.maxOffers ?? JOBS.maxOffers)) board.offers.push(makeOffer(world, board.rng, board.nextId++, board.opts));
+  while (board.offers.length < (board.opts.maxOffers ?? JOBS.maxOffers)) {
+    const offer = makeOffer(world, board.rng, board.nextId++, board.opts);
+    // opts.decorate(offer, board) can change a new offer (for example into a side mission).
+    board.offers.push(board.opts.decorate ? board.opts.decorate(offer, board) : offer);
+  }
 }
 
 /** Age the offers, remove old ones and add new ones. */
@@ -184,7 +188,7 @@ export function updateJob(board, bike, bikeEvents, dt) {
   if (job.stage === 'toPickup') {
     job.stage = 'toDropoff';
     bike.loadKg = job.kg;
-    bike.loadType = job.type === 'cargo' ? job.goods ?? 'rice' : job.type;
+    bike.loadType = job.type === 'cargo' ? (job.goods === 'bananas' ? 'bananas' : 'rice') : job.type; // the bike shows bananas or a sack (ikivuguto cans: a sack for now)
     return [{ type: 'pickup', job }];
   }
   board.active = null;

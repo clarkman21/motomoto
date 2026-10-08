@@ -5,7 +5,7 @@ import { garageQuote, serviceBike, serviceDue } from './maintenance.js';
 // Income: fares, tips, cargo. Costs: fuel, swaps, fines, crash repairs, garage, rent.
 // There is no loan: when you are out of cash, the game is over (see stranded and endDay).
 
-export const INCOME = { fares: 'Fares', tips: 'Tips', cargo: 'Cargo' };
+export const INCOME = { fares: 'Fares', tips: 'Tips', cargo: 'Cargo', bonus: 'Quests, missions and finds', fleet: 'Hired riders (rent)' };
 export const COSTS = {
   fuel: 'Fuel',
   swaps: 'Battery swaps',
@@ -13,6 +13,7 @@ export const COSTS = {
   repairs: 'Crash repairs',
   garage: 'Garage (service, brake pads)',
   rent: 'Daily bike rent',
+  fleet: 'Fleet costs (service, repairs)',
 };
 
 const emptyLedger = () => ({
@@ -29,7 +30,7 @@ export function createWallet(cash = MONEY.startCash) {
 
 export function earn(wallet, category, amount) {
   wallet.cash += amount;
-  wallet.ledger.income[category] += amount;
+  wallet.ledger.income[category] = (wallet.ledger.income[category] ?? 0) + amount; // an old save has fewer categories
   wallet.totalIncome += amount;
   return amount;
 }
@@ -37,7 +38,7 @@ export function earn(wallet, category, amount) {
 /** Spend money. Fines, repairs and rent can take the cash below zero (debt). */
 export function spend(wallet, category, amount) {
   wallet.cash -= amount;
-  wallet.ledger.costs[category] += amount;
+  wallet.ledger.costs[category] = (wallet.ledger.costs[category] ?? 0) + amount;
   return amount;
 }
 

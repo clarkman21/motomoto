@@ -4,6 +4,7 @@ import { forwardSpeed } from '../sim/bike.js';
 import { serviceDue } from '../sim/maintenance.js';
 import { wrapRetro, RETRO_CELL } from '../world/retro-font.js';
 import { MinimapView } from './MinimapView.js';
+import { questLabel, missionRule } from '../sim/missions.js';
 import { textBit, textWidth } from '../world/garage-sprites.js';
 import { UI, pixelScale, ensureRetroFont, ensureIcons, retroLabel, retroWidth, drawWindow, drawSegBar, smallLabel, wrapSmall, SMALL_LINE } from './retro-ui.js';
 
@@ -87,6 +88,7 @@ export class HudScene extends Phaser.Scene {
       this.#zone(() => this.ride.acceptJob(i), (z) => (card.zone = z));
       return card;
     });
+    this.questLines = [0, 1, 2].map(() => small()); // the daily app quests, under the jobs
 
     // Bottom: station prompt (tap = F), fuel choices (tap = 1, 2, 3), the help line.
     this.promptLines = [0, 1, 2].map(() => label());
@@ -279,7 +281,9 @@ export class HudScene extends Phaser.Scene {
     const ride = this.ride, bike = ride.bike, job = ride.board.active, box = this.jobBox;
     const textW = box.w - 22; // virtual pixels on a line
     const iconOf = (j) => (j.type === 'passenger' ? 'person' : j.goods === 'bananas' ? 'bananas' : 'sack');
-    const what = (j) => (j.type === 'passenger' ? 'PASSENGER' : j.goods === 'bananas' ? `BANANAS ${j.kg}KG` : `RICE ${j.kg}KG`);
+    const goods = (j) => (j.goods === 'bananas' ? 'BANANAS' : j.goods === 'ikivuguto' ? 'IKIVUGUTO' : 'RICE');
+    const what = (j) => (j.mission ? `${j.mission.title}${j.type === 'cargo' && j.goods !== 'ikivuguto' ? ` ${j.kg}KG` : ''}` : j.type === 'passenger' ? 'PASSENGER' : `${goods(j)} ${j.kg}KG`);
+    const clock = (t) => `${Math.floor(Math.max(0, t) / 60)}:${String(Math.floor(Math.max(0, t) % 60)).padStart(2, '0')}`;
     const fuel = (j) => (j.fuel === undefined ? '' : ` · FUEL ${Math.max(1, Math.round(j.fuel * 100))}%`);
     const short = (j) => j.fuel !== undefined && j.fuel > bike.energy;
     let y = box.y + 15;
@@ -302,8 +306,13 @@ export class HudScene extends Phaser.Scene {
       this.jobTitle.setText(job.stage === 'toPickup' ? 'GO TO THE PICKUP' : 'GO TO THE DROP OFF').setTint(job.stage === 'toPickup' ? UI.green : UI.white);
       const dist = Math.round(ride.targetDistance ?? 0);
       const racing = job.stage === 'toPickup' && ride.raceRival?.mission;
+      const m = job.mission;
+      const missionLine = m && job.stage === 'toDropoff'
+        ? (m.limit ? `TIME ${clock(m.timeLeft ?? m.limit)} · +${money(m.bonus)} BONUS` : `${missionRule(m)}`)
+        : null;
       const quality =
         racing ? 'A RIVAL IS RACING YOU!' :
+        missionLine ? missionLine :
         job.stage !== 'toDropoff' ? 'STOP AT THE GREEN MARKER' :
         job.type === 'passenger' ? `COMFORT ${Math.round(job.comfort)}%` :
         job.fragile ? `DAMAGE ${Math.round(job.damage * 100)}%` : 'STOP AT THE WHITE MARKER';
@@ -316,7 +325,8 @@ export class HudScene extends Phaser.Scene {
       const q = this.cards[1];
       q.icon.setVisible(false);
       q.lines.forEach((l, li) => l.setVisible(li === 0 || (li === 1 && !this.isTouch)));
-      q.lines[0].setText(quality).setTint(racing ? UI.red : UI.gold).setPosition(box.x + 6, y);
+      const late = m?.limit && (m.timeLeft ?? m.limit) < 0;
+      q.lines[0].setText(quality).setTint(racing || late ? UI.red : UI.gold).setPosition(box.x + 6, y);
       q.lines[1].setText('BACKSPACE: CANCEL').setTint(UI.grey).setPosition(box.x + 6, y + SMALL_LINE);
       q.zone.input.enabled = false;
       y += (this.isTouch ? 1 : 2) * SMALL_LINE + 2;
@@ -334,9 +344,22 @@ export class HudScene extends Phaser.Scene {
         const route = wrapSmall(`${o.from.name} → ${o.to.name}`, textW).slice(0, this.vh < 240 ? 1 : 2);
         const lines = [`${i + 1} ${what(o)} · ${money(o.pay)}`, ...route, `${o.gameKm.toFixed(1)} KM${fuel(o)}${short(o) ? ' LOW!' : ''}`];
         if (y + lines.length * SMALL_LINE > this.vh - 6) return hide(card);
-        fill(card, i, lines, lines.map((_, li) => (li === 0 ? UI.white : li === lines.length - 1 && short(o) ? UI.red : UI.dim)), true);
+        fill(card, i, lines, lines.map((_, li) => (li === 0 ? (o.mission ? UI.gold : UI.white) : li === lines.length - 1 && short(o) ? UI.red : UI.dim)), true);
       });
     }
+    // The daily app quests (from level 3): progress and reward, ticked when done.
+    const quests = ride.quests ?? [];
+    this.questLines.forEach((l, i) => {
+      if (i === 0 && quests.length && y + (quests.length + 1) * SMALL_LINE < this.vh - 4) {
+        l.setText('APP QUESTS TODAY').setTint(UI.dim).setPosition(box.x + 6, y + 1).setVisible(true);
+        return;
+      }
+      const qq = quests[i - 1];
+      if (!qq || i === 0 || y + (i + 1) * SMALL_LINE >= this.vh - 4) return l.setVisible(false);
+      l.setText(`${questLabel(qq, ride.dayStats)} · +${money(qq.reward)}`)
+        .setTint(qq.done ? UI.green : UI.white).setPosition(box.x + 6, y + 1 + i * SMALL_LINE).setVisible(true);
+    });
+    if (this.questLines[0].visible) y += (quests.length + 1) * SMALL_LINE + 3;
     // The window behind the jobs (its height follows the cards).
     const h = y - box.y + 1;
     this.jobWindow = { x: box.x, y: box.y, w: box.w, h };

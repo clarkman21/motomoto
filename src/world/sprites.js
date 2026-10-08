@@ -1231,6 +1231,17 @@ export function drawWaitingPassenger() {
 export function drawCargoPile(goods = 'rice') {
   const c = new PixelCanvas(PROP_CANVAS.width, PROP_CANVAS.height);
   const gx = PROP_CANVAS.groundX, gy = PROP_CANVAS.groundY;
+  if (goods === 'ikivuguto') {
+    // Ikivuguto (fermented milk) from the milk bar: three gold jerrycans with white caps.
+    for (const [x0, y0] of [[gx - 7, gy - 8], [gx + 1, gy - 8], [gx - 3, gy - 15]]) {
+      for (let y = y0; y < y0 + 8; y++) for (let x = x0; x < x0 + 6; x++) c.setPixel(x, y, x === x0 + 5 ? tone(P.kGold, 'right') : P.kGold);
+      c.setPixel(x0 + 1, y0 - 1, P.cream); // the cap
+      c.setPixel(x0 + 3, y0 - 1, P.kGold); // the handle
+      c.setPixel(x0 + 4, y0 - 1, P.kGold);
+    }
+    c.outline(P.ink);
+    return c;
+  }
   if (goods === 'bananas') {
     const greens = [0x5f9a32, 0x4f8a2a, 0x76b23e];
     for (const [bx, top] of [[gx - 3, gy - 12], [gx + 4, gy - 9]]) {

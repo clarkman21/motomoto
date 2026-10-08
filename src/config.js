@@ -497,7 +497,7 @@ export const LEVELS = [
     shift: { start: 6, end: 22, realSeconds: 420 }, rent: 5000,
     traffic: 0.8, rivals: 6, cyclists: 2, raceChance: 0.35, offerLife: [20, 45], hailEvery: 1,
     fare: 1.25, petrol: 1.1, cameras: true,
-    news: 'Kacyiru opens: offices, the police headquarters and the hospital. Full day shift, speed cameras on, petrol +10%.',
+    news: 'Kacyiru opens: offices, the police headquarters and the hospital. Your phone now shows daily app quests and special jobs (gold). Speed cameras on, petrol +10%.',
   },
   {
     n: 4, name: 'Rush hour', goal: 60000, milestone: 'Down payment on an Ampersand electric moto', kind: 'asset', effect: 'electric',
@@ -514,7 +514,7 @@ export const LEVELS = [
     shift: { start: 6, end: 22, realSeconds: 420 }, rent: 6000,
     traffic: 1.0, rivals: 12, cyclists: 3, raceChance: 0.5, offerLife: [15, 40], hailEvery: 1,
     fare: 1.5, petrol: 1.3, cameras: true,
-    news: 'You ride electric now, and Kicukiro opens: busy junctions, workshops and trucks. Daily app quests and special jobs come on your phone.',
+    news: 'You ride electric now, and Kicukiro opens: busy junctions, workshops and trucks.',
   },
   {
     n: 6, name: 'City rider', goal: 120000, milestone: 'A second moto, with a hired rider', kind: 'asset', effect: 'rider1',
@@ -565,6 +565,20 @@ export const LEVELS = [
     news: 'Free play: the house is finished. Ride for the joy of it.',
   },
 ];
+
+// Daily app quests and side missions (on the phone, from level 3: after the smartphone milestone).
+// Rewards grow with the level. All guesses, to tune in play.
+export const MISSIONS = {
+  fromLevel: 3,
+  questsPerDay: 2,
+  questReward: { base: 1000, perLevel: 600 }, // RWF for one quest: base + perLevel × level
+  sideChance: 0.18, // when a new offer comes, the chance that it is a side mission (at most one on the board)
+  vip: { payFactor: 2.2, bonusFactor: 0.8, minComfort: 85 }, // a VIP passenger: no fine, no crash, comfort ≥ 85%
+  rush: { payFactor: 1.6, bonusFactor: 0.6, metresPerSecond: 7, extraSeconds: 25, latePayFactor: 0.5 }, // against the clock
+  ikivuguto: { payFactor: 1.8, bonusFactor: 0.6, maxDamage: 0.1, kg: 20 }, // fermented milk in cans: do not spill it
+  hotel: { payFactor: 2.5, bonusFactor: 0.7, metresPerSecond: 6.5, extraSeconds: 30 }, // a hotel guest in a hurry
+  secretBonus: 2500, // a secret place, found once in a game
+};
 
 // Hired riders (levels 6 and 8: a second and a third moto). The rider rides your moto in the city and
 // pays you a daily rent; you pay the service and repairs. Some days go badly. Guesses (from the spec).

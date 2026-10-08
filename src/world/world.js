@@ -61,7 +61,8 @@ export class World {
     }));
     this.crowdAreas = mapData.crowdAreas ?? [];
     this.styles = mapData.styles ?? null;
-    this.extraPolice = mapData.police ?? []; // officers who stand at a place (tiles), not at a junction
+    this.extraPolice = mapData.police ?? [];
+    this.secrets = mapData.secrets ?? []; // secret places: a small bonus once in a game (sim/missions.js) // officers who stand at a place (tiles), not at a junction
     // Landmark buildings: { x0, y0, x1, y1, style, levels?, sign?, sign2? } (tiles, inclusive).
     this.landmarks = mapData.landmarks ?? []; // open areas where many people walk { x0, y0, x1, y1 }
     // Districts: rectangles of tiles { id, name, x0, y0, x1, y1 } (x1, y1 exclusive). A closed district is solid.
