@@ -161,6 +161,12 @@ export const BRAKES = {
 export const HAZARDS = {
   pothole: { speedCut: 0.3 }, // spec: a pothole cuts speed by 30%
   speedBump: { safeSpeedKmh: 20, speedCut: 0.35 }, // above the safe speed, you lose 35% — guess
+  // Murram roads are rough: patches of loose rocks, potholes (puddles on a rainy day), and small bumps
+  // all the way (a washboard surface). All guesses, to tune in play.
+  rocks: { safeSpeedKmh: 22, speedCut: 0.18 }, // loose rocks: above the safe speed, you lose 18%
+  murramRocksShare: 0.07, // the share of murram tiles with loose rocks
+  murramPotholeShare: 0.035, // the share of murram tiles with a pothole
+  murramBumps: { fromKmh: 15, everyMetres: 2.2, bounce: 0.12 }, // a small bump every few metres above this speed
 };
 
 // ---------------------------------------------------------------------------
@@ -376,7 +382,7 @@ export const MAINTENANCE = {
   intervalKm: { petrol: 150, electric: 600 }, // game km of tarmac riding between services
   // Each km counts × the surface wearFactor (SURFACES) × this factor when the petrol engine is in the red zone.
   redlineWearFactor: 3,
-  hazardWearKm: { pothole: 2, bumpHard: 1.5, wall: 4, crash: 8 }, // extra km on the service meter for each hit
+  hazardWearKm: { pothole: 2, puddle: 2, rocksHard: 1, bumpHard: 1.5, wall: 4, crash: 8 }, // extra km on the service meter for each hit
   warnAt: 0.8, // "Service soon"
   breakdownAt: 1.5, // the engine stops; push the bike to the garage
   // Between 100% and the breakdown, the bike loses power and uses more energy (up to these values).

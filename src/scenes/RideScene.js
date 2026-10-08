@@ -50,6 +50,8 @@ const BARKS = {
   wall: 'Bang!',
   empty: 'Out of energy! The bike rolls to a stop, and a customer on it will leave. Push the bike (throttle) to a station, or press T to call a fuel moto',
   pothole: 'Pothole! Speed −30%, more wear',
+  puddle: 'SPLASH! A pothole full of rain water',
+  rocksHard: 'Loose rocks! Slow down on the murram',
   overRev: 'Too fast to shift down',
   noGears: 'Electric moto: no gears',
   lugging: 'Shift down!',
@@ -641,7 +643,9 @@ export class RideScene extends Phaser.Scene {
     // The day event (from level 6): Umuganda or rain (sim/events.js). The same day gives the same event.
     this.dayEvent = pickDayEvent(L, this.wallet.day);
     this.eventStage = undefined; // #updateEvent barks at the first frame
+    const wasRain = !!this.world.rain;
     this.world.rain = this.dayEvent === 'rain';
+    if (wasRain !== this.world.rain) this.chunks.reload(); // wet or dry murram: draw the ground again
     this.rainView.setRain(this.world.rain);
     // The plan of the day for the hired riders: bad days and calls for help (none on the Umuganda morning).
     this.fleetPlan = planFleetDay(riders, this.wallet.day, L.shift, this.dayEvent === 'umuganda' ? EVENTS.umuganda.endHour : L.shift.start);

@@ -26,6 +26,12 @@ const PALETTE = {
   puddleShine: 0x9fb3bf,
   pothole: 0x2a2c2e,
   potholeRim: 0x46494c,
+  // Rough murram: loose grey rocks (lit top left, dark bottom right) and holes in the red earth.
+  rock: 0x8e8678,
+  rockLight: 0xb8b0a0,
+  rockDark: 0x57503f,
+  murramHole: 0x5c2a14,
+  murramHoleRim: 0x8a3f1e,
   // A speed bump is a raised hump with yellow and black paint (not white: white bars are a zebra crossing).
   bumpPaint: 0xd8a823, // a dull road paint yellow (not Ampersand yellow)
   bumpDark: 0x262626,
@@ -212,7 +218,63 @@ function tileContext(world, tile) {
   const ring = (world.roads ?? []).find((r) => r.ring && Math.hypot(tile.tx + 0.5 - r.cx, tile.ty + 0.5 - r.cy) < r.r + 2) ?? null;
   // The ground beside the ring (for the corners of ring tiles that are outside the round ring).
   const outside = ring ? ([[1, 0], [-1, 0], [0, 1], [0, -1], [2, 0], [-2, 0], [0, 2], [0, -2]].map(([dx, dy]) => n(dx, dy)?.surface).find((q) => q && q !== 'tarmac') ?? 'grass') : null;
-  return { tile, ring, outside, curbs, bumpAcrossX: bumpN, nearMonument, lane: crossing ? null : lane, crossing };
+  // Murram: the wheel ruts run along the road (null at a junction or on open ground).
+  const isMurram = (t) => t && (t.surface === 'murram' || t.surface === 'murramWet') && !t.block;
+  const rutAlongX = tile.surface !== 'murram' ? null
+    : isMurram(n(-1, 0)) && isMurram(n(1, 0)) && !(isMurram(n(0, -1)) && isMurram(n(0, 1))) ? true
+    : isMurram(n(0, -1)) && isMurram(n(0, 1)) && !(isMurram(n(-1, 0)) && isMurram(n(1, 0))) ? false : null;
+  return { tile, ring, outside, curbs, bumpAcrossX: bumpN, nearMonument, lane: crossing ? null : lane, crossing, rutAlongX, rain: !!world.rain };
+}
+
+/**
+ * Murram: red earth with wheel ruts, loose rocks and potholes. On a rainy day (ctx.rain) it is dark and
+ * wet, with puddles, and the potholes are full of water.
+ */
+function murramColour(ctx, u, v, wu, wv, r) {
+  const { tile } = ctx;
+  const wet = ctx.rain;
+  if (tile.hazard === 'pothole') {
+    const wob = 0.05 * Math.sin(Math.atan2(v - 0.5, u - 0.5) * 3 + tile.ty);
+    const d = Math.hypot((u - 0.5) * 1.1, v - 0.5) + wob;
+    if (d < 0.22) {
+      if (!wet) return d < 0.15 ? shadeColour(PALETTE.murramHole, 0.85) : PALETTE.murramHole;
+      return d < 0.1 && r > 0.7 ? PALETTE.puddleShine : PALETTE.puddle;
+    }
+    if (d < 0.27) return wet ? PALETTE.murramWet[1] : PALETTE.murramHoleRim;
+  } else if (tile.hazard === 'rocks') {
+    // 7 stones in the tile, each lit on the top left.
+    for (let k = 0; k < 7; k++) {
+      // Mix k into the position (seeds next to each other give hash values that line up).
+      const hx = tile.tx * 31 + k * 977, hy = tile.ty * 17 + k * 613;
+      const cx = 0.15 + 0.7 * hash2(hx, hy, 7), cy = 0.15 + 0.7 * hash2(hy, hx, 13);
+      const rad = 0.045 + 0.04 * hash2(hx + 5, hy + 3, 29);
+      const du = u - cx, dv = (v - cy) * 1.2;
+      if (du * du + dv * dv < rad * rad) {
+        const side = du + dv;
+        const base = side < -rad * 0.5 ? PALETTE.rockLight : side > rad * 0.6 ? PALETTE.rockDark : PALETTE.rock;
+        return wet ? shadeColour(base, 0.8) : base;
+      }
+      // The shadow of the stone on the ground (bottom right).
+      const su = du - rad * 0.5, sv = dv - rad * 0.5;
+      if (su * su + sv * sv < rad * rad * 0.8) return shadeColour(pick(wet ? PALETTE.murramWet : PALETTE.murram, r, 0.2, 0.86), 0.72);
+    }
+  }
+  // Wheel ruts: two darker tracks along the road.
+  let rut = false;
+  if (ctx.rutAlongX !== null) {
+    const across = ctx.rutAlongX ? v : u;
+    rut = Math.abs(across - 0.32) < 0.05 || Math.abs(across - 0.68) < 0.05;
+  }
+  if (wet) {
+    const p = valueNoise(wu * 2.2, wv * 2.2, 11);
+    // Puddles: in the low places and along the ruts, with a few bright spots of sky.
+    if (p > 0.74 || (rut && p > 0.62)) return p > 0.8 && r > 0.93 ? PALETTE.puddleShine : PALETTE.puddle;
+    const c = pick(PALETTE.murramWet, r, 0.22, 0.88);
+    return rut ? shadeColour(c, 0.85) : c;
+  }
+  if (r > 0.985) return PALETTE.pebble;
+  const c = pick(PALETTE.murram, r, 0.2, 0.86);
+  return rut ? shadeColour(c, 0.86) : c;
 }
 
 function surfaceColour(ctx, u, v, sx, sy) {
@@ -276,10 +338,7 @@ function surfaceColour(ctx, u, v, sx, sy) {
       if (w > 0.7 && r > 0.6) return PALETTE.waterShine;
       return pick(PALETTE.water, w, 0.35, 0.65);
     }
-    case 'murram': {
-      if (r > 0.985) return PALETTE.pebble;
-      return pick(PALETTE.murram, r, 0.2, 0.86);
-    }
+    case 'murram': return murramColour(ctx, u, v, wu, wv, r);
     case 'murramWet': {
       const p = valueNoise(wu * 2.2, wv * 2.2, 11);
       if (p > 0.66) return p > 0.72 && r > 0.8 ? PALETTE.puddleShine : PALETTE.puddle;

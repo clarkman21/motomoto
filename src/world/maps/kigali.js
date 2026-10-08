@@ -1,4 +1,4 @@
-import { LIGHTS, DISTRICTS } from '../../config.js';
+import { LIGHTS, DISTRICTS, HAZARDS } from '../../config.js';
 
 // The Kigali map: 6 districts of 64 × 64 tiles (256 m × 256 m each), built in code.
 // The result has the same shape as TEST_MAP (rows, hills, places, zones, cameras, signs)
@@ -368,6 +368,15 @@ export function buildKigaliMap(seed = 7) {
     const d = districtOf(x, y);
     if (g[y][x] === '#' && (d === 'nyabugogo' || d === 'kicukiro') && !isJunction(x, y) && hash(x, y, 18) < 0.012) set(x, y, 'o');
   }
+  // Murram is rough: loose rocks and potholes (puddles when it rains). The tile stays murram; the World
+  // puts the hazard on it (mapData.hazards).
+  const hazards = [];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (g[y][x] !== 'm' || isJunction(x, y)) continue;
+    const r = hash(x, y, 19);
+    if (r < HAZARDS.murramPotholeShare) hazards.push({ x, y, type: 'pothole' });
+    else if (r < HAZARDS.murramPotholeShare + HAZARDS.murramRocksShare) hazards.push({ x, y, type: 'rocks' });
+  }
   const bumpAcross = (x, y, horiz) => { set(x, y, '='); horiz ? set(x, y + 1, '=') : set(x + 1, y, '='); };
   for (const x of [26, 34]) bumpAcross(x, 20, true);
   bumpAcross(18, 14, false);
@@ -488,6 +497,7 @@ export function buildKigaliMap(seed = 7) {
     landmarks,
     hills: HILLS,
     roads: ROADS,
+    hazards,
     lamps,
     crowdAreas: CROWD_AREAS,
     districts: Object.entries(DISTRICT_RECTS).map(([id, r]) => ({ id, name: DISTRICTS[id]?.name ?? id, ...r, look: DISTRICT_LOOKS[id] })),

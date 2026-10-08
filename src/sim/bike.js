@@ -275,9 +275,19 @@ export function stepBike(bike, input, world, dt) {
   const key = tile ? tile.tx + ',' + tile.ty : null;
   if (key !== bike.tileKey) {
     bike.tileKey = key;
-    if (tile?.hazard) events.push(...hitHazard(bike, tile.hazard));
+    // A pothole on murram is a puddle on a rainy day.
+    if (tile?.hazard) events.push(...hitHazard(bike, tile.hazard, world.rain && tile.surface === 'murram'));
   }
   bike.bump = Math.max(0, bike.bump - dt);
+  // Murram is a washboard: a small bump every few metres when you ride fast on it.
+  const mb = HAZARDS.murramBumps, speedNow = Math.hypot(bike.vx, bike.vy);
+  if (tile && (tile.surface === 'murram' || tile.surface === 'murramWet') && speedNow * 3.6 > mb.fromKmh) {
+    bike.washboard = (bike.washboard ?? 0) + speedNow * dt;
+    if (bike.washboard >= mb.everyMetres) {
+      bike.washboard = 0;
+      if (bike.bump <= 0) bike.bump = mb.bounce;
+    }
+  }
 
   // Maintenance: the service meter fills with distance (more on bad roads and in the red zone) and with hits.
   let wearKm = rideWearKm(bike, spec, surface, moved) + brakeWearKm;
@@ -331,12 +341,20 @@ export function energyUse(spec, surface, grade, throttle, v, topSpeed) {
   return base * throttle * slopeFactor * surface.energyFactor;
 }
 
-function hitHazard(bike, hazard) {
+function hitHazard(bike, hazard, wet = false) {
   const v = Math.hypot(bike.vx, bike.vy);
   if (hazard === 'pothole') {
     scaleSpeed(bike, 1 - HAZARDS.pothole.speedCut);
     bike.bump = 0.3;
-    return [{ type: 'pothole' }];
+    return [{ type: wet ? 'puddle' : 'pothole' }];
+  }
+  if (hazard === 'rocks') {
+    bike.bump = 0.2;
+    if (v > HAZARDS.rocks.safeSpeedKmh * KMH) {
+      scaleSpeed(bike, 1 - HAZARDS.rocks.speedCut);
+      return [{ type: 'rocksHard' }];
+    }
+    return [];
   }
   if (hazard === 'speedBump') {
     bike.bump = 0.25;

@@ -114,7 +114,9 @@ function curve(a, b, t, c, la = LANE_OFFSET, lb = la) {
 
 /** The safe speed (m/s) over a speed bump or a pothole. */
 function safeSpeed(hazard) {
-  return hazard === 'speedBump' ? HAZARDS.speedBump.safeSpeedKmh * KMH * 0.8 : TRAFFIC.potholeKmh * KMH;
+  if (hazard === 'speedBump') return HAZARDS.speedBump.safeSpeedKmh * KMH * 0.8;
+  if (hazard === 'rocks') return HAZARDS.rocks.safeSpeedKmh * KMH;
+  return TRAFFIC.potholeKmh * KMH;
 }
 
 /** The nearest speed bump or pothole ahead of v in its lane (within look metres): { type, dist }, or null. */
@@ -265,7 +267,16 @@ export function stepTraffic(traffic, world, obstacles, dt) {
       v.tileKey = key;
       if (tile?.hazard) {
         v.bump = 0.3;
-        if (v.speed > safeSpeed(tile.hazard) * 1.2) v.speed *= 1 - (tile.hazard === 'speedBump' ? HAZARDS.speedBump.speedCut : HAZARDS.pothole.speedCut);
+        if (v.speed > safeSpeed(tile.hazard) * 1.2) v.speed *= 1 - (HAZARDS[tile.hazard]?.speedCut ?? HAZARDS.pothole.speedCut);
+      }
+    }
+    // Small bumps on murram (a washboard surface), as for the bike.
+    const mb = HAZARDS.murramBumps;
+    if (tile && (tile.surface === 'murram' || tile.surface === 'murramWet') && v.speed * 3.6 > mb.fromKmh) {
+      v.washboard = (v.washboard ?? 0) + v.speed * dt;
+      if (v.washboard >= mb.everyMetres * 1.5) {
+        v.washboard = 0;
+        if (!(v.bump > 0)) v.bump = mb.bounce;
       }
     }
     v.bump = Math.max(0, (v.bump ?? 0) - dt);

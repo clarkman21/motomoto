@@ -110,6 +110,11 @@ export class ChunkStreamer {
     this.chunks.set(key, { terrain, terrainKey, atlasKey: items.length ? atlasKey : null, blocks });
   }
 
+  /** Drop all chunks, so that they are drawn again (for example when the weather changes the ground). */
+  reload() {
+    for (const [key, chunk] of this.chunks) this.#unload(key, chunk);
+  }
+
   #unload(key, chunk) {
     chunk.terrain.destroy();
     this.scene.textures.remove(chunk.terrainKey);

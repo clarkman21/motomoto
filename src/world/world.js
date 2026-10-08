@@ -72,6 +72,11 @@ export class World {
     this.dynamicSolid = null;
     this.lastHit = null;
     this.tiles = this.#parseTiles();
+    // Rough murram (mapData.hazards): loose rocks and potholes on murram tiles that have no other hazard.
+    for (const h of mapData.hazards ?? []) {
+      const t = this.tile(h.x, h.y);
+      if (t && t.surface === 'murram' && !t.hazard) t.hazard = h.type;
+    }
     for (const p of this.places) if (!p.district) p.district = this.districtAt(Math.floor(p.x), Math.floor(p.y));
     this.vertexLevels = this.#buildHeights(mapData.hills ?? []);
     this.blocks = this.#buildBlocks();
