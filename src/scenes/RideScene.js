@@ -1015,7 +1015,7 @@ export class RideScene extends Phaser.Scene {
     this.rescue = null;
   }
 
-  /** Out of fuel during a job: when the bike stops, the customer leaves and you lose the fare. */
+  /** Out of fuel or broken down during a job: when the bike stops, the customer leaves and you lose the fare. */
   #loseJobWhenEmpty() {
     const lost = loseJobWhenEmpty(this.board, this.bike, forwardSpeed(this.bike));
     if (!lost) return;
@@ -1023,9 +1023,10 @@ export class RideScene extends Phaser.Scene {
     this.engineSound.grumble();
     const words = PEOPLE.leaveWords;
     this.#bubble(this.bike.x, this.bike.y, 46, words[Math.floor(this.rng() * words.length)], 0xffa080);
+    const why = this.bike.brokenDown ? 'The bike broke down!' : 'Out of fuel!';
     this.events.emit('bark', lost.type === 'passenger'
-      ? 'Out of fuel! Your passenger gets off and takes another moto. You lose the fare'
-      : 'Out of fuel! The customer sends the cargo with another moto. You lose the pay');
+      ? `${why} Your passenger gets off and takes another moto. You lose the fare`
+      : `${why} The customer sends the cargo with another moto. You lose the pay`);
   }
 
   /** Pushing the bike: the steps of the walk, and now and then a tired sound and word. */

@@ -432,6 +432,16 @@ describe('out of fuel during a job', () => {
     expect(board.active).toBeNull();
     expect(bike.loadType).toBeNull();
   });
+
+  it('a breakdown during a job loses the fare too', () => {
+    const world = new World(TEST_MAP);
+    const board = createJobBoard(world, 4);
+    const bike = createBike(world, 'petrol');
+    acceptOffer(board, 0);
+    bike.brokenDown = true; // fuel left, but the engine does not run
+    expect(loseJobWhenEmpty(board, bike, 0)).not.toBeNull();
+    expect(board.active).toBeNull();
+  });
 });
 
 describe('a job pays only once', () => {

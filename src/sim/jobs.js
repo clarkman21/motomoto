@@ -124,12 +124,13 @@ export function cancelJob(board, bike) {
 }
 
 /**
- * Out of fuel (or charge) during a job: when the bike has rolled to a stop, the passenger gets off
- * and takes another moto, or the customer sends the cargo with another moto. You lose the fare.
- * speed: the bike speed in m/s. Returns the lost job, or null.
+ * Out of fuel (or charge), or a breakdown, during a job: when the bike has rolled to a stop, the
+ * passenger gets off and takes another moto, or the customer sends the cargo with another moto.
+ * You lose the fare. speed: the bike speed in m/s. Returns the lost job, or null.
  */
 export function loseJobWhenEmpty(board, bike, speed) {
-  if (!board.active || bike.energy > 0 || Math.abs(speed) * 3.6 > JOBS.loseJobBelowKmh) return null;
+  const stuck = bike.energy <= 0 || bike.brokenDown;
+  if (!board.active || !stuck || Math.abs(speed) * 3.6 > JOBS.loseJobBelowKmh) return null;
   const lost = board.active;
   cancelJob(board, bike);
   return lost;
