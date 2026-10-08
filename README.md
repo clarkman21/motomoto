@@ -57,6 +57,8 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Secret places: 6 hidden spots (some only at night, or when the fountain sprays), 2,500 RWF each, once in a game | Done |
 | Day events (from level 6): Umuganda mornings (no customers and almost no traffic until 11:00, then a rush with more hails and fares +30% until 13:00) and rainy days (from level 7: wet murram, grey light, rain on the screen, more hails, fares +25%); the jobs window and the day end summary show the event | Done |
 | Hired riders on the map (levels 6 and 8): Jean-Paul and Claudine ride your electric motos in the traffic (a blue helmet) and carry passengers. They pay rent each evening; you pay the service of their motos; on a bad day there is a repair or no rent. Some days a rider calls for help: ride to the blue pin within 1:30 and stop beside the rider, or you lose the rent of that day | Done |
+| No bike rent from level 5: the Ampersand electric moto is yours. The level 5 to 10 goals went up (120,000 to 450,000 RWF), so an average player still passes them in about 7, 9, 8, 10, 11 and 13 days. A game over with your own moto: you sell it to pay what you owe | Done |
+| Rough murram: wheel ruts, patches of loose rocks (−18% speed above 22 km/h), potholes, and small bumps at speed for the bike and the traffic. On a rainy day the murram is dark and wet, with puddles, and the potholes are full of water (SPLASH!) | Done |
 | No star rating for the rider: a design decision (it is more realistic without one) | Decided |
 | Moving city details: the flags wave in the wind; the MTN fountain sprays now and then (9 s in every 40 s), and the drops fall back into the basin (`CITY_ANIM` in config) | Done |
 | From Alp's terrain map: Mount Kigali (a high, steep ridge with dark green forest on the west side of town), a stream in the valley between town and Kimihurura (roads cross it on bridges), the Kigali Marriott Hotel in town | Done |
@@ -67,11 +69,11 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Passenger and cargo jobs, cash, fares and tips | Done |
 | Fuel station (pay per litre) and Ampersand swap station (flat fee) | Done |
 | Speed limit zones, signs and speed cameras with fines; about 250 speed limit signs made from the roads (where the limit changes and every 96 m), speed bump warning signs and crossing signs | Done |
-| Garage, service meter, breakdowns, crash repairs, daily rent | Done |
+| Garage, service meter, breakdowns, crash repairs, daily rent (levels 1 to 4, until the electric moto is yours) | Done |
 | Shift clock for each level (for example 19:00–23:00 in 4 min) and day end summary | Done |
 | Balance model: `npm run balance` estimates the days to pass each level for a good, an average and a beginner player; fares ×1.5 and level tuning so an average player passes levels 1–4 in about 4–6 days | Done |
 | Test mode (Settings): a new game starts at level 1 to 5, to check the later levels | Done |
-| Out of cash = game over (no loan): below zero after the rent, or an empty tank and no cash for fuel; a bicycle taxi game over screen, then a new game at level 1 | Done |
+| Out of cash = game over (no loan): below zero at the end of the day, or an empty tank and no cash for fuel; a bicycle taxi game over screen, then a new game at level 1 | Done |
 | Kigali map: 6 districts (Nyabugogo, Kigali town, Kacyiru, Kimihurura, Nyarutarama, Kicukiro), 192 × 128 tiles, streamed in chunks | Done |
 | Topography: valley, ridges, hills and saddles; foundations on slopes, slope shading and contour lines | Done |
 | The map grows with the levels: barriers close the districts that are not open yet | Done |
@@ -166,7 +168,7 @@ The game is about money. You earn from jobs. You spend on energy, fines and the 
 | Cargo: 400 RWF + 160 RWF per game km + 12 RWF per kg, less damage | Speed camera fine: 5,000 RWF, or 10,000 RWF when more than 15 km/h over |
 | | Crash repair: 800 RWF |
 | | Garage service: 3,500 RWF (petrol: oil change, brake pads, check), 2,000 RWF (electric: brake pads, check) |
-| | Daily rent: 6,000 RWF (petrol and electric) |
+| | Daily bike rent: 2,500 to 5,000 RWF on levels 1 to 4 (a rented petrol moto); none from level 5 (the electric moto is yours) |
 
 - **Jobs.** Take a job (1, 2 or 3). Ride to the green marker and stop. Then ride to the white marker and stop. Potholes, hard speed bumps, crashes and hard braking cost passenger comfort (and so the tip) and damage fragile cargo. A passenger or cargo makes the bike heavier.
 - **Speed limits.** Outside a zone the limit is 60 km/h. The market zone is 30 km/h. The city centre, the roundabout and the bottom of the steep east ramp are 40 km/h. Four cameras fine you when you pass more than 5 km/h over the limit. The HUD limit sign flashes when you are too fast.
@@ -200,7 +202,7 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `BRAKES` | How much braking adds to the service meter, stopping power when the service is long overdue |
 | `PHYSICS` | Hill force, drag, engine braking, turn rate, grip |
 | `SURFACES` | Grip, speed factor and energy factor for each surface |
-| `HAZARDS` | Pothole and speed bump effects (traffic uses the same safe speeds) |
+| `HAZARDS` | Pothole, speed bump and loose rock effects (traffic uses the same safe speeds); how many murram tiles have rocks or a pothole; the murram bumps (from what speed, how often, how high) |
 | `LOAD` | Mass of bike and rider (a load changes pull and braking) |
 | `DAY` | Day length and hours |
 | `MONEY` | Start cash, rent, fuel, swaps, crash repair, the smallest fuel buy |
