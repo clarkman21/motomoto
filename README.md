@@ -55,6 +55,9 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Daily app quests (from level 3): two goals each day (jobs before 12:00, cargo, fares, clean rides, no fines, hotel guests), with a bonus that grows with the level | Done |
 | Side missions (gold job cards): a VIP passenger (no fine, no crash, comfort 85%+), a rush delivery against the clock, ikivuguto from an Inyange Milk Zone (do not spill it), a hotel guest in a hurry | Done |
 | Secret places: 6 hidden spots (some only at night, or when the fountain sprays), 2,500 RWF each, once in a game | Done |
+| Day events (from level 6): Umuganda mornings (no customers and almost no traffic until 11:00, then a rush with more hails and fares +30% until 13:00) and rainy days (from level 7: wet murram, grey light, rain on the screen, more hails, fares +25%); the jobs window and the day end summary show the event | Done |
+| Hired riders on the map (levels 6 and 8): Jean-Paul and Claudine ride your electric motos in the traffic (a blue helmet) and carry passengers. They pay rent each evening; you pay the service of their motos; on a bad day there is a repair or no rent. Some days a rider calls for help: ride to the blue pin within 1:30 and stop beside the rider, or you lose the rent of that day | Done |
+| No star rating for the rider: a design decision (it is more realistic without one) | Decided |
 | Moving city details: the flags wave in the wind; the MTN fountain sprays now and then (9 s in every 40 s), and the drops fall back into the basin (`CITY_ANIM` in config) | Done |
 | From Alp's terrain map: Mount Kigali (a high, steep ridge with dark green forest on the west side of town), a stream in the valley between town and Kimihurura (roads cross it on bridges), the Kigali Marriott Hotel in town | Done |
 | Hotels with their names on the roof (lit at night) and job places: Hotel des Mille Collines and the Kigali Serena (Kiyovu), the Umubano (Kacyiru boulevard), the Radisson Blu (beside the KCC). A named building has one flat roof, on a stone base on a slope | Done |
@@ -99,7 +102,7 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Market life: mamas in kitenge who sell goods on mats, umbrellas, goats and sheep; kitenge walkers | Done |
 | Trees: acacia, jacaranda, avocado and fig, mixed by district | Done |
 | Day and night: fast clock, night colour, sunset, street lamps, lit windows, headlights and tail lights | Done |
-| Levels 5–10, police helmet checks, hired riders, traffic lights | Later milestones |
+| Police helmet checks, traffic lights | Later milestones |
 
 ## Run the game
 
@@ -227,7 +230,9 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `LIGHT` | The light rule: top faces, faces to the left of the screen, faces to the right |
 | `TRAFFIC.ringGiveWayMetres`, `ringPatienceSeconds` | How near a car on a roundabout must be for a new car to wait, and how long it waits at most |
 | `MISSIONS` | Quests from which level, how many each day, rewards, how often an offer is a side mission, the rules and rewards of each mission kind, the secret place bonus |
-| `FLEET` | Hired riders: rent, costs, bad days, calls for help |
+| `FLEET` | Hired riders: rent, costs, bad days, calls for help (how often, how long you have, how near you must stop), their names, how long they carry a passenger |
+| `EVENTS` | Day events: the Umuganda hours, traffic share, rush fares and hails; rain fares, hails, the grey tint and the rain streaks. A level's `events` gives the chance of each event on a day |
+| `JOBS.maxOffersShown` | The HUD shows 4 job cards: the board never has more offers than this |
 | `CITY_ANIM` | The moving city details: flag frames and speed, how often and how long the MTN fountain sprays |
 | `ROOFS` | Pitched roofs: the pitch and the highest ridge of each house type, how many villas are new steep apartments, how many Nyabugogo houses are mud houses |
 
@@ -280,6 +285,9 @@ src/
     family.js            What the money means for the rider's family
     fuel.js              Fuel estimate for a job: distance, climb and load
     rescue.js            The fuel moto: what it brings and costs, its ride to you along the roads
+    missions.js          Daily app quests, side missions, secret places
+    events.js            Day events: Umuganda and rain (which day, the stage at each hour, fares, hails, barks)
+    fleet.js             Hired riders: the plan of the day, their work on the map, calls for help, rent and costs
   audio/engine-sound.js  Engine, horn, crash, yells, jingles and menu sounds (Web Audio)
   scenes/
     MenuScene.js         Welcome menu, pause menu, How to play, Settings
@@ -298,6 +306,7 @@ src/
     SignView.js          Landmark signs: roof and entrance signs on towers, wall signs on the others
     MarketView.js        Market vendors, goats and sheep (animated)
     MinimapView.js       The minimap in the HUD
+    RainView.js          Rain streaks on a rainy day (whole pixels)
     save.js              Saves the game in the browser (localStorage)
 test/                    Unit tests (Vitest)
 ```
