@@ -28,7 +28,7 @@ const CHAR_INFO = {
 };
 
 // Building styles (map data 'styles': one character per tile). They change the look of a building.
-export const BUILDING_STYLES = { h: 'house', s: 'shop', o: 'office', t: 'tower', g: 'government', c: 'school', w: 'warehouse', v: 'villa', e: 'embassy', P: 'palm' }; // P: a palm tree (on a tree tile)
+export const BUILDING_STYLES = { h: 'house', s: 'shop', o: 'office', t: 'tower', g: 'government', c: 'school', w: 'warehouse', v: 'villa', e: 'embassy', H: 'hotel', P: 'palm' }; // P: a palm tree (on a tree tile)
 
 // Blocks that join with neighbours of the same kind into one building (one colour, no inner walls).
 const GROUPED = ['building', 'fuel', 'swap', 'garage', 'dome'];
@@ -107,6 +107,7 @@ export class World {
           blockLevels: lm && info.block === 'building' ? lm.levels : info.blockLevels ?? 0, solid: !!info.solid, flowers: !!info.flowers,
           style: BUILDING_STYLES[this.styles?.[ty]?.[tx]] ?? null,
           landmark: info.block === 'building' && this.landmarks.some(inLm), // a named building (see the map data)
+          flag: info.block === 'building' && this.landmarks.some((l) => l.flag && inLm(l)), // a ministry: it flies the flag
         });
       }
     }
@@ -157,12 +158,21 @@ export class World {
       const r = Math.max(...group.map((t) => Math.hypot(t.tx - cx, t.ty - cy))) + 0.8;
       for (const t of group) domeHeight.set(t, 2 + Math.round(7 * Math.sqrt(Math.max(0, 1 - (Math.hypot(t.tx - cx, t.ty - cy) / r) ** 2))));
     }
+    // A named building (a landmark) has one flat roof: its floor is the highest ground under it, and
+    // a stone foundation fills the space down to the slope (as on Kigali's hillsides).
+    const landmarkFloor = new Map();
+    for (const l of this.landmarks) {
+      let top = 0;
+      for (let ty = l.y0; ty <= l.y1; ty++) for (let tx = l.x0; tx <= l.x1; tx++) top = Math.max(top, ...this.cornerLevels(tx, ty));
+      landmarkFloor.set(l, top);
+    }
     const blocks = [];
     for (const t of this.tiles) {
       if (!t.block) continue;
       const corners = this.cornerLevels(t.tx, t.ty);
       const baseLevel = Math.min(...corners);
-      const topOfGround = Math.max(...corners);
+      const lm = t.landmark ? this.landmarks.find((l) => t.tx >= l.x0 && t.tx <= l.x1 && t.ty >= l.y0 && t.ty <= l.y1) : null;
+      const topOfGround = lm ? landmarkFloor.get(lm) : Math.max(...corners);
       let levels = t.blockLevels;
       if (t.block === 'tree') levels = t.style === 'palm' ? 7 : 5;
       if (t.block === 'monument') levels = 8;
@@ -172,6 +182,7 @@ export class World {
         ty: t.ty,
         kind: t.block,
         style: t.style ?? 'house',
+        flag: !!t.flag,
         groupId: ids.get(t) ?? -1,
         baseLevel,
         floorLevel: topOfGround, // on a slope, the building stands on a foundation from baseLevel up to here

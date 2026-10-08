@@ -133,7 +133,7 @@ export function buildKigaliMap(seed = 7) {
   const W = KIGALI_W, H = KIGALI_H;
   const g = Array.from({ length: H }, () => Array(W).fill('.'));
   // The building style of each tile (see BUILDING_STYLES in world.js): h house, s shop, o office,
-  // t glass tower, g government, c school, w warehouse, v villa. '.' = no style.
+  // t glass tower, g government, c school, w warehouse, v villa, e embassy, H hotel, P palm (a tree). '.' = no style.
   const st = Array.from({ length: H }, () => Array(W).fill('.'));
   const reserved = Array.from({ length: H }, () => Array(W).fill(false)); // no buildings or trees here
   const inside = (x, y) => x >= 0 && y >= 0 && x < W && y < H;
@@ -254,6 +254,16 @@ export function buildKigaliMap(seed = 7) {
   landmark(88, 24, 95, 30, '4', 'g', { sign: "POLISI Y'U RWANDA", sign2: 'POLICE' });
   landmark(103, 41, 110, 46, '5', 'g', { sign: "IBIRO BYA MINISITIRI", sign2: "W'INTEBE" });
   landmark(89, 41, 95, 46, '4', 'g', { sign: "IBIRO BY'AKARERE", sign2: 'KA GASABO' });
+  // Ministries (Alp: some fly the flag, like MINEDUC and MINAGRI). The other offices do not.
+  landmark(66, 26, 72, 31, '5', 'o', { sign: 'MINEDUC', sign2: 'MINISTRY OF EDUCATION', flag: true });
+  landmark(74, 26, 81, 31, '5', 'o', { sign: 'MINAGRI', sign2: 'MINISTRY OF AGRICULTURE', flag: true });
+  landmark(111, 43, 116, 46, '5', 'o', { sign: 'MINISANTE', sign2: 'MINISTRY OF HEALTH', flag: true });
+  // Hotels (Alp). Places are guesses on the compressed map: the Mille Collines (the "Hotel Rwanda") and
+  // the Serena in Kiyovu (town), the Umubano on the boulevard, the Radisson Blu beside the KCC.
+  landmark(52, 112, 58, 117, '9', 'H', { levels: 12, sign: 'HOTEL DES', sign2: 'MILLE COLLINES' });
+  landmark(14, 113, 19, 118, '9', 'H', { levels: 11, sign: 'KIGALI SERENA', sign2: 'HOTEL' });
+  landmark(66, 41, 73, 46, '7', 'H', { sign: 'UMUBANO', sign2: 'HOTEL' });
+  landmark(103, 82, 105, 87, '9', 'H', { levels: 10, sign: 'RADISSON BLU', sign2: 'HOTEL' });
   // The US Embassy (Alp): a big concrete building like a castle, with an American flag that waves.
   landmark(123, 23, 127, 28, '5', 'e', { sign: 'EMBASSY OF THE', sign2: 'UNITED STATES' });
   landmark(112, 51, 118, 53, '2', 'c', { sign: 'G.S. KACYIRU', sign2: 'WE STRIVE FOR SUCCESS' });
@@ -416,6 +426,14 @@ export function buildKigaliMap(seed = 7) {
   P('policeHq', 'Police headquarters', 86.5, 28, []);
   P('kacyiruBoulevard', 'Kacyiru boulevard', 96, 34.5, []);
   P('usEmbassy', 'US Embassy', 122, 29.5, [], 1);
+  P('mineduc', 'MINEDUC', 69, 33.5, [], 1);
+  P('minagri', 'MINAGRI', 77.5, 33.5, [], 1);
+  P('minisante', 'MINISANTE', 113.5, 48.5, [], 1);
+  // Hotels: many fares (visitors and conference guests).
+  P('milleCollines', 'Hotel des Mille Collines', 56, 119.5, ['hotel'], 2);
+  P('serena', 'Kigali Serena Hotel', 16.5, 112.5, ['hotel'], 2);
+  P('umubano', 'Umubano Hotel', 70, 40.5, ['hotel'], 2);
+  P('radisson', 'Radisson Blu Hotel', 101.5, 85, ['hotel'], 2);
   P('embassies', 'Embassy lane', 100, 49, []);
   P('kcc', 'Kigali Convention Centre', 114.5, 86, [], 2);
   P('parliament', 'Parliament', 87, 106, []);

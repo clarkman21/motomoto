@@ -224,7 +224,7 @@ export function drawBlock(block, world) {
     : block.kind === 'fountain' ? 64
     : block.kind === 'dome' ? 240
     : block.kind === 'lovesign' ? 72
-    : block.kind === 'building' ? (block.style === 'government' || block.style === 'embassy' || (block.style === 'office' && world.tile(block.tx, block.ty)?.district === 'kacyiru') ? 64 : 14 + Math.ceil((buildingLook(block, world).roof?.levels ?? 0) * WORLD.levelPx)) : 2; // room for roofs, tanks and flags
+    : block.kind === 'building' ? (block.style === 'government' || block.style === 'embassy' || block.flag ? 64 : 14 + Math.ceil((buildingLook(block, world).roof?.levels ?? 0) * WORLD.levelPx)) : 2; // room for roofs, tanks and flags
   const corners = [];
   for (const [x, y] of [[tx, ty], [tx + 1, ty], [tx + 1, ty + 1], [tx, ty + 1]]) {
     corners.push(pt(x, y, block.baseLevel), pt(x, y, block.topLevel));
@@ -289,6 +289,8 @@ const STYLE_LOOKS = {
   office: { walls: [0xd8d4c8, 0xbfc6cc, 0xe8e2d6, 0xc9b8a0], roofs: [0x8a8a86, 0x7a7e82], tanks: 0.5, ac: true },
   tower: { walls: [0x5f8fa8, 0x4a7f8a, 0x6a8fb8, 0x3f6a7a], roofs: [0x5a5e62, 0x4a4e52], ac: true },
   government: { walls: [0xefe6cc, 0xf2efe6], roofs: [0x9a3b2a], flag: true },
+  // Hotels: white or cream walls, a balcony on each floor, big windows, a glass lobby; the name on the roof.
+  hotel: { walls: [P.cream, P.paintCream, P.cloth], roofs: [P.silver, P.slate] },
   // The US Embassy (Alp): a big concrete building like a castle, with battlements and a waving US flag.
   embassy: { walls: [P.concrete], roofs: [P.silver], flag: 'us', battlements: true },
   school: { walls: [0xf0efe6], roofs: [0x3f7f4a, 0x8a3b2a], corrugated: true },
@@ -350,8 +352,8 @@ function drawBuilding(c, block, pt, world, glow) {
   const { tx, ty, baseLevel, topLevel, groupId } = block;
   const { style, roof: pitched } = buildingLook(block, world);
   const look = STYLE_LOOKS[style] ?? STYLE_LOOKS.house;
-  // The offices in Kacyiru are the ministries (Alp): they fly the flag of Rwanda too.
-  const ministry = style === 'office' && world.tile(tx, ty)?.district === 'kacyiru';
+  // Named ministries (MINEDUC, MINAGRI, ...: a landmark with flag: true) fly the flag of Rwanda too.
+  const ministry = !!block.flag;
   const pick = pitched?.single ? Math.floor(hash2(tx, ty, groupId) * 97) : groupId; // small houses in a row differ
   const wall = look.walls[pick % look.walls.length];
   const roof = look.roofs[(pick >> 1) % look.roofs.length];
@@ -415,6 +417,24 @@ function drawBuilding(c, block, pt, world, glow) {
     if (style === 'warehouse') {
       col = (along * 10) % 1 < 0.3 ? shadeColour(wall, 0.9) : wall; // corrugated sheets
       if (zl < 1.6 && (along % 1) > 0.25 && (along % 1) < 0.75) col = 0x4a4f55; // a big door
+      return shadeColour(col, k);
+    }
+    if (style === 'hotel') {
+      // The lobby: glass, warm light at night. Above it, each floor has a balcony rail and big windows.
+      const a = (along * 3) % 1;
+      if (zl < 1.6) {
+        if (zl > 0.25 && a > 0.1 && a < 0.9) {
+          col = P.glass;
+          if (glow) glow.setPixel(px, py, shadeColour(0xffd8a0, 0.6 + 0.2 * k), 170);
+        }
+        return shadeColour(col, k);
+      }
+      if (floorPos > 0.55 && floorPos < 0.68) col = P.chrome; // the balcony rail
+      else if (floorPos > 0.68 && floorPos < 0.72) col = shadeColour(wall, 0.8); // the balcony floor's shadow
+      else if (floorPos > 0.85 && floorPos < 1.75 && a > 0.12 && a < 0.88) {
+        col = hash2(Math.floor(along * 3), Math.floor(zl / 2), groupId) > 0.7 ? WINDOW_LIT : WINDOW;
+        lit(along, zl, k, px, py, 3);
+      }
       return shadeColour(col, k);
     }
     if (style === 'embassy') {

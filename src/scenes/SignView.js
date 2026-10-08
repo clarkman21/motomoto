@@ -22,7 +22,7 @@ export class SignView {
       const blocks = world.blocks.filter((b) => b.tx >= lm.x0 && b.tx <= lm.x1 && b.ty >= lm.y0 && b.ty <= lm.y1);
       if (!blocks.length) continue;
       const top = Math.max(...blocks.map((b) => b.topLevel));
-      const roof = BUILDING_STYLES[lm.style] === 'tower';
+      const roof = BUILDING_STYLES[lm.style] === 'tower' || BUILDING_STYLES[lm.style] === 'hotel'; // towers and hotels: the name on the roof
       const sign = drawBuildingSign(lm.sign, lm.sign2 ?? '', roof ? 'roof' : lm.brand ? 'brand' : 'wall');
       const key = `sign-${lm.x0}-${lm.y0}`;
       if (!scene.textures.exists(key)) addCanvasTexture(scene, key, sign.canvas);

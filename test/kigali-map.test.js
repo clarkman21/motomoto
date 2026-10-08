@@ -132,4 +132,13 @@ describe('Ampersand showroom', () => {
     expect(lv.effect).toBe('electric');
     expect(world.landmarks.find((l) => l.brand).sign).toBe('AMPERSAND');
   });
+
+  it('named ministries fly the flag (other offices do not), and the hotels have their names', () => {
+    const flagged = new Set(world.blocks.filter((b) => b.flag).map((b) => world.landmarks.find((l) => b.tx >= l.x0 && b.tx <= l.x1 && b.ty >= l.y0 && b.ty <= l.y1)?.sign));
+    expect([...flagged].sort()).toEqual(['MINAGRI', 'MINEDUC', 'MINISANTE']);
+    expect(world.blocks.filter((b) => b.style === 'office' && !b.flag).length).toBeGreaterThan(100);
+    const hotels = world.landmarks.filter((l) => l.style === 'H').map((l) => `${l.sign} ${l.sign2}`);
+    expect(hotels).toEqual(expect.arrayContaining(['HOTEL DES MILLE COLLINES', 'UMUBANO HOTEL']));
+    expect(world.placesWithTag('hotel').length).toBe(hotels.length);
+  });
 });
