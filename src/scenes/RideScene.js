@@ -26,7 +26,7 @@ import { startRace, chaseHail, stepRivals, cancelMission } from '../sim/rivals.j
 import { PeopleView } from './PeopleView.js';
 import { PERSON_LOOKS } from '../world/vehicle-sprites.js';
 import { trafficHonks } from '../sim/honk.js';
-import { levelSettings, milestoneReady, buyMilestone, streakMultiplier, updateStreak, savingsTarget } from '../sim/levels.js';
+import { levelSettings, milestoneReady, buyMilestone, startAtLevel, streakMultiplier, updateStreak, savingsTarget } from '../sim/levels.js';
 import { loadGame, saveGame, clearSave, loadSettings, saveSettings } from './save.js';
 import { deliveryLine } from '../sim/family.js';
 import { jobFuel } from '../sim/fuel.js';
@@ -145,6 +145,7 @@ export class RideScene extends Phaser.Scene {
     this.engineSound = new EngineSound();
     this.occluded = false;
     this.showMap = true;
+    this.testLevel = 1; // test mode: a new game starts at this level (Settings menu)
 
     // Settings from an earlier visit (sound, steering, gears).
     const settings = loadSettings();
@@ -153,6 +154,7 @@ export class RideScene extends Phaser.Scene {
       if (STEERING_MODES.includes(settings.steering)) this.steeringMode = settings.steering;
       this.bike.autoShift = !!settings.autoShift;
       this.showMap = settings.map !== false;
+      this.testLevel = settings.testLevel ?? 1;
     }
 
     this.chunks.update(this.bike.x, this.bike.y);
@@ -236,7 +238,7 @@ export class RideScene extends Phaser.Scene {
   }
 
   #saveSettings() {
-    saveSettings({ sound: this.engineSound.enabled, steering: this.steeringMode, autoShift: !!this.bike.autoShift, map: this.showMap });
+    saveSettings({ sound: this.engineSound.enabled, steering: this.steeringMode, autoShift: !!this.bike.autoShift, map: this.showMap, testLevel: this.testLevel });
   }
 
   /** Behind the welcome menu: the camera moves slowly over Nyabugogo at dusk, and the traffic drives. */
@@ -318,6 +320,12 @@ export class RideScene extends Phaser.Scene {
   shift(dir) {
     const e = shiftGear(this.bike, dir);
     if (e && BARKS[e.type]) this.events.emit('bark', BARKS[e.type]);
+  }
+
+  /** Test mode (Settings): the level that a new game starts at, 1 to 5. */
+  cycleTestLevel() {
+    this.testLevel = (this.testLevel % LEVELS.length) + 1;
+    this.#saveSettings();
   }
 
   /** M: show or hide the minimap. */
@@ -644,6 +652,7 @@ export class RideScene extends Phaser.Scene {
     if (choice === 'newGame') {
       clearSave();
       this.wallet = createWallet();
+      if (this.testLevel > 1) startAtLevel(this.wallet, this.testLevel); // test mode (Settings)
     }
     const type = levelSettings(this.wallet).bikeType;
     this.bike = createBike(this.world, type);

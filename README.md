@@ -43,7 +43,9 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Fuel station (pay per litre) and Ampersand swap station (flat fee) | Done |
 | Speed limit zones, signs and speed cameras with fines; about 250 speed limit signs made from the roads (where the limit changes and every 96 m), speed bump warning signs and crossing signs | Done |
 | Garage, service meter, breakdowns, crash repairs, daily rent | Done |
-| Shift clock for each level (for example 19:00–23:00 in 3 min) and day end summary | Done |
+| Shift clock for each level (for example 19:00–23:00 in 4 min) and day end summary | Done |
+| Balance model: `npm run balance` estimates the days to pass each level for a good, an average and a beginner player; fares ×1.5 and level tuning so an average player passes levels 1–4 in about 4–6 days | Done |
+| Test mode (Settings): a new game starts at level 1 to 5, to check the later levels | Done |
 | Out of cash = game over (no loan): below zero after the rent, or an empty tank and no cash for fuel; a bicycle taxi game over screen, then a new game at level 1 | Done |
 | Kigali map: 6 districts (Nyabugogo, Kigali town, Kacyiru, Kimihurura, Nyarutarama, Kicukiro), 192 × 128 tiles, streamed in chunks | Done |
 | Topography: valley, ridges, hills and saddles; foundations on slopes, slope shading and contour lines | Done |
@@ -86,6 +88,7 @@ npm install
 npm run dev      # starts a local server; open the URL that it shows
 npm test         # runs the unit tests
 npm run build    # makes a static build in dist/
+npm run balance  # prints the balance table: money per day and days to pass each level
 ```
 
 ## Controls
@@ -183,6 +186,7 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `PEOPLE` | Number of walkers, street hails, police fine for hitting a person, near miss yells, how far the horn reaches |
 | `RIVALS` | Chance a rival races you or takes a street hail, offer lifetimes |
 | `LEVELS`, `SAVINGS_FLOAT`, `STREAK` | Goals, shifts, rent, traffic and rivals for each level; the clean ride bonus |
+| `BALANCE` | Player profiles for the balance model (speed, time lost at each job, tips, fines, crashes) and the targets that the tests check |
 | `DISTRICTS` | Name, unlock level, fuel price and fare factor of each district |
 | `BUS_PARK` | How often buses arrive at Nyabugogo and how many customers they bring |
 | `FUEL` | Start tank, idle use, low fuel and reserve warnings, fuel estimates for jobs (petrol and electric) |
@@ -238,7 +242,8 @@ src/
     rivals.js            Rival riders who race you to customers
     collide.js           Collisions of the bike with vehicles, people and poles (by mass)
     maintenance.js       Service meter, wear, breakdown, garage quote
-    levels.js            Levels, savings goals, milestones, streak bonus
+    levels.js            Levels, savings goals, milestones, streak bonus, test mode start level
+    balance.js           Balance model: the money of one day and the days to pass each level
     daylight.js          Light and colour at each hour of the day
     family.js            What the money means for the rider's family
     fuel.js              Fuel estimate for a job: distance, climb and load

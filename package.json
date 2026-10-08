@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "balance": "node scripts/balance.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0"

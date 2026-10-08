@@ -13,7 +13,7 @@ describe('levels', () => {
   it('has the first four levels from the spec, then free play', () => {
     expect(LEVELS.slice(0, 4).map((l) => l.goal)).toEqual([15000, 25000, 40000, 60000]);
     expect(levelDef(5).freePlay).toBe(true);
-    expect(levelDef(1).shift).toEqual({ start: 19, end: 23, realSeconds: 180 });
+    expect(levelDef(1).shift).toEqual({ start: 19, end: 23, realSeconds: 240 });
   });
 
   it('a milestone needs the goal plus the working float', () => {

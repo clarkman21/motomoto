@@ -212,8 +212,10 @@ export class MenuScene extends Phaser.Scene {
       [`STEERING: ${retroText(STEERING_LABELS[ride.steeringMode])}`, () => { ride.toggleSteering(); this.#redraw(); }],
       [`GEARS: ${ride.bike.autoShift ? 'AUTOMATIC' : 'MANUAL'}`, () => { ride.toggleAutoShift(); this.#redraw(); }],
       [`MAP: ${ride.showMap !== false ? 'ON' : 'OFF'}`, () => { ride.toggleMap(); this.#redraw(); }],
+      // Test mode: to check the later levels, a new game starts at this level.
+      [`TEST: NEW GAME AT LEVEL ${ride.testLevel ?? 1}`, () => { ride.cycleTestLevel(); this.#redraw(); }],
       ['BACK', () => this.#back()],
-    ], y + 28, 200);
+    ], y + 28, 240);
   }
 
   #confirmScreen() {

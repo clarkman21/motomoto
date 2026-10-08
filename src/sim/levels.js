@@ -45,6 +45,21 @@ export function buyMilestone(wallet) {
 }
 
 /**
+ * Test mode: start a new game at level n, as if you bought the milestones of the levels before it
+ * (their perks apply, for example the electric moto from level 5). The cash stays the start cash.
+ */
+export function startAtLevel(wallet, n) {
+  const target = Math.max(1, Math.min(n, LEVELS.length));
+  for (const def of LEVELS) {
+    if (def.n >= target) break;
+    if (def.effect) wallet.perks[def.effect] = true;
+    wallet.milestones.push({ level: def.n, milestone: def.milestone, day: 0 });
+  }
+  wallet.level = target;
+  return wallet;
+}
+
+/**
  * Restart the current level with start cash. Level, perks and milestones stay. The game over does
  * not use it (you start again at level 1); it is for a later "Restart level" choice in the menu.
  */

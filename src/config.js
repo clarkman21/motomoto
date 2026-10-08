@@ -217,6 +217,26 @@ export const MONEY = {
 // with no cash for fuel (or a swap) and nobody on the bike to pay you, ends the game. Then you
 // start again at level 1 (decision by Alp: the game is hard enough without a way back from debt).
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Balance model (sim/balance.js, `npm run balance`): player profiles to estimate how many days each
+// level takes. All guesses, to be checked against real play.
+// ---------------------------------------------------------------------------
+export const BALANCE = {
+  sampleJobs: 300,
+  targetDaysAverage: [5, 6, 7, 8], // an average player must pass levels 1 to 4 in this many days at most
+  beginnerMaxLossPerDay: 1000, // a beginner on level 1 may lose at most this much each day
+  policeFine: 5000, // a fine from a police officer (levels with no cameras)
+  crashCost: 1200, // an average crash repair
+  // kmh: the average speed over a job (with turns, traffic and slowing down); overheadSeconds: the time
+  // lost at each job (choose it, stop at the pickup and the drop off, wrong turns); tip: the average tip
+  // (part of the fare); finesPerDay and crashesPerDay: on average.
+  players: {
+    good: { kmh: 32, overheadSeconds: 10, tip: 0.22, finesPerDay: 0.05, crashesPerDay: 0.2 },
+    average: { kmh: 24, overheadSeconds: 16, tip: 0.12, finesPerDay: 0.25, crashesPerDay: 0.6 },
+    beginner: { kmh: 18, overheadSeconds: 24, tip: 0.05, finesPerDay: 0.5, crashesPerDay: 1.2 },
+  },
+};
+
 // Road signs and zebra crossings, made from the road list (see world/road-signs.js). Guesses.
 export const ROAD_SIGNS = {
   repeatTiles: 24, // a speed limit sign again after this many tiles (96 m) on the same road
@@ -246,8 +266,10 @@ export const JOBS = {
   arriveRadiusMetres: 6,
   stopSpeedKmh: 6, // you must slow down below this to pick up or drop off
   passengerChance: 0.65,
-  passenger: { base: 500, perGameKm: 200, maxTipFraction: 0.3, kg: 65 },
-  cargo: { base: 400, perGameKm: 160, perKg: 12, kgMin: 20, kgMax: 80, fragileChance: 0.4 },
+  // Fares ×1.5 (8 October 2026): the balance model (npm run balance) showed that an average player lost
+  // money each day, so level 1 could not be passed.
+  passenger: { base: 750, perGameKm: 300, maxTipFraction: 0.3, kg: 65 },
+  cargo: { base: 600, perGameKm: 240, perKg: 18, kgMin: 20, kgMax: 80, fragileChance: 0.4 },
   // Passenger comfort lost (0..100) and cargo damage (fraction of pay, fragile cargo only).
   comfortLoss: { pothole: 20, bumpHard: 15, wall: 35, crash: 50, hardBrakePerSecond: 25, offRoadPerSecond: 10 },
   // A passenger on the bike waits while you fill up, swap, see the mechanic or push the bike: the tip goes down.
@@ -376,7 +398,7 @@ export const LEVELS = [
   {
     n: 1, name: 'Night rider', goal: 15000, milestone: 'School fees for one term', kind: 'life',
     story: 'Aline goes back to school with her fees paid. At dinner she shows you her new exercise books.',
-    shift: { start: 19, end: 23, realSeconds: 180 }, rent: 3000,
+    shift: { start: 19, end: 23, realSeconds: 240 }, rent: 2500,
     traffic: 0.3, rivals: 2, cyclists: 0, raceChance: 0.15, offerLife: [30, 60], hailEvery: 0.6,
     fare: 1.2, petrol: 1.0, cameras: false,
     news: 'Night shift in Nyabugogo: quiet streets, few rivals, night fares +20%. Buses arrive at the bus park all night.',
@@ -384,26 +406,26 @@ export const LEVELS = [
   {
     n: 2, name: 'Evening rider', goal: 25000, milestone: 'A smartphone and a spare passenger helmet', kind: 'asset', effect: 'phone',
     story: 'Your new phone shows more ride requests, and the spare helmet keeps your passengers safe. Uwase calls you on it to say well done.',
-    shift: { start: 16, end: 23, realSeconds: 240 }, rent: 4500,
+    shift: { start: 16, end: 23, realSeconds: 300 }, rent: 4500,
     traffic: 0.5, rivals: 4, cyclists: 0, raceChance: 0.25, offerLife: [25, 50], hailEvery: 0.6,
-    fare: 1.1, petrol: 1.0, cameras: false,
+    fare: 1.3, petrol: 1.0, cameras: false,
     news: 'Kigali town opens: the city on the ridge above Nyabugogo. Evening rush, more traffic and more rivals.',
   },
   {
     n: 3, name: 'Day rider', goal: 40000, milestone: 'A year of school: fees, uniforms and books', kind: 'life',
     story: 'A full year of school is paid for Aline and Eric. Their new uniforms hang by the door, ready for Monday.',
-    shift: { start: 6, end: 22, realSeconds: 360 }, rent: 6000,
+    shift: { start: 6, end: 22, realSeconds: 420 }, rent: 5000,
     traffic: 0.8, rivals: 6, cyclists: 2, raceChance: 0.35, offerLife: [20, 45], hailEvery: 1,
-    fare: 1.0, petrol: 1.1, cameras: true,
+    fare: 1.25, petrol: 1.1, cameras: true,
     news: 'Kacyiru opens: offices, the police headquarters and the hospital. Full day shift, speed cameras on, petrol +10%.',
   },
   {
     n: 4, name: 'Rush hour', goal: 60000, milestone: 'Down payment on an Ampersand electric moto', kind: 'asset', effect: 'electric',
     buyAt: 'office', // you buy it at the Ampersand showroom, not at the end of the day
     story: 'You sign for your own Ampersand electric moto at the showroom. No more petrol queues and no more smoke. The whole family comes to see it.',
-    shift: { start: 6, end: 22, realSeconds: 360 }, rent: 6000,
+    shift: { start: 6, end: 22, realSeconds: 420 }, rent: 5000,
     traffic: 1.0, rivals: 10, cyclists: 2, raceChance: 0.45, offerLife: [15, 40], hailEvery: 1,
-    fare: 1.1, petrol: 1.2, cameras: true,
+    fare: 1.45, petrol: 1.2, cameras: true,
     news: 'Kimihurura opens: the Convention Centre, Parliament and cobblestone lanes. Rush hour: heavy traffic, 10 rivals. Petrol +20%.',
   },
   {
