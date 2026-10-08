@@ -661,6 +661,7 @@ const TREE_MIX = {
 export function treeKind(world, tx, ty) {
   const t = world.tile(tx, ty);
   if (t?.style === 'palm') return 'palm';
+  if (t?.style === 'forest') return hash2(tx, ty, 41) < 0.35 ? 'avocado' : 'fig'; // dark green eucalyptus-like forest
   const mix = TREE_MIX[t?.district] ?? [0.25, 0.25, 0.25];
   const h = hash2(tx, ty, 41);
   if (h < mix[0]) return 'acacia';

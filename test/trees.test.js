@@ -5,13 +5,14 @@ import { drawBlock, treeKind } from '../src/world/sprites.js';
 
 const world = new World(buildKigaliMap());
 const trees = world.blocks.filter((b) => b.kind === 'tree');
+const streetTrees = trees.filter((b) => world.tile(b.tx, b.ty).style !== 'forest'); // not the Mount Kigali forest
 
 describe('trees', () => {
   it('has acacias, jacarandas, avocados, figs and palms, with more jacarandas in town than in Nyabugogo', () => {
-    const count = (district, kind) => trees.filter((b) => world.tile(b.tx, b.ty).district === district && treeKind(world, b.tx, b.ty) === kind).length;
+    const count = (district, kind) => streetTrees.filter((b) => world.tile(b.tx, b.ty).district === district && treeKind(world, b.tx, b.ty) === kind).length;
     const all = new Set(trees.map((b) => treeKind(world, b.tx, b.ty)));
     expect([...all].sort()).toEqual(['acacia', 'avocado', 'fig', 'jacaranda', 'palm']);
-    const share = (d, k) => count(d, k) / trees.filter((b) => world.tile(b.tx, b.ty).district === d).length;
+    const share = (d, k) => count(d, k) / streetTrees.filter((b) => world.tile(b.tx, b.ty).district === d).length;
     expect(share('town', 'jacaranda')).toBeGreaterThan(share('nyabugogo', 'jacaranda'));
   });
 
@@ -27,6 +28,13 @@ describe('trees', () => {
       return hi - lo;
     };
     expect(tall(palm)).toBeGreaterThan(tall(fig));
+  });
+
+  it('Mount Kigali, west of town, is high and covered in dark green forest', () => {
+    const forest = trees.filter((b) => world.tile(b.tx, b.ty).style === 'forest');
+    expect(forest.length).toBeGreaterThan(60);
+    expect(forest.every((b) => ['fig', 'avocado'].includes(treeKind(world, b.tx, b.ty)))).toBe(true);
+    expect(world.heightAt(2 * 4, 100 * 4)).toBeGreaterThan(world.heightAt(30 * 4, 100 * 4) + 4 * 1.5);
   });
 
   it('draws a jacaranda with purple flowers', () => {

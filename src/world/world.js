@@ -28,7 +28,7 @@ const CHAR_INFO = {
 };
 
 // Building styles (map data 'styles': one character per tile). They change the look of a building.
-export const BUILDING_STYLES = { h: 'house', s: 'shop', o: 'office', t: 'tower', g: 'government', c: 'school', w: 'warehouse', v: 'villa', e: 'embassy', H: 'hotel', P: 'palm' }; // P: a palm tree (on a tree tile)
+export const BUILDING_STYLES = { h: 'house', s: 'shop', o: 'office', t: 'tower', g: 'government', c: 'school', w: 'warehouse', v: 'villa', e: 'embassy', H: 'hotel', P: 'palm', F: 'forest' }; // F: a forest tree (Mount Kigali) // P: a palm tree (on a tree tile)
 
 // Blocks that join with neighbours of the same kind into one building (one colour, no inner walls).
 const GROUPED = ['building', 'fuel', 'swap', 'garage', 'dome'];

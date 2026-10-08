@@ -29,7 +29,7 @@ const DISTRICT_RECTS = {
 // What each district looks like (for the spec and the code reader).
 export const DISTRICT_LOOKS = {
   nyabugogo: 'Valley floor beside the river. The big bus park, the market, Gakinjiro workshops. Kimisagara hillside with steep murram lanes in the west; the Muhima road climbs south to town.',
-  town: 'Kigali town on the Nyarugenge ridge (level 7). Tall buildings, the central roundabout, Kigali City Tower, the car free zone, the town market.',
+  town: 'Kigali town on the Nyarugenge ridge (level 7). Tall buildings, the MTN roundabout and the big town roundabout, Kigali City Tower, the car free zone, the town market, the hotels. Mount Kigali rises steeply on the west side (forest).',
   kacyiru: 'Kacyiru hill (level 6). Government offices with lawns, the police headquarters, the hospital, the Kacyiru boulevard (a double carriageway with palms, flowers and lamps in the median) that ends at the US Embassy roundabout.',
   kimihurura: 'Kimihurura hill (level 6). The Convention Centre dome at the big roundabout, Parliament, villas on cobblestone lanes. Rugando wetland valley to the west.',
   nyarutarama: 'Two ridges with the golf course and a lake in the valley between them. Big villas, quiet cobblestone streets, the MTN Centre.',
@@ -48,7 +48,11 @@ const HILLS = [
   { name: 'Nyarutarama south ridge', x0: 134, y0: 42, x1: 192, y1: 56, level: 5, run: { west: 2, east: 1, north: 2, south: 2 } },
   { name: 'Kimihurura–Kicukiro saddle', x0: 118, y0: 86, x1: 136, y1: 106, level: 3, run: RUN1 },
   { name: 'Kicukiro plateau', x0: 134, y0: 72, x1: 192, y1: 128, level: 4, run: { west: 2, east: 1, north: 2, south: 1 } },
+  // Mount Kigali (Alp's terrain map): a high, steep, green ridge on the west side of town. Forest, no houses.
+  { name: 'Mount Kigali', x0: 0, y0: 76, x1: 3, y1: 128, level: 12, run: { west: 1, east: 1.3, north: 2, south: 1 } },
 ];
+// The tiles of Mount Kigali that are higher than the town ridge: forest, no buildings or roads.
+const onMountKigali = (x, y) => x < 10 && y >= 66;
 
 // Roundabouts: a round, one way ring (see sim/roads.js) around an island. (cx, cy): the tile where
 // the two roads cross (the old grid crossing); the ring's centre is the grid point (cx + 1, cy + 1).
@@ -66,7 +70,7 @@ const BOULEVARD = { y: 34, x0: 61, x1: EMBASSY_RING.cx - EMBASSY_RING.r };
 const ROADS = [
   // Arterials across the whole map
   { name: 'Northern road (Nyabugogo to Nyarutarama)', y: 20, x0: 0, x1: 191, surface: '#' },
-  { name: 'Southern road (town to Kicukiro)', y: 96, x0: 0, x1: TOWN_RING.cx - 5, surface: '#' },
+  { name: 'Southern road (town to Kicukiro)', y: 96, x0: 10, x1: TOWN_RING.cx - 5, surface: '#' },
   { name: 'Southern road (town to Kicukiro)', y: 96, x0: TOWN_RING.cx + 6, x1: KCC_RING.cx - 5, surface: '#' },
   { name: 'Southern road (town to Kicukiro)', y: 96, x0: KCC_RING.cx + 6, x1: 191, surface: '#' },
   { name: 'Muhima road', x: 40, y0: 5, y1: MTN_RING.cy - MTN_RING.r, surface: '#' },
@@ -90,9 +94,9 @@ const ROADS = [
   { name: 'Town avenue', x: TOWN_RING.cx, y0: 78, y1: TOWN_RING.cy - 5, surface: '#' },
   { name: 'Town avenue', x: TOWN_RING.cx, y0: TOWN_RING.cy + 6, y1: 127, surface: '#' },
   { name: 'Nyamirambo road', x: 10, y0: 64, y1: 127, surface: '#' },
-  { name: 'Town north street', y: 84, x0: 0, x1: MTN_RING.cx - MTN_RING.r, surface: '#' },
+  { name: 'Town north street', y: 84, x0: 10, x1: MTN_RING.cx - MTN_RING.r, surface: '#' },
   { name: 'Town north street', y: 84, x0: MTN_RING.cx + MTN_RING.r + 1, x1: 50, surface: '#' },
-  { name: 'Town south street', y: 110, x0: 0, x1: 50, surface: '#' },
+  { name: 'Town south street', y: 110, x0: 10, x1: 50, surface: '#' },
   { name: 'Kiyovu cobble', y: 120, x0: 10, x1: 63, surface: 'c' },
   { name: 'Rugando valley murram', x: 61, y0: 64, y1: 127, surface: 'm' },
   // Kacyiru
@@ -195,6 +199,10 @@ export function buildKigaliMap(seed = 7) {
     if (x % 3 === 0 && !crossesAt(x - 2) && !crossesAt(x + 2)) { set(x, BOULEVARD.y + 2, 't'); st[BOULEVARD.y + 2][x] = 'P'; }
   }
 
+  // A stream in the valley between Nyabugogo and town (west) and Kacyiru and Kimihurura (east), from
+  // Alp's terrain map; it runs into the Nyabugogo river. Roads cross it on bridges (the road stays).
+  for (let y = 3; y < H; y++) if (!isRoad(get(63, y))) { set(63, y, 'r'); reserve(63, y, 63, y); }
+
   // Roundabouts: a round band of tarmac (2 tiles wide) around a round island. The island is grass
   // with flower beds (Alp: "grass and flowers"); the MTN island holds the yellow fountain.
   for (const r of ROADS.filter((q) => q.ring)) {
@@ -246,7 +254,9 @@ export function buildKigaliMap(seed = 7) {
   };
   landmark(33, 86, 35, 88, '9', 't', { levels: 18, sign: 'KIGALI CITY TOWER' });
   landmark(44, 76, 48, 79, '9', 't', { levels: 12, sign: 'CHIC' }); // shopping centre in town (behind the MTN roundabout)
-  landmark(5, 86, 8, 90, '9', 't', { levels: 14, sign: 'KPC' });
+  landmark(12, 86, 15, 90, '9', 't', { levels: 14, sign: 'KPC' });
+  // The Kigali Marriott Hotel (Alp's map: in town, near the centre).
+  landmark(52, 100, 58, 106, '9', 'H', { levels: 11, sign: 'KIGALI MARRIOTT', sign2: 'HOTEL' });
   landmark(14, 100, 18, 104, '3', 's', { sign: 'ISOKO RYA KIGALI', sign2: 'TOWN MARKET' });
   landmark(28, 112, 33, 117, '4', 'g', { sign: "IBIRO BY'AKARERE", sign2: 'KA NYARUGENGE' });
   landmark(44, 112, 49, 117, '3', 'c', { sign: 'LYCEE DE KIGALI', sign2: 'WE STRIVE FOR SUCCESS' });
@@ -299,6 +309,7 @@ export function buildKigaliMap(seed = 7) {
   const lot = (x, y, s, k) => hash(Math.floor(x / s), Math.floor(y / s), k);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     if (!free(x, y)) continue;
+    if (onMountKigali(x, y)) continue; // forest (see the trees)
     const d = districtOf(x, y);
     const lvl = levelAt(x, y);
     if (d !== 'nyabugogo' && lvl < 1) continue;
@@ -342,7 +353,8 @@ export function buildKigaliMap(seed = 7) {
   for (let y = 4; y < H - 1; y++) for (let x = 0; x < W - 1; x++) {
     if (g[y][x] !== '.' || (reserved[y][x] && !(y >= 24 && y <= 41 && x >= 130))) continue;
     const golf = y >= 24 && y <= 41 && x >= 130;
-    if (hash(x, y, 16) < (golf ? 0.06 : treeChance[districtOf(x, y)])) set(x, y, 't');
+    const forest = onMountKigali(x, y) ? 0.38 : 0; // Mount Kigali is green with eucalyptus forest
+    if (hash(x, y, 16) < (golf ? 0.06 : forest || treeChance[districtOf(x, y)])) { set(x, y, 't'); if (forest) st[y][x] = 'F'; }
     else if (golf && hash(x >> 1, y >> 1, 17) < 0.06) set(x, y, 's'); // sand bunkers
   }
 
@@ -454,6 +466,7 @@ export function buildKigaliMap(seed = 7) {
   P('pmOffice', "Prime Minister's office", 106, 48.5, [], 1);
   P('gsKacyiru', 'G.S. Kacyiru', 115, 50, [], 1);
   P('kigaliHeights', 'Kigali Heights', 115, 89.5, [], 2);
+  P('marriott', 'Kigali Marriott Hotel', 55, 98.5, ['hotel'], 2);
   P('chic', 'CHIC shopping centre', 47.5, 80.5, [], 2);
   P('kicukiroOffice', 'Kicukiro district office', 184, 94.5, [], 1);
   P('gsKicukiro', 'G.S. Kicukiro', 187, 108.5, [], 1);
@@ -505,7 +518,7 @@ export function buildKigaliMap(seed = 7) {
       { x: 52, y: 22, side: 'south' },
       { x: 90, y: 20, side: 'north' },
       { x: 150, y: 22, side: 'south' },
-      { x: 8, y: 98, side: 'south' },
+      { x: 18, y: 98, side: 'south' },
       { x: 76, y: 96, side: 'north' },
       { x: 140, y: 98, side: 'south' },
       { x: 186, y: 96, side: 'north' },
