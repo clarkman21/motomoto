@@ -143,7 +143,8 @@ export function stepPeople(people, world, bike, places, dt) {
   }
   people.hails = people.hails.filter((h) => h.life > 0 && !h.taken);
   people.hailTimer -= dt;
-  if (people.hailTimer <= 0 && people.hails.length < PEOPLE.maxHails && people.roadsideTiles.length) {
+  // people.noHails: nobody waves for a moto (the Umuganda morning).
+  if (people.hailTimer <= 0 && !people.noHails && people.hails.length < PEOPLE.maxHails && people.roadsideTiles.length) {
     people.hailTimer = PEOPLE.hailEverySeconds * people.hailEvery * (0.6 + rng() * 0.8);
     const h = makeHail(people, places, bike);
     if (h) {

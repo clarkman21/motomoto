@@ -5,6 +5,7 @@ import { serviceDue } from '../sim/maintenance.js';
 import { wrapRetro, RETRO_CELL } from '../world/retro-font.js';
 import { MinimapView } from './MinimapView.js';
 import { questLabel, missionRule } from '../sim/missions.js';
+import { eventLine } from '../sim/events.js';
 import { textBit, textWidth } from '../world/garage-sprites.js';
 import { UI, pixelScale, ensureRetroFont, ensureIcons, retroLabel, retroWidth, drawWindow, drawSegBar, smallLabel, wrapSmall, SMALL_LINE } from './retro-ui.js';
 
@@ -89,6 +90,7 @@ export class HudScene extends Phaser.Scene {
       return card;
     });
     this.questLines = [0, 1, 2].map(() => small()); // the daily app quests, under the jobs
+    this.eventText = small(); // the day event (Umuganda, rain), under the jobs title
 
     // Bottom: station prompt (tap = F), fuel choices (tap = 1, 2, 3), the help line.
     this.promptLines = [0, 1, 2].map(() => label());
@@ -287,6 +289,13 @@ export class HudScene extends Phaser.Scene {
     const fuel = (j) => (j.fuel === undefined ? '' : ` · FUEL ${Math.max(1, Math.round(j.fuel * 100))}%`);
     const short = (j) => j.fuel !== undefined && j.fuel > bike.energy;
     let y = box.y + 15;
+    // The day event: one line under the title.
+    const ev = eventLine(ride.dayEvent, ride.clockHours);
+    this.eventText.setVisible(!!ev);
+    if (ev) {
+      this.eventText.setText(ev.text).setTint(ev.tone === 'warn' ? UI.orange : ev.tone === 'good' ? UI.green : UI.dim).setPosition(box.x + 6, y);
+      y += SMALL_LINE + 3;
+    }
     const fill = (card, i, lines, tints, tap) => {
       card.icon.setVisible(true).setPosition(box.x + 6, y - 1);
       card.lines.forEach((l, li) => l.setText(lines[li] ?? '').setTint(tints[li] ?? UI.white).setPosition(box.x + 18, y + li * SMALL_LINE).setVisible(li < lines.length));

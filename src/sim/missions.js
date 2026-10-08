@@ -31,11 +31,11 @@ export function dayStats() {
 
 /**
  * Pick the quests for a day (seeded: the same day gives the same quests). level: the level number.
- * hasHotels: hotel places are open. Returns [{ kind, goal, reward, text, done }].
+ * hasHotels: hotel places are open. exclude: quest kinds not for today (no morning jobs on Umuganda). Returns [{ kind, goal, reward, text, done }].
  */
-export function pickQuests(level, rng, hasHotels = false) {
+export function pickQuests(level, rng, hasHotels = false, exclude = []) {
   if (level < MISSIONS.fromLevel) return [];
-  const kinds = Object.keys(QUESTS).filter((k) => !QUESTS[k].needs || (QUESTS[k].needs === 'hotel' && hasHotels));
+  const kinds = Object.keys(QUESTS).filter((k) => !exclude.includes(k) && (!QUESTS[k].needs || (QUESTS[k].needs === 'hotel' && hasHotels)));
   const out = [];
   while (out.length < MISSIONS.questsPerDay && kinds.length) {
     const kind = kinds.splice(Math.floor(rng() * kinds.length), 1)[0];

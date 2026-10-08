@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS } from '../config.js';
+import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS } from '../config.js';
 import { World } from '../world/world.js';
 import { buildKigaliMap } from '../world/maps/kigali.js';
 import { ChunkStreamer, groupKey } from './chunks.js';
@@ -39,6 +39,8 @@ import { AttendantView } from './AttendantView.js';
 import { PoliceView } from './PoliceView.js';
 import { SignView } from './SignView.js';
 import { daylight } from '../sim/daylight.js';
+import { pickDayEvent, eventStage, eventBark, rainTint, parkTraffic, wakeTraffic } from '../sim/events.js';
+import { RainView } from './RainView.js';
 import { dayStats, pickQuests, recordDelivery, recordFine, checkQuests, maybeMission, stepMission, missionResult, findSecret } from '../sim/missions.js';
 
 const FIXED_DT = 1 / 120; // physics step in seconds
@@ -108,6 +110,7 @@ export class RideScene extends Phaser.Scene {
     this.signs = new SignView(this, this.world); // names on landmark buildings
     // Night lights and the colour of the day (see LightsView.js).
     this.lights = new LightsView(this, this.world);
+    this.rainView = new RainView(this); // rain streaks on a rainy day
     // These stay bright at night: they are not tinted.
     for (const obj of [this.ghost, this.glow, this.markerRing, this.markerPin, this.arrow]) obj.noAmbient = true;
 
@@ -133,9 +136,9 @@ export class RideScene extends Phaser.Scene {
     if (saved?.bike) Object.assign(this.bike, saved.bike);
     else this.bike.energy = FUEL.startLevel; // a new game starts with a part full tank: plan your first fill up
     this.bike.brakeWearKm ??= 0; // saves from before the brakes were part of the service
+    this.dayTime = 0; // real seconds since the start of the shift
     this.#applyLevel();
     this.cameraState = createCameraState(this.world);
-    this.dayTime = 0; // real seconds since the start of the shift
     this.station = null; // the station the bike stands at: 'fuel' or 'swap'
     this.refuel = null; // { kind, timeLeft, total } while you fill up or swap
     this.speedLimit = speedLimitAt(this.world, this.bike.x, this.bike.y);
@@ -628,6 +631,12 @@ export class RideScene extends Phaser.Scene {
     this.trafficView?.destroy();
     this.peopleView?.destroy();
     this.traffic = createTraffic(this.world, this.roadGraph, mulberry32(Date.now() & 0xffff), counts);
+    // The day event (from level 6): Umuganda or rain (sim/events.js). The same day gives the same event.
+    this.dayEvent = pickDayEvent(L, this.wallet.day);
+    this.eventStage = undefined; // #updateEvent barks at the first frame
+    this.world.rain = this.dayEvent === 'rain';
+    this.rainView.setRain(this.world.rain);
+    if (this.dayEvent === 'umuganda') parkTraffic(this.traffic, EVENTS.umuganda.trafficShare, mulberry32(this.wallet.day * 31 + 5));
     this.trafficView = new TrafficView(this, this.traffic);
     this.lights.setTraffic(this.traffic);
     this.people = createPeople(this.world, this.rng, { hailEvery: L.hailEvery, districts: L.districts, walkers: PEOPLE.walkersPerDistrict * L.districts.length });
@@ -635,11 +644,36 @@ export class RideScene extends Phaser.Scene {
     // Side missions: some new offers become special jobs (sim/missions.js).
     const decorate = (offer, board) => maybeMission(offer, board, this.world, L.n, board.rng);
     this.board = createJobBoard(this.world, Date.now() & 0xffff, { fareMultiplier: L.fare, offerLife: L.offerLife, districts: L.districts, maxOffers: L.maxOffers, decorate });
+    this.#eventEffects();
+    if (!eventStage(this.dayEvent, this.clockHours).customers) this.board.offers = [];
     this.raceRival = null;
     // The daily app quests (from level 3) and the stats they follow.
     this.dayStats = dayStats();
     const hasHotels = this.world.places.some((p) => p.tags.includes('hotel') && L.districts.includes(p.district));
-    this.quests = pickQuests(L.n, mulberry32(this.wallet.day * 977 + L.n), hasHotels);
+    this.quests = pickQuests(L.n, mulberry32(this.wallet.day * 977 + L.n), hasHotels, this.dayEvent === 'umuganda' ? ['morning'] : []);
+  }
+
+  /** The effects of the day event at this hour: fares, offers, street hails. Returns the stage (sim/events.js). */
+  #eventEffects() {
+    const L = this.level, st = eventStage(this.dayEvent, this.clockHours);
+    this.board.opts.fareMultiplier = L.fare * st.fare;
+    this.board.opts.maxOffers = st.customers ? Math.min(JOBS.maxOffersShown, (L.maxOffers ?? JOBS.maxOffers) + st.extraOffers) : 0;
+    this.people.hailEvery = L.hailEvery * st.hailEvery;
+    this.people.noHails = !st.customers;
+    return st;
+  }
+
+  /** Each frame: the event effects, the traffic that comes back after the Umuganda morning, and the barks. */
+  #updateEvent(dt) {
+    const st = this.#eventEffects();
+    if (st.trafficFull && this.traffic.dormant?.length && (this.wakeTimer = (this.wakeTimer ?? 0) - dt) <= 0) {
+      this.wakeTimer = 1;
+      wakeTraffic(this.traffic, this.bike.x, this.bike.y, EVENTS.umuganda.wakeMetres);
+    }
+    if (st.stage === this.eventStage) return;
+    const bark = eventBark(this.dayEvent, this.eventStage, st.stage);
+    this.eventStage = st.stage;
+    if (bark) this.events.emit('bark', bark);
   }
 
   #save() {
@@ -660,6 +694,7 @@ export class RideScene extends Phaser.Scene {
     this.refuel = null;
     const summary = endDay(this.wallet, this.bike, this.level.rent);
     summary.level = this.level;
+    summary.event = this.dayEvent;
     // Game over: stranded (an empty tank and no cash), or below zero cash after the rent. There is no loan.
     summary.gameOver = reason ?? (summary.outOfCash ? 'cash' : null);
     if (reason === 'jail') summary.hitKmh = this.jailKmh;
@@ -848,6 +883,7 @@ export class RideScene extends Phaser.Scene {
     if (this.refuel && (this.refuel.timeLeft -= dt) <= 0) this.#finishRefuel();
     this.#updateRescue(dt);
     this.#updateStation();
+    this.#updateEvent(dt);
     updateBoard(this.board, this.world, dt);
     this.#updateJobFuel(dt);
     this.speedLimit = speedLimitAt(this.world, this.bike.x, this.bike.y);
@@ -866,8 +902,10 @@ export class RideScene extends Phaser.Scene {
     this.attendant.update(this, dt, this.time.now);
     this.#updatePolice(dt);
     this.daylight = daylight(this.clockHours);
+    if (this.world.rain) this.daylight.tint = rainTint(this.daylight.tint); // grey light on a rainy day
     this.chunks.night = this.daylight.night;
     this.lights.update(this.daylight, this.cameras.main.worldView, this.bike, this.controls.brake > 0.1);
+    this.rainView.update(this.cameras.main.worldView, dt);
     this.#updateRivalPin();
     this.#updateHonks(dt);
     // Level 4: when you saved enough, the showroom waits for you (once a day is enough).
@@ -930,7 +968,7 @@ export class RideScene extends Phaser.Scene {
 
   // Intercity buses come to the Nyabugogo bus park, and their passengers want motos.
   #updateBusPark(dt) {
-    if (!this.parkEdge || (this.busTimer -= dt) > 0) return;
+    if (!this.parkEdge || this.people.noHails || (this.busTimer -= dt) > 0) return; // no buses on the Umuganda morning
     const [lo, hi] = BUS_PARK.arrivalEverySeconds;
     this.busTimer = lo + this.rng() * (hi - lo);
     const buses = this.traffic.vehicles.filter((v) => v.kind === 'bus' && !v.route.length && v.stopTimer <= 0);

@@ -287,7 +287,9 @@ export class World {
   /** Surface settings (grip, speed and energy factors) at a world point. */
   surfaceAt(x, y) {
     const t = this.tileAt(x, y);
-    return SURFACES[t ? t.surface : 'grass'];
+    const kind = t ? t.surface : 'grass';
+    // On a rainy day (this.rain, set by the day event) the murram is wet and slippery.
+    return SURFACES[this.rain && kind === 'murram' ? 'murramWet' : kind];
   }
 
   /** True if a world point is outside the map, on water, inside a solid block or inside a moving agent. */

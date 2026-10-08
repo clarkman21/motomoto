@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { INCOME, COSTS } from '../sim/economy.js';
 import { GAME_OVER } from '../config.js';
 import { dayEndStory, gameOverStory } from '../sim/family.js';
+import { eventSummary } from '../sim/events.js';
 import { drawBicycleTaxi, drawGameOverBackdrop, drawJailCell, BICYCLE_CANVAS, BACKDROP_ROAD } from '../world/bicycle-sprites.js';
 import { addCanvasTexture } from './textures.js';
 import { wrapRetro, RETRO_CELL } from '../world/retro-font.js';
@@ -68,6 +69,8 @@ export class DayEndScene extends Phaser.Scene {
     const offRoad = summary.offRoadKm >= 0.05 ? ` (${summary.offRoadKm.toFixed(1)} off road)` : '';
     y = 30;
     for (const l of wrapRetro(`${bikeName} · ${summary.gameKm.toFixed(1)} km${offRoad} · service ${Math.round(summary.serviceDue * 100)}%`, n)) { T(10, y, l, UI.dim); y += LINE; }
+    const event = eventSummary(summary.event);
+    if (event) for (const l of wrapRetro(event, n)) { T(10, y, l, UI.orange); y += LINE; }
     // The family card: what today's money means at home.
     const story = dayEndStory(summary);
     const cardTop = y + 4;

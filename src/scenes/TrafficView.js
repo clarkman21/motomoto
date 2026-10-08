@@ -12,11 +12,12 @@ export class TrafficView {
     this.traffic = traffic;
     this.#buildAtlas();
     this.sprites = new Map();
-    for (const v of traffic.vehicles) {
-      const shadow = scene.add.image(0, 0, 'shadow').setAlpha(0.9);
+    // Dormant vehicles (off the road on an Umuganda morning) get sprites too, hidden until they come back.
+    for (const v of [...traffic.vehicles, ...(traffic.dormant ?? [])]) {
+      const shadow = scene.add.image(0, 0, 'shadow').setAlpha(0.9).setVisible(false);
       const moto = v.kind === 'moto' || v.kind === 'cyclist'; // two wheels: the bike canvas
       const c = moto ? BIKE_CANVAS : VEHICLE_CANVAS;
-      const img = scene.add.image(0, 0, 'vehicles', this.#frame(v)).setOrigin(c.groundX / c.width, c.groundY / c.height);
+      const img = scene.add.image(0, 0, 'vehicles', this.#frame(v)).setOrigin(c.groundX / c.width, c.groundY / c.height).setVisible(false);
       // Shadow size from the vehicle size (the shadow texture is 24 × 12 px).
       shadow.setScale(moto ? (v.kind === 'cyclist' ? 0.7 : 0.9) : v.length / 3.2, moto ? 0.8 : v.width / 1.5);
       this.sprites.set(v.id, { img, shadow });

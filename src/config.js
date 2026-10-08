@@ -337,6 +337,7 @@ export const JOBS = {
   // The test map is small, so distance is compressed: 40 m of map = 1 game km.
   gameKmMetres: 40,
   maxOffers: 3,
+  maxOffersShown: 4, // the HUD has 4 job cards (keys 1-4): never more offers than this
   offerLifeSeconds: 40, // an offer that nobody takes goes away
   minTripMetres: 60,
   arriveRadiusMetres: 6,
@@ -591,6 +592,25 @@ export const FLEET = {
   helpMinutes: 1.5, // real minutes to get to the rider; if you come, the day goes on; if not, no rent that day
   helpReward: 0, // the rent is the reward
   speedKmh: 30,
+};
+
+// Day events (from level 6). A level's `events` gives the chance of each event on a day; one event at most.
+// The numbers are guesses, to tune in play.
+export const EVENTS = {
+  // Umuganda: the community work morning. No customers and almost no traffic until endHour, then a rush.
+  umuganda: {
+    endHour: 11, rushEndHour: 13,
+    trafficShare: 0.15, // the share of the traffic on the road in the morning
+    rushFare: 1.3, rushExtraOffers: 1, rushHailEvery: 0.5, // extra offers up to JOBS.maxOffersShown; twice the street hails
+    wakeMetres: 70, // vehicles come back on the road only this far from you (they do not pop up in view)
+  },
+  // Rain: the murram is wet (SURFACES.murramWet), the light is grey, more people want a moto.
+  rain: {
+    fare: 1.25, hailEvery: 0.6,
+    tint: [0.72, 0.76, 0.82], // a grey-blue colour multiplier on the daylight
+    drops: 140, // rain streaks on the screen
+    dropColour: 0xbcd0e0, dropAlpha: 0.55, fallPxPerSecond: 260, slantPx: 0.35,
+  },
 };
 
 export const STREAK = { step: 0.1, max: 1.5, minComfort: 80 }; // clean ride streak: fares × (1 + streak)
