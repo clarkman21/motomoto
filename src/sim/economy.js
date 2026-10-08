@@ -131,7 +131,7 @@ export function endDay(wallet, bike, rent = MONEY.dailyRent[bike.type]) {
     // Regen: energy put back into the battery. A full battery costs one swap, so this is the money saved.
     regenFraction: bike.regenToday,
     regenSaved: bike.type === 'electric' ? round10(bike.regenToday * MONEY.swapFee) : 0,
-    // Below zero after the rent: you cannot pay for the moto, so the game is over.
+    // Below zero at the end of the day (after the rent, until the moto is yours): the game is over.
     outOfCash: wallet.cash < 0,
     totalIncomeAllDays: wallet.totalIncome,
   };

@@ -37,6 +37,11 @@ describe('family rewards', () => {
     const debt = gameOverStory({ gameOver: 'cash', bikeType: 'petrol', cash: -2300 });
     expect(debt.reason).toContain('−2,300 RWF');
     expect(debt.lines.join(' ')).toContain('bicycle taxi');
+    // Your own electric moto: no owner takes it back; you sell it to pay what you owe.
+    const own = gameOverStory({ gameOver: 'cash', bikeType: 'electric', cash: -900 });
+    expect(own.reason).toContain('bills');
+    expect(own.lines.join(' ')).toContain('sell your moto');
+    expect(own.lines.join(' ')).not.toContain('owner');
   });
 
   it('jail: you hit a police officer', () => {

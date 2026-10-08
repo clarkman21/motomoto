@@ -23,7 +23,7 @@ const HELP = [
     lines: [
       'You are a moto taxi rider in Kigali. Carry passengers and cargo, and make money.',
       'Each level has a savings goal: school fees, a phone, an electric moto and more. Save the goal plus 5,000 RWF of working money. Then buy the milestone at the end of a day. The next level starts, and a new part of the city opens.',
-      'Each shift ends at a fixed hour. Then you pay the rent for the bike. If your cash is below zero after the rent, the game is over. If the tank is empty and you have no cash for fuel, the game is over too. Then you ride a bicycle taxi again, and you start again at level 1.',
+      'Each shift ends at a fixed hour. Until you own your electric moto (level 5), you then pay the rent for the bike. If your cash is below zero at the end of the day, the game is over. If the tank is empty and you have no cash for fuel, the game is over too. Then you ride a bicycle taxi again, and you start again at level 1.',
     ],
   },
   {
@@ -43,8 +43,8 @@ const HELP = [
     title: 'Money',
     lines: [
       'Income: fares, cargo, tips (a smooth ride gives a bigger tip) and a bonus for a row of clean rides.',
-      'Costs: fuel or battery swaps, the rent, the service at the garage, repairs after a crash, and fines from speed cameras and the police.',
-      'Fuel: like real riders, buy only what you need. 25% of a tank costs about 1,000 RWF (prices change by district). Each job card shows the fuel that the job needs. A full tank ties up cash that you may need for the rent. Learn where the stations are: there is no arrow.',
+      'Costs: fuel or battery swaps, the bike rent (until the moto is yours), the service at the garage, repairs after a crash, and fines from speed cameras and the police.',
+      'Fuel: like real riders, buy only what you need. 25% of a tank costs about 1,000 RWF (prices change by district). Each job card shows the fuel that the job needs. A full tank ties up cash that you may need for the rent or the bills. Learn where the stations are: there is no arrow.',
       'Save fuel: shift up while the RPM bar is green. Gold uses more fuel, and the red zone uses almost twice as much as green. Manual shifting with E saves more fuel than the automatic shift (G).',
       'Service: the SERVICE meter fills as you ride, faster on bad roads, off the road, at high revs and when you brake hard. The garage does an oil change, new brake pads and a check. At 100% the bike loses power and the brakes get weak. At 150% it breaks down, and you must push it to the garage.',
     ],

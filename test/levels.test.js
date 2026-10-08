@@ -11,7 +11,10 @@ const world = new World(buildKigaliMap());
 
 describe('levels', () => {
   it('has the 10 levels from the spec, then free play', () => {
-    expect(LEVELS.slice(0, 10).map((l) => l.goal)).toEqual([15000, 25000, 40000, 60000, 80000, 120000, 160000, 220000, 300000, 400000]);
+    expect(LEVELS.slice(0, 10).map((l) => l.goal)).toEqual([15000, 25000, 40000, 60000, 120000, 170000, 220000, 270000, 360000, 450000]);
+    // From level 5 the electric moto is yours: no more bike rent.
+    expect(LEVELS.filter((l) => l.n >= 5).every((l) => l.rent === 0)).toBe(true);
+    expect(LEVELS.filter((l) => l.n < 5).every((l) => l.rent > 0)).toBe(true);
     expect(LEVELS.slice(0, 10).every((l) => !l.freePlay)).toBe(true);
     expect(levelDef(11).freePlay).toBe(true);
     expect(levelDef(6).effect).toBe('rider1');

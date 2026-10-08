@@ -109,7 +109,7 @@ export class DayEndScene extends Phaser.Scene {
       : ready
       ? `You saved enough for: ${summary.level.milestone} (${money(summary.level.goal)}).`
       : `Level ${summary.level.n} goal: ${summary.level.milestone}. Save ${money(summary.savingsTarget)} (goal + ${money(summary.savingsTarget - summary.level.goal)} working money).`);
-    if (summary.cash < GAME_OVER.warnBelowCash) notes.push(`Be careful: if your cash is below zero after the rent, or the ${summary.bikeType === 'electric' ? 'battery is empty and you have no cash for a swap' : 'tank is empty and you have no cash for fuel'}, the game is over.`);
+    if (summary.cash < GAME_OVER.warnBelowCash) notes.push(`Be careful: if your cash is below zero at the end of the day, or the ${summary.bikeType === 'electric' ? 'battery is empty and you have no cash for a swap' : 'tank is empty and you have no cash for fuel'}, the game is over.`);
     for (const note of notes) {
       const tint = /game is over/i.test(note) ? UI.orange : /saved enough/i.test(note) ? UI.gold : UI.dim;
       for (const l of wrapRetro(note, n)) { T(10, y, l, tint); y += LINE; }
