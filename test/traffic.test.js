@@ -23,9 +23,9 @@ describe('road graph', () => {
     }
   });
 
-  it('has 3 round roundabouts, driven anticlockwise on the screen (right hand traffic)', () => {
+  it('has 4 round roundabouts, driven anticlockwise on the screen (right hand traffic)', () => {
     const rings = data.roads.filter((r) => r.ring);
-    expect(rings.map((r) => r.name).sort()).toEqual(['KCC roundabout', 'MTN roundabout', 'Town roundabout']);
+    expect(rings.map((r) => r.name).sort()).toEqual(['KCC roundabout', 'MTN roundabout', 'Town roundabout', 'US Embassy roundabout']);
     for (const R of rings) {
       const edges = graph.edges.filter((e) => e.road === R);
       expect(edges).toHaveLength(16);
@@ -59,6 +59,27 @@ describe('road graph', () => {
       expect(world.tileAt((R.cx + R.r * Math.cos(a)) * 4, (R.cy + R.r * Math.sin(a)) * 4).surface).toBe('tarmac');
     }
     expect(world.tileAt(R.cx * 4 + 2, R.cy * 4 + 2).surface).toBe('grass');
+  });
+
+  it('the Kacyiru boulevard is a double carriageway: each way has its own side of the median', () => {
+    const B = data.roads.find((r) => r.name === 'Kacyiru boulevard');
+    const edges = graph.edges.filter((e) => e.road === B);
+    expect(edges.length).toBeGreaterThan(2);
+    for (const e of edges) {
+      const p = lanePoint(e, e.length / 2);
+      const row = p.y / 4;
+      // Along +x (east) on the south carriageway (rows y + 4, y + 5); along −x on the north one (rows y, y + 1).
+      if (e.dx > 0) expect(row).toBeGreaterThan(B.y + 4);
+      else expect(row).toBeLessThan(B.y + 2);
+    }
+    // The median: flower beds and palms, with gaps only where a road crosses.
+    const rows = data.rows;
+    const gaps = [];
+    for (let x = B.x0 + 1; x < B.x1; x++) if (rows[B.y + 2][x] === '#') gaps.push(x);
+    expect(gaps.length).toBeGreaterThan(0);
+    for (const x of gaps) expect(data.roads.some((q) => q.x !== undefined && !q.ring && Math.abs(q.x + 0.5 - x) <= 2)).toBe(true);
+    expect([...rows[B.y + 2]].filter((c) => c === 't').length).toBeGreaterThan(10);
+    expect(data.lamps.filter((l) => Math.floor(l.y) === B.y + 3).length).toBeGreaterThan(5);
   });
 
   it('puts every lane point on a road you can ride on', () => {

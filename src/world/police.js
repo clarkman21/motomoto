@@ -134,5 +134,8 @@ export function policeSpots(world, graph) {
       break;
     }
   }
+  // Officers at places from the map (for example the car free zone: motos may ride in, but an
+  // officer there chases you, as on the pavement).
+  for (const p of world.extraPolice ?? []) spots.push({ x: p.x * T, y: p.y * T, phase: 0, post: p.post ? { x: (p.x + 0.4) * T, y: (p.y - 0.4) * T } : null });
   return spots;
 }

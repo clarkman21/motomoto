@@ -23,8 +23,9 @@ export function buildRoadGraph(roads) {
   const rings = roads.filter((r) => r.ring);
   roads = roads.filter((r) => !r.ring);
   // Centre lines in tile units: horizontal roads run along x, vertical ones along y.
+  // A road is 2 tiles wide, or `width` tiles (a double carriageway: its centre line is in the median).
   const lines = roads.map((r) =>
-    r.y !== undefined ? { horiz: true, c: r.y + 1, a: r.x0, b: r.x1 + 1, road: r } : { horiz: false, c: r.x + 1, a: r.y0, b: r.y1 + 1, road: r },
+    r.y !== undefined ? { horiz: true, c: r.y + (r.width ?? 2) / 2, a: r.x0, b: r.x1 + 1, road: r } : { horiz: false, c: r.x + (r.width ?? 2) / 2, a: r.y0, b: r.y1 + 1, road: r },
   );
   const nodes = [];
   const nodeAt = new Map();
@@ -144,10 +145,11 @@ export function openRoads(roads, districts, open) {
     }
     const horiz = r.y !== undefined;
     const c = horiz ? r.y : r.x; // first row (or column) of the road
+    const w = r.width ?? 2;
     const [a, b] = horiz ? [r.x0, r.x1] : [r.y0, r.y1];
     // Open intervals along the road (tiles, inclusive), merged.
     const spans = rects
-      .filter((d) => (horiz ? c >= d.y0 && c + 1 < d.y1 : c >= d.x0 && c + 1 < d.x1))
+      .filter((d) => (horiz ? c >= d.y0 && c + w - 1 < d.y1 : c >= d.x0 && c + w - 1 < d.x1))
       .map((d) => (horiz ? [d.x0, d.x1 - 1] : [d.y0, d.y1 - 1]))
       .sort((p, q) => p[0] - q[0]);
     const merged = [];

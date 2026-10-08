@@ -15,7 +15,8 @@ const CHAR_INFO = {
   '=': { surface: 'tarmac', hazard: 'speedBump' },
   t: { surface: 'grass', block: 'tree' },
   Y: { surface: 'grass', block: 'fountain', blockLevels: 4 }, // the MTN fountain (drawn around the corner at tx + 1, ty + 1)
-  f: { surface: 'grass', flowers: true }, // a flower bed (roundabout islands, the boulevard median)
+  f: { surface: 'grass', flowers: true },
+  L: { surface: 'pavement', block: 'lovesign', blockLevels: 1 }, // the I LOVE KIGALI sign in the car free zone // a flower bed (roundabout islands, the boulevard median)
   M: { surface: 'grass', block: 'monument' },
   F: { surface: 'tarmac', block: 'fuel', blockLevels: 3 }, // the canopy top; the price sign is higher (see sprites.js)
   S: { surface: 'tarmac', block: 'swap', blockLevels: 2 },
@@ -27,7 +28,7 @@ const CHAR_INFO = {
 };
 
 // Building styles (map data 'styles': one character per tile). They change the look of a building.
-export const BUILDING_STYLES = { h: 'house', s: 'shop', o: 'office', t: 'tower', g: 'government', c: 'school', w: 'warehouse', v: 'villa', P: 'palm' }; // P: a palm tree (on a tree tile)
+export const BUILDING_STYLES = { h: 'house', s: 'shop', o: 'office', t: 'tower', g: 'government', c: 'school', w: 'warehouse', v: 'villa', e: 'embassy', P: 'palm' }; // P: a palm tree (on a tree tile)
 
 // Blocks that join with neighbours of the same kind into one building (one colour, no inner walls).
 const GROUPED = ['building', 'fuel', 'swap', 'garage', 'dome'];
@@ -60,6 +61,7 @@ export class World {
     }));
     this.crowdAreas = mapData.crowdAreas ?? [];
     this.styles = mapData.styles ?? null;
+    this.extraPolice = mapData.police ?? []; // officers who stand at a place (tiles), not at a junction
     // Landmark buildings: { x0, y0, x1, y1, style, levels?, sign?, sign2? } (tiles, inclusive).
     this.landmarks = mapData.landmarks ?? []; // open areas where many people walk { x0, y0, x1, y1 }
     // Districts: rectangles of tiles { id, name, x0, y0, x1, y1 } (x1, y1 exclusive). A closed district is solid.

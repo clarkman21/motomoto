@@ -1,6 +1,6 @@
 import { WORLD, COLOURS, LIGHTS, PALETTE, ROOFS } from '../config.js';
 import { tone, faceTone } from './palette.js';
-import { drawText } from './garage-sprites.js';
+import { drawText, textWidth, textBit } from './garage-sprites.js';
 import { toScreen } from './iso.js';
 import { PixelCanvas, shadeColour, hash2 } from './pixel-canvas.js';
 
@@ -222,7 +222,8 @@ export function drawBlock(block, world) {
   // Canvas bounds: the tile footprint from base to top, with room for tree crowns.
   const pad = block.kind === 'tree' ? (block.style === 'palm' ? 18 : 16) : block.kind === 'monument' ? 8 : block.kind === 'fuel' ? 22 : block.kind === 'garage' ? 6
     : block.kind === 'fountain' ? 64
-    : block.kind === 'building' ? (block.style === 'government' ? 52 : 14 + Math.ceil((buildingLook(block, world).roof?.levels ?? 0) * WORLD.levelPx)) : 2; // room for roofs, tanks and flags
+    : block.kind === 'lovesign' ? 72
+    : block.kind === 'building' ? (block.style === 'government' || block.style === 'embassy' ? 52 : 14 + Math.ceil((buildingLook(block, world).roof?.levels ?? 0) * WORLD.levelPx)) : 2; // room for roofs, tanks and flags
   const corners = [];
   for (const [x, y] of [[tx, ty], [tx + 1, ty], [tx + 1, ty + 1], [tx, ty + 1]]) {
     corners.push(pt(x, y, block.baseLevel), pt(x, y, block.topLevel));
@@ -242,6 +243,7 @@ export function drawBlock(block, world) {
   else if (block.kind === 'tree') drawTree(c, block, pt, world);
   else if (block.kind === 'dome') drawDome(c, block, pt, world, glow);
   else if (block.kind === 'fountain') drawFountain(c, block, pt, world);
+  else if (block.kind === 'lovesign') drawLoveSign(c, block, pt, world, glow);
   else drawMonument(c, block, pt, world);
   const lit = glow.data.some((v, i) => (i & 3) === 3 && v > 0);
   return { canvas: c, depth: tx + ty + 1, glow: lit ? glow : null };
@@ -286,6 +288,8 @@ const STYLE_LOOKS = {
   office: { walls: [0xd8d4c8, 0xbfc6cc, 0xe8e2d6, 0xc9b8a0], roofs: [0x8a8a86, 0x7a7e82], tanks: 0.5, ac: true },
   tower: { walls: [0x5f8fa8, 0x4a7f8a, 0x6a8fb8, 0x3f6a7a], roofs: [0x5a5e62, 0x4a4e52], ac: true },
   government: { walls: [0xefe6cc, 0xf2efe6], roofs: [0x9a3b2a], flag: true },
+  // The US Embassy (Alp): a big concrete building like a castle, with battlements and a waving US flag.
+  embassy: { walls: [P.concrete], roofs: [P.silver], flag: 'us', battlements: true },
   school: { walls: [0xf0efe6], roofs: [0x3f7f4a, 0x8a3b2a], corrugated: true },
   warehouse: { walls: [0xa0a4a8, 0x8f9aa0, 0xb0a890], roofs: [0x9a9a96, 0x8a8a86], corrugated: true },
   villa: { walls: [P.cream, P.paintCream, P.paintPeach, P.paintSky, P.paintMint, P.paintPink], roofs: [P.clayTile, P.roofRed], tanks: 0.3 },
@@ -410,6 +414,13 @@ function drawBuilding(c, block, pt, world, glow) {
       if (zl < 1.6 && (along % 1) > 0.25 && (along % 1) < 0.75) col = 0x4a4f55; // a big door
       return shadeColour(col, k);
     }
+    if (style === 'embassy') {
+      // Big concrete blocks in courses, and tall narrow windows like a castle.
+      const a = (along * 4) % 1;
+      if ((zl * 3) % 1 < 0.08) col = shadeColour(wall, 0.9);
+      if (zl > 0.6 && top > 0.5 && a > 0.44 && a < 0.56 && floorPos > 0.4 && floorPos < 1.7) col = WINDOW;
+      return shadeColour(col, k);
+    }
     if (style === 'mud') {
       // Mud plaster with bricks that show where it fell off, one small window with a wooden shutter,
       // a door with a cloth curtain.
@@ -459,7 +470,31 @@ function drawBuilding(c, block, pt, world, glow) {
   } else if (look.ac && h < 0.3) {
     drawBox(c, tx + 0.3, ty + 0.4, tx + 0.55, ty + 0.6, topLevel, topLevel + 0.35, pt, flat(0xc8ccd0), side(0xa8acb0, 0.8), side(0xa8acb0, 0.95));
   }
-  if (look.flag && isFlagTile(block, world)) {
+  if (look.battlements) {
+    // Battlements on the outer edges of the roof: small blocks with gaps between them.
+    const same = (x, y) => world.blockAt(x, y)?.groupId === groupId;
+    const merlon = (x0, y0) => drawBox(c, x0, y0, x0 + 0.16, y0 + 0.16, topLevel, topLevel + 0.45, pt, flat(tone(wall, 'top')), side(wall, 0.68), side(wall, 0.86));
+    for (let i = 0; i < 4; i++) {
+      if (!same(tx, ty - 1)) merlon(tx + i * 0.25, ty);
+      if (!same(tx - 1, ty)) merlon(tx, ty + i * 0.25);
+      if (!same(tx + 1, ty)) merlon(tx + 0.84, ty + i * 0.25);
+      if (!same(tx, ty + 1)) merlon(tx + i * 0.25, ty + 0.84);
+    }
+  }
+  if (look.flag === 'us' && isFlagTile(block, world)) {
+    // The flag of the United States on a tall pole: red and white stripes, a blue corner with white
+    // stars. It waves (a sine along the flag); the scene does not animate it yet.
+    drawBox(c, tx + 0.48, ty + 0.48, tx + 0.53, ty + 0.53, topLevel, topLevel + 3.5, pt, flat(0xd8d8d8), side(0xc0c0c0, 0.8), side(0xc0c0c0, 1));
+    const p = pt(tx + 0.5, ty + 0.5, topLevel + 3.5);
+    for (let x = 1; x <= 11; x++) {
+      const wave = Math.round(Math.sin(x * 0.7) * 1.2);
+      for (let r = 0; r < 7; r++) {
+        let col = r % 2 ? 0xf2f2f2 : 0xb22234;
+        if (x <= 5 && r <= 3) col = (x + r) % 2 && r > 0 && r < 3 ? 0xf2f2f2 : 0x3c3b6e;
+        c.plot(p.x + x, p.y + r + wave, col);
+      }
+    }
+  } else if (look.flag && isFlagTile(block, world)) {
     drawBox(c, tx + 0.48, ty + 0.48, tx + 0.53, ty + 0.53, topLevel, topLevel + 3, pt, flat(0xd8d8d8), side(0xc0c0c0, 0.8), side(0xc0c0c0, 1));
     // The flag of Rwanda: blue (with the sun), yellow, green. The yellow is the flag's own, not Surge Yellow.
     const p = pt(tx + 0.5, ty + 0.5, topLevel + 3);
@@ -743,6 +778,42 @@ function drawFountain(c, block, pt, world) {
   // A small water jet on the top (the big spray only now and then: see the scene).
   const tip = pt(cx, cy, ground + 3.8);
   for (let i = 1; i <= 3; i++) c.plot(tip.x, tip.y - i, P.waterLight);
+}
+
+// The I LOVE KIGALI sign in the car free zone (Alp): big white letters with a red heart, on a low
+// grey plinth. People take photos there. At night the letters shine a little.
+const HEART = ['01010', '11111', '11111', '01110', '00100'];
+function drawLoveSign(c, block, pt, world, glow) {
+  const { tx, ty, baseLevel } = block;
+  const ground = world.heightAt((tx + 0.5) * WORLD.tileMetres, (ty + 0.5) * WORLD.tileMetres) / WORLD.levelMetres;
+  // The plinth: a long low box along x.
+  const st = (k) => () => shadeColour(P.concrete, k);
+  drawBox(c, tx - 1, ty + 0.35, tx + 2, ty + 0.65, Math.min(baseLevel, ground), ground + 0.25, pt, st(1), st(0.68), st(0.86));
+  // The words stand on the plinth along it: I ♥ KIGALI, each font pixel 2 px wide and 3 px tall.
+  // Letters are white with a dark side (they look solid); the heart is red.
+  const cells = [];
+  const glyph = (rows, x0, col) => rows.forEach((row, y) => [...row].forEach((bit, x) => bit === '1' && cells.push([x0 + x, y, col])));
+  glyph(['111', '010', '010', '010', '111'], 0, 0xf6f5ec); // I
+  glyph(HEART, 4, P.red);
+  let n = 10;
+  for (const ch of 'KIGALI') {
+    const w = textWidth(ch);
+    glyph([0, 1, 2, 3, 4].map((y) => Array.from({ length: w }, (_, x) => (textBit(ch, x, y) ? '1' : '0')).join('')), n, 0xf6f5ec);
+    n += w + 1;
+  }
+  const SX = 2, SY = 3;
+  const start = pt(tx + 0.5 - (n * SX) / 64, ty + 0.5, ground + 0.25); // 1 tile along x = 32 px across the screen
+  const at = (cx, cy) => ({ x: start.x + cx, y: start.y + cx * 0.5 - (5 * SY - cy) });
+  const paint = (dx0, dy0, shade) => {
+    for (const [x, y, col] of cells) for (let dy = 0; dy < SY; dy++) for (let dx = 0; dx < SX; dx++) {
+      const p = at(x * SX + dx, y * SY + dy);
+      const rgb = shade ? shadeColour(col, 0.6) : col;
+      c.plot(p.x + dx0, p.y + dy0, rgb);
+      if (glow && !shade) glow.setPixel(Math.floor(p.x - c.ox), Math.floor(p.y - c.oy), col, 150);
+    }
+  };
+  paint(1, 1, true); // the side of the letters
+  paint(0, 0, false);
 }
 
 function drawMonument(c, block, pt, world) {

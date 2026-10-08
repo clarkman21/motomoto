@@ -16,8 +16,9 @@ function roadUse(world) {
   const count = new Map();
   const add = (tx, ty) => count.set(`${tx},${ty}`, (count.get(`${tx},${ty}`) ?? 0) + 1);
   for (const r of (world.roads ?? []).filter((q) => !q.ring)) {
-    if (r.y !== undefined) for (let x = r.x0; x <= r.x1; x++) { add(x, r.y); add(x, r.y + 1); }
-    else for (let y = r.y0; y <= r.y1; y++) { add(r.x, y); add(r.x + 1, y); }
+    const w = r.width ?? 2;
+    if (r.y !== undefined) for (let x = r.x0; x <= r.x1; x++) for (let k = 0; k < w; k++) add(x, r.y + k);
+    else for (let y = r.y0; y <= r.y1; y++) for (let k = 0; k < w; k++) add(r.x + k, y);
   }
   world.roadUseCache = count;
   return count;
@@ -25,7 +26,8 @@ function roadUse(world) {
 
 /** The two tiles across a road at index i (along the road), and the road's direction. */
 function across(r, i) {
-  return r.y !== undefined ? [[i, r.y], [i, r.y + 1]] : [[r.x, i], [r.x + 1, i]];
+  const w = r.width ?? 2;
+  return Array.from({ length: w }, (_, k) => (r.y !== undefined ? [i, r.y + k] : [r.x + k, i]));
 }
 
 const range = (r) => (r.y !== undefined ? [r.x0, r.x1] : [r.y0, r.y1]);
@@ -61,6 +63,8 @@ export function crossings(world) {
  * All the road signs for the map: [{ x, y (tiles), kind: 'limit' | 'bump' | 'crossing', limitKmh? }].
  * taken: signs that are on the map already (a new sign does not stand near one of them).
  */
+const ROAD_SURFACES = new Set(['tarmac', 'murram', 'murramWet', 'cobble']);
+
 export function roadSigns(world, taken = []) {
   const T = WORLD.tileMetres;
   const use = roadUse(world);
@@ -71,6 +75,9 @@ export function roadSigns(world, taken = []) {
   const free = (x, y) => {
     const t = world.tile(Math.floor(x), Math.floor(y));
     if (!t || t.block || t.surface === 'water' || use.has(`${Math.floor(x)},${Math.floor(y)}`)) return false;
+    if (ROAD_SURFACES.has(t.surface) || t.flowers) return false; // never on a road (a roundabout ring is not in the road list) or a flower bed
+    const ring = (world.roads ?? []).find((r) => r.ring && Math.hypot(x - r.cx, y - r.cy) < r.r + 1.4);
+    if (ring) return false; // not on the round ring or its island
     return !near(x, y, ROAD_SIGNS.minGapTiles);
   };
   const put = (sign) => {
@@ -85,8 +92,9 @@ export function roadSigns(world, taken = []) {
     const [a, b] = range(r);
     for (const dir of [1, -1]) {
       // The lane for this direction and the verge on its right.
-      const lane = alongX ? (dir > 0 ? r.y + 1 : r.y) : dir > 0 ? r.x : r.x + 1;
-      const verge = alongX ? (dir > 0 ? r.y + 2 + ROAD_SIGNS.vergeInset : r.y - ROAD_SIGNS.vergeInset) : dir > 0 ? r.x - ROAD_SIGNS.vergeInset : r.x + 2 + ROAD_SIGNS.vergeInset;
+      const w = r.width ?? 2; // a double carriageway is wider: its outer rows are the lanes
+      const lane = alongX ? (dir > 0 ? r.y + w - 1 : r.y) : dir > 0 ? r.x : r.x + w - 1;
+      const verge = alongX ? (dir > 0 ? r.y + w + ROAD_SIGNS.vergeInset : r.y - ROAD_SIGNS.vergeInset) : dir > 0 ? r.x - ROAD_SIGNS.vergeInset : r.x + w + ROAD_SIGNS.vergeInset;
       const at = (i) => (alongX ? { x: i + 0.5, y: verge } : { x: verge, y: i + 0.5 });
       const laneTile = (i) => (alongX ? [i, lane] : [lane, i]);
       const order = [];

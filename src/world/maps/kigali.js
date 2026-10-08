@@ -30,7 +30,7 @@ const DISTRICT_RECTS = {
 export const DISTRICT_LOOKS = {
   nyabugogo: 'Valley floor beside the river. The big bus park, the market, Gakinjiro workshops. Kimisagara hillside with steep murram lanes in the west; the Muhima road climbs south to town.',
   town: 'Kigali town on the Nyarugenge ridge (level 7). Tall buildings, the central roundabout, Kigali City Tower, the car free zone, the town market.',
-  kacyiru: 'Kacyiru hill (level 6). Government offices with lawns, the police headquarters, the hospital, a wide boulevard with trees.',
+  kacyiru: 'Kacyiru hill (level 6). Government offices with lawns, the police headquarters, the hospital, the Kacyiru boulevard (a double carriageway with palms, flowers and lamps in the median) that ends at the US Embassy roundabout.',
   kimihurura: 'Kimihurura hill (level 6). The Convention Centre dome at the big roundabout, Parliament, villas on cobblestone lanes. Rugando wetland valley to the west.',
   nyarutarama: 'Two ridges with the golf course and a lake in the valley between them. Big villas, quiet cobblestone streets, the MTN Centre.',
   kicukiro: 'A wide plateau (level 4). Sonatubes junction, the busy Kicukiro centre market, murram side streets, Gikondo warehouses and trucks.',
@@ -57,6 +57,11 @@ const ring = (name, cx, cy, r, island) => ({ name, ring: true, cx: cx + 1, cy: c
 const TOWN_RING = { cx: 26, cy: 96, r: 5 }; // the big town roundabout (grass and flowers) to the car free zone
 const KCC_RING = { cx: 100, cy: 96, r: 5 }; // the KCC roundabout (grass and flowers)
 const MTN_RING = { cx: 40, cy: 84, r: 4 }; // the MTN roundabout in the financial centre (the yellow fountain)
+const EMBASSY_RING = { cx: 120, cy: 36, r: 6 }; // the US Embassy roundabout at the east end of the Kacyiru boulevard
+// The Kacyiru boulevard: a double carriageway (Alp): rows y..y+5. Rows y, y+1 and y+4, y+5 are the two
+// carriageways (2 lanes each way); rows y+2, y+3 are the median with tall palms, flowers and lamps.
+// The centre line of the road (for traffic) is in the median; the lanes are 8 m from it.
+const BOULEVARD = { y: 34, x0: 61, x1: EMBASSY_RING.cx - EMBASSY_RING.r };
 
 const ROADS = [
   // Arterials across the whole map
@@ -91,9 +96,13 @@ const ROADS = [
   { name: 'Kiyovu cobble', y: 120, x0: 10, x1: 63, surface: 'c' },
   { name: 'Rugando valley murram', x: 61, y0: 64, y1: 127, surface: 'm' },
   // Kacyiru
-  { name: 'Kacyiru boulevard', y: 36, x0: 64, x1: 127, surface: '#' },
+  { name: 'Kacyiru boulevard', y: BOULEVARD.y, x0: BOULEVARD.x0, x1: BOULEVARD.x1, surface: '#', width: 6, median: true, laneOffset: 8 },
+  ring('US Embassy roundabout', EMBASSY_RING.cx, EMBASSY_RING.cy, EMBASSY_RING.r, 'garden'),
+  { name: 'Embassy road north', x: EMBASSY_RING.cx, y0: 20, y1: EMBASSY_RING.cy - EMBASSY_RING.r, surface: '#' },
+  { name: 'Embassy road south', x: EMBASSY_RING.cx, y0: EMBASSY_RING.cy + EMBASSY_RING.r + 1, y1: 49, surface: '#' },
+  { name: 'Nyarutarama link', y: EMBASSY_RING.cy, x0: EMBASSY_RING.cx + EMBASSY_RING.r + 1, x1: 142, surface: '#' },
   { name: 'Kacyiru street', x: 84, y0: 0, y1: 54, surface: '#' },
-  { name: 'Embassy lane', y: 48, x0: 84, x1: 120, surface: 'c' },
+  { name: 'Embassy lane', y: 48, x0: 84, x1: EMBASSY_RING.cx, surface: 'c' },
   // Kimihurura
   ring('KCC roundabout', KCC_RING.cx, KCC_RING.cy, KCC_RING.r, 'garden'),
   { name: 'Kimihurura upper lane', y: 80, x0: 64, x1: 127, surface: 'c' },
@@ -162,6 +171,7 @@ export function buildKigaliMap(seed = 7) {
   rect(164, 99, 176, 104, 'm'); // Kicukiro centre market
   for (let x = 165; x <= 175; x += 2) set(x, 101, '2');
   rect(34, 102, 48, 108, 'p'); // the car free zone (pavement, people only)
+  set(43, 103, 'L'); // the I LOVE KIGALI sign
   for (const a of CROWD_AREAS) reserve(a.x0, a.y0, a.x1, a.y1);
   reserve(130, 24, 191, 41); // the golf course: grass, sand and trees, no buildings
 
@@ -171,8 +181,18 @@ export function buildKigaliMap(seed = 7) {
   // Roads.
   for (const r of ROADS) {
     if (r.ring) continue;
-    if (r.y !== undefined) rect(r.x0, r.y, r.x1, r.y + 1, r.surface);
-    else rect(r.x, r.y0, r.x + 1, r.y1, r.surface);
+    const w = (r.width ?? 2) - 1;
+    if (r.y !== undefined) rect(r.x0, r.y, r.x1, r.y + w, r.surface);
+    else rect(r.x, r.y0, r.x + w, r.y1, r.surface);
+  }
+  // The boulevard median: flower beds, with a gap where a road crosses (you can turn only there).
+  const crossesAt = (x) => ROADS.some((q) => q.x !== undefined && !q.ring && x >= q.x && x <= q.x + 1 && q.y0 <= BOULEVARD.y && q.y1 >= BOULEVARD.y + 5);
+  for (let x = BOULEVARD.x0; x <= BOULEVARD.x1; x++) {
+    if (crossesAt(x) || crossesAt(x - 1) || crossesAt(x + 1)) continue; // the gap is a little wider than the road
+    for (const y of [BOULEVARD.y + 2, BOULEVARD.y + 3]) set(x, y, 'f');
+    reserve(x, BOULEVARD.y + 2, x, BOULEVARD.y + 3);
+    // Tall palms along the median (Alp: palm trees, other trees and flowers).
+    if (x % 3 === 0 && !crossesAt(x - 2) && !crossesAt(x + 2)) { set(x, BOULEVARD.y + 2, 't'); st[BOULEVARD.y + 2][x] = 'P'; }
   }
 
   // Roundabouts: a round band of tarmac (2 tiles wide) around a round island. The island is grass
@@ -206,7 +226,7 @@ export function buildKigaliMap(seed = 7) {
   station(12, 98, 'F', 'north', 'Town fuel');
   station(34, 98, 'S', 'north', 'Ampersand swap, town');
   station(102, 30, 'S', 'west', 'Ampersand swap, Kacyiru');
-  station(86, 38, 'F', 'west', 'Kacyiru fuel');
+  station(86, 42, 'F', 'west', 'Kacyiru fuel');
   station(88, 98, 'F', 'north', 'Kimihurura fuel');
   station(162, 22, 'S', 'north', 'Ampersand swap, Nyarutarama');
   station(178, 22, 'F', 'north', 'Nyarutarama fuel');
@@ -232,13 +252,15 @@ export function buildKigaliMap(seed = 7) {
   landmark(44, 112, 49, 117, '3', 'c', { sign: 'LYCEE DE KIGALI', sign2: 'WE STRIVE FOR SUCCESS' });
   landmark(104, 6, 111, 12, '4', 'o', { sign: 'KING FAISAL HOSPITAL' });
   landmark(88, 24, 95, 30, '4', 'g', { sign: "POLISI Y'U RWANDA", sign2: 'POLICE' });
-  landmark(103, 39, 110, 45, '5', 'g', { sign: "IBIRO BYA MINISITIRI", sign2: "W'INTEBE" });
-  landmark(86, 40, 92, 46, '4', 'g', { sign: "IBIRO BY'AKARERE", sign2: 'KA GASABO' });
+  landmark(103, 41, 110, 46, '5', 'g', { sign: "IBIRO BYA MINISITIRI", sign2: "W'INTEBE" });
+  landmark(89, 41, 95, 46, '4', 'g', { sign: "IBIRO BY'AKARERE", sign2: 'KA GASABO' });
+  // The US Embassy (Alp): a big concrete building like a castle, with an American flag that waves.
+  landmark(123, 23, 127, 28, '5', 'e', { sign: 'EMBASSY OF THE', sign2: 'UNITED STATES' });
   landmark(112, 51, 118, 53, '2', 'c', { sign: 'G.S. KACYIRU', sign2: 'WE STRIVE FOR SUCCESS' });
   landmark(89, 104, 94, 109, '4', 'g', { sign: 'INTEKO ISHINGA AMATEGEKO', sign2: 'PARLIAMENT' });
   landmark(116, 84, 119, 88, '9', 't', { levels: 11, sign: 'KIGALI HEIGHTS' });
   // The Ampersand office and e-moto showroom on Kacyiru boulevard: you buy your electric moto here (level 4).
-  landmark(114, 32, 121, 34, '3', 'o', { sign: 'AMPERSAND', sign2: 'E-MOTO SHOWROOM', brand: true });
+  landmark(105, 30, 112, 32, '3', 'o', { sign: 'AMPERSAND', sign2: 'E-MOTO SHOWROOM', brand: true });
   landmark(140, 8, 143, 12, '7', 't', { levels: 10 }); // MTN Centre
   landmark(136, 27, 139, 29, '2', 'v'); // golf club house
   landmark(181, 87, 187, 93, '4', 'g', { sign: "IBIRO BY'AKARERE", sign2: 'KA KICUKIRO' });
@@ -253,7 +275,7 @@ export function buildKigaliMap(seed = 7) {
     const d = districtOf(x, y);
     if (d === 'town') return levelAt(x, y) > 5;
     if (d === 'nyabugogo') return y <= 24 && x >= 6;
-    if (d === 'kacyiru') return y >= 34 && y <= 39; // the boulevard
+    if (d === 'kacyiru') return y >= 33 && y <= 40; // the boulevard
     if (d === 'kicukiro') return x >= 158 && y >= 94 && y <= 108;
     return false;
   };
@@ -306,7 +328,6 @@ export function buildKigaliMap(seed = 7) {
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (g[y][x] === '2' && st[y][x] === '.') st[y][x] = 's';
 
   // Trees: avenue trees on the Kacyiru boulevard, many trees in the rich districts and the golf course.
-  for (let x = 66; x < 126; x += 3) for (const y of [35, 38]) if (g[y][x] === '.' || g[y][x] === 'p') { set(x, y, 't'); st[y][x] = 'P'; } // palms
   const treeChance = { nyabugogo: 0.04, town: 0.05, kacyiru: 0.1, kimihurura: 0.12, nyarutarama: 0.12, kicukiro: 0.05 };
   for (let y = 4; y < H - 1; y++) for (let x = 0; x < W - 1; x++) {
     if (g[y][x] !== '.' || (reserved[y][x] && !(y >= 24 && y <= 41 && x >= 130))) continue;
@@ -336,6 +357,14 @@ export function buildKigaliMap(seed = 7) {
   const step = LIGHTS.lampSpacingTiles;
   for (const r of ROADS) {
     if (r.surface !== '#' || r.ring) continue;
+    if (r.median) {
+      // Lamps in the median between the palms (Alp), with the arm over each carriageway in turn.
+      for (let x = r.x0 + 2, i = 0; x <= r.x1 - 2; x += step, i++) {
+        if (get(x, r.y + 3) !== 'f') continue;
+        lamps.push({ x: x + 0.5, y: r.y + 3.5, side: i % 2 ? 'north' : 'south' });
+      }
+      continue;
+    }
     if (r.y !== undefined) {
       for (let x = r.x0 + 2, i = 0; x <= r.x1 - 2; x += step, i++) {
         const north = i % 2 === 0;
@@ -360,14 +389,14 @@ export function buildKigaliMap(seed = 7) {
     }
   }
 
-  for (let x = 114; x <= 121; x++) set(x, 35, 'p'); // the Ampersand showroom: a paved forecourt, no trees
+  for (let x = 105; x <= 112; x++) set(x, 33, 'p'); // the Ampersand showroom: a paved forecourt, no trees
   const rows = g.map((r) => r.join(''));
   const styles = st.map((r) => r.join(''));
 
   // Job places. weight: how often jobs start here (the bus park makes many fares).
   const P = (id, name, x, y, tags = [], weight = 1) => places.push({ id, name, x, y, tags, weight });
   P('busPark', 'Nyabugogo bus park', 29, 15, ['market'], 5);
-  P('ampersandOffice', 'Ampersand showroom, Kacyiru boulevard', 116.5, 35.5, ['office']);
+  P('ampersandOffice', 'Ampersand showroom, Kacyiru boulevard', 108.5, 33.5, ['office']);
   P('market', 'Nyabugogo market', 52, 13.5, ['market'], 3);
   P('riverRoad', 'River road', 12, 6, []);
   P('gakinjiro', 'Gakinjiro workshops', 30, 33, ['market']);
@@ -385,7 +414,8 @@ export function buildKigaliMap(seed = 7) {
   P('nyamirambo', 'Nyamirambo road', 11, 74, []);
   P('hospital', 'King Faisal Hospital', 102.5, 10, [], 2);
   P('policeHq', 'Police headquarters', 86.5, 28, []);
-  P('kacyiruBoulevard', 'Kacyiru boulevard', 110, 37, []);
+  P('kacyiruBoulevard', 'Kacyiru boulevard', 96, 34.5, []);
+  P('usEmbassy', 'US Embassy', 122, 29.5, [], 1);
   P('embassies', 'Embassy lane', 100, 49, []);
   P('kcc', 'Kigali Convention Centre', 114.5, 86, [], 2);
   P('parliament', 'Parliament', 87, 106, []);
@@ -402,8 +432,8 @@ export function buildKigaliMap(seed = 7) {
   P('gsKimisagara', 'G.S. Kimisagara', 10, 44, [], 1);
   P('lycee', 'Lycee de Kigali', 46, 118.5, [], 1);
   P('nyarugengeOffice', 'Nyarugenge district office', 30, 118.5, [], 1);
-  P('gasaboOffice', 'Gasabo district office', 89, 47, [], 1);
-  P('pmOffice', "Prime Minister's office", 106, 47, [], 1);
+  P('gasaboOffice', 'Gasabo district office', 92, 48.5, [], 1);
+  P('pmOffice', "Prime Minister's office", 106, 48.5, [], 1);
   P('gsKacyiru', 'G.S. Kacyiru', 115, 50, [], 1);
   P('kigaliHeights', 'Kigali Heights', 115, 89.5, [], 2);
   P('chic', 'CHIC shopping centre', 47.5, 80.5, [], 2);
@@ -450,6 +480,7 @@ export function buildKigaliMap(seed = 7) {
       { x: 127.6, y: 22.4, limitKmh: 30 },
       { x: 155.6, y: 98.4, limitKmh: 30 },
     ],
+    police: [{ x: 39.5, y: 106.5, post: true }], // the car free zone has its own officer (Alp)
     autoSigns: true, // speed limit, speed bump and crossing signs from the roads (world/road-signs.js)
     busStops: [
       { x: 29, y: 12, side: 'north', park: true }, // Nyabugogo bus park

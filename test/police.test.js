@@ -17,13 +17,20 @@ describe('traffic police', () => {
     const junctions = graph.nodes.filter((n) => new Set(n.out.map((e) => `${Math.round(e.dx)},${Math.round(e.dy)}`)).size >= 3);
     expect(spots.length).toBeGreaterThan(junctions.length * 0.5);
     expect(new Set(spots.map((s) => world.tileAt(s.x, s.y).district)).size).toBe(6);
+    const placed = (s) => (world.extraPolice ?? []).some((p) => Math.hypot(p.x * T - s.x, p.y * T - s.y) < 0.1);
     for (const s of spots) {
       const t = world.tileAt(s.x, s.y);
       expect(['pavement', 'grass']).toContain(t.surface);
       expect(t.block).toBeNull();
-      // Close to a junction (within 3 tiles of a node with 3 or more ways).
-      expect(junctions.some((n) => Math.hypot(n.x - s.x, n.y - s.y) < 3 * T)).toBe(true);
+      // Close to a junction (within 3 tiles of a node with 3 or more ways), or at a place from the map.
+      expect(placed(s) || junctions.some((n) => Math.hypot(n.x - s.x, n.y - s.y) < 3 * T)).toBe(true);
     }
+  });
+
+  it('an officer stands in the car free zone (motos may ride in, but he chases them)', () => {
+    const zone = world.crowdAreas?.find((a) => a.name === 'Car free zone') ?? { x0: 34, y0: 102, x1: 49, y1: 109 };
+    expect(spots.some((s) => s.x / T >= zone.x0 && s.x / T <= zone.x1 && s.y / T >= zone.y0 && s.y / T <= zone.y1)).toBe(true);
+    expect(world.tile(43, 103).block).toBe('lovesign');
   });
 
   it('wear a police vest (not the yellow vest of the moto riders) over a dark blue uniform, and a white cap', () => {

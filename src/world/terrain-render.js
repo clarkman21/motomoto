@@ -170,7 +170,7 @@ export function laneMarkings(world) {
     marks.set(key, m);
   };
   for (const r of world.roads ?? []) {
-    if (r.ring) continue; // a one way ring has no centre line
+    if (r.ring || r.median) continue; // a one way ring and a double carriageway have no centre line
     if (r.y !== undefined) {
       for (let x = r.x0; x <= r.x1; x++) {
         put(x, r.y, { alongX: true, edge: 'high' }); // the line on the south edge of the north row
@@ -250,7 +250,7 @@ function surfaceColour(ctx, u, v, sx, sy) {
       if (tile.flowers) {
         // Flower beds: clumps of red, purple, white and yellow flowers on short grass.
         const clump = hash2(Math.floor(wu * 5), Math.floor(wv * 5), 61);
-        if (clump > 0.45 && r > 0.35) return PALETTE.flowerBed[Math.floor(clump * 97) % PALETTE.flowerBed.length];
+        if (clump > 0.62 && r > 0.4) return PALETTE.flowerBed[Math.floor(clump * 97) % PALETTE.flowerBed.length];
       }
       return pick(PALETTE.grass, r, 0.14, 0.9);
     }

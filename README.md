@@ -47,6 +47,10 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Visual design system: one palette and one light rule (`PALETTE`, `LIGHT`, `ROOFS` in `src/config.js`; helpers in `src/world/palette.js`); a test checks that the traffic and the people use only palette colours | Done |
 | New traffic: cars with bumpers, lights, number plates and mirrors; white minibuses with a stripe and a roof rack; lorries with a chrome grille, a wooden cargo bed and a load (rice sacks, bananas or a tarpaulin); slogans on the windscreen and the side boards ("GOD IS WIN", "GOD BLESS", "IMANA", "AMEN") | Done |
 | New people: a 3/4 view with long steps, arms that swing, an eye or the back of the head; the left frames keep the light on the top left | Done |
+| Full game, city phase 1: tall thin palms; plain white government buses; truck taglines (GOD IS WIN, JESUS SAVE ME, JESUS TAKE THE WHEEL) | Done |
+| Round roundabouts: one way (anticlockwise), cars give way to the ring, a grass island with flower beds; the MTN roundabout with the yellow MTN fountain; the town, KCC and US Embassy roundabouts | Done |
+| The Kacyiru boulevard: a double carriageway with palms, flower beds and lamps in the median; you turn only at junctions; it ends at the US Embassy roundabout (a concrete castle with a US flag) | Done |
+| The car free zone: the I LOVE KIGALI sign, and an officer who chases motos that ride in (as on the pavement) | Done |
 | New houses: colourful paint, pitched tin roofs, steep dark roofs on new apartments, mud houses with bricks that show and rusty roofs with stones (Nyabugogo); a row of houses is a row of small separate houses | Done |
 | Fix: building signs, road signs and police posts stand on whole pixels and fade with their building | Done |
 | Passenger and cargo jobs, cash, fares and tips | Done |
@@ -213,9 +217,10 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `ROAD_SIGNS` | How often speed limit signs repeat, where the bump warnings stand, how many junction arms have a zebra crossing |
 | `PALETTE` | The colours of the game (the lit tone of each material); sprites get the mid and dark tones from `LIGHT` |
 | `LIGHT` | The light rule: top faces, faces to the left of the screen, faces to the right |
+| `TRAFFIC.ringGiveWayMetres`, `ringPatienceSeconds` | How near a car on a roundabout must be for a new car to wait, and how long it waits at most |
 | `ROOFS` | Pitched roofs: the pitch and the highest ridge of each house type, how many villas are new steep apartments, how many Nyabugogo houses are mud houses |
 
-The game map is built in code in [`src/world/maps/kigali.js`](src/world/maps/kigali.js): district rectangles, hills, roads, landmarks, stations and places. Each block has a building style (`h` house, `s` shop, `o` office, `t` tower, `g` government, `c` school, `w` warehouse, `v` villa). The district rules set the style, and a landmark sets the style, the height in levels and the sign text of its block. The small test map for the unit tests is an ASCII grid in [`src/world/map-data.js`](src/world/map-data.js). The legend is at the top of the file. Hills are plateaus with ramps; each hill has a height and a ramp length for each side. The same file has the job places, speed limit zones, cameras and signs.
+The game map is built in code in [`src/world/maps/kigali.js`](src/world/maps/kigali.js): district rectangles, hills, roads, landmarks, stations and places. Each block has a building style (`h` house, `s` shop, `o` office, `t` tower, `g` government, `c` school, `w` warehouse, `v` villa, `e` embassy; `P` makes a tree tile a palm). Roads can be roundabouts (`ring: true`, a centre and a radius) or double carriageways (`width: 6`, `median: true`, `laneOffset`). The district rules set the style, and a landmark sets the style, the height in levels and the sign text of its block. The small test map for the unit tests is an ASCII grid in [`src/world/map-data.js`](src/world/map-data.js). The legend is at the top of the file. Hills are plateaus with ramps; each hill has a height and a ramp length for each side. The same file has the job places, speed limit zones, cameras and signs.
 
 ## Code structure
 
