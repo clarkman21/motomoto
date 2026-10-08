@@ -167,6 +167,8 @@ export function updateJob(board, bike, bikeEvents, dt) {
       else if (job.fragile) job.damage += JOBS.cargoDamage[e.type] ?? 0;
     }
     if (job.type === 'passenger' && (bike.netAccel ?? 0) < -JOBS.hardBrakeMs2) job.comfort -= JOBS.comfortLoss.hardBrakePerSecond * dt;
+    // Stuck: you walk the bike backwards with the passenger on it. The passenger is not happy.
+    if (job.type === 'passenger' && bike.reversing) job.comfort -= JOBS.comfortLoss.reversePerSecond * dt;
     // Off road is a rough ride: the passenger is unhappy and fragile cargo gets damaged.
     if (bike.offRoad) {
       if (job.type === 'passenger') job.comfort -= JOBS.comfortLoss.offRoadPerSecond * dt;

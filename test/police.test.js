@@ -109,3 +109,34 @@ describe('police chase', async () => {
     expect(e.map((x) => x.type)).toEqual(['whistle']);
   });
 });
+
+describe('police go around buildings', async () => {
+  const { createPolice, stepPolice, findPath, clearLine } = await import('../src/sim/police.js');
+  const T = WORLD.tileMetres;
+  // A wall of solid tiles at x = 5 (tiles), from y = 0 to y = 8, with a gap below it.
+  const isSolid = (x, y) => Math.floor(x / T) === 5 && Math.floor(y / T) <= 8;
+
+  it('finds a path around a wall, and the line through the wall is not clear', () => {
+    const a = { x: 2 * T, y: 4 * T }, b = { x: 9 * T, y: 4 * T };
+    expect(clearLine(a, b, isSolid)).toBe(false);
+    const path = findPath(a, b, isSolid);
+    expect(path).not.toBeNull();
+    for (const p of path) expect(isSolid(p.x, p.y)).toBe(false);
+    expect(path.some((p) => p.y / T > 8.5)).toBe(true); // it goes through the gap
+  });
+
+  it('a chasing officer runs around the wall and catches the bike', () => {
+    const police = createPolice([{ x: 2 * T, y: 4 * T, phase: 0 }]);
+    const bike = { x: 3 * T, y: 4 * T };
+    stepPolice(police, bike, { speedKmh: 10, limitKmh: 30, illegal: 'pavement' }, 0.1, isSolid);
+    expect(police.officers[0].state).toBe('chase');
+    // The bike stops behind the wall.
+    bike.x = 8 * T;
+    bike.y = 4 * T;
+    let caught = false;
+    for (let t = 0; t < 12 && !caught; t += 0.05) caught = stepPolice(police, bike, { speedKmh: 0, limitKmh: 30, illegal: null }, 0.05, isSolid).some((e) => e.type === 'caught');
+    const o = police.officers[0];
+    expect(isSolid(o.x, o.y)).toBe(false);
+    expect(caught).toBe(true);
+  });
+});

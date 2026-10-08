@@ -79,8 +79,7 @@ export class RideScene extends Phaser.Scene {
     for (const type of Object.keys(BIKES)) {
       for (const load of BIKE_LOADS) {
         for (let f = 0; f < BIKE_DIRECTIONS; f++) addCanvasTexture(this, `bike-${type}-${load}-${f}`, drawBike(type, f, load));
-        // The rider walks and pushes the bike (out of fuel or broken down). A passenger gets off.
-        if (load === 'passenger') continue;
+        // The rider walks and pushes the bike (out of fuel, broken down, or backwards out of a tight spot).
         for (let f = 0; f < BIKE_DIRECTIONS; f++) for (const step of [0, 1]) addCanvasTexture(this, `push-${type}-${load}-${f}-${step}`, drawBike(type, f, load, true, `push${step}`));
       }
     }
@@ -835,6 +834,7 @@ export class RideScene extends Phaser.Scene {
       this.#updatePushing(dt);
       this.#loseJobWhenEmpty();
     } else this.engineSound.update(this.bike.type, Math.min(1, this.bike.revs), this.controls.throttle);
+    this.#updateStuck(dt);
     this.dayTime += dt;
     if (this.jailTimer != null && (this.jailTimer -= dt) <= 0) {
       this.jailTimer = null;
@@ -1027,6 +1027,22 @@ export class RideScene extends Phaser.Scene {
     this.events.emit('bark', lost.type === 'passenger'
       ? `${why} Your passenger gets off and takes another moto. You lose the fare`
       : `${why} The customer sends the cargo with another moto. You lose the pay`);
+  }
+
+  /**
+   * Walking the bike backwards (hold the brake when it stands still): the steps of the walk. Stuck
+   * (throttle, but the bike does not move): a hint, at most once in a while.
+   */
+  #updateStuck(dt) {
+    const b = this.bike;
+    const v = forwardSpeed(b);
+    if (b.reversing && !b.engineDead) this.pushMetres = (this.pushMetres ?? 0) + Math.abs(v) * dt;
+    const stuck = !this.refuel && !b.engineDead && !(b.crashed > 0) && this.controls.throttle > 0.5 && Math.abs(v) < 0.3;
+    this.stuckTime = stuck ? (this.stuckTime ?? 0) + dt : 0;
+    if (this.stuckTime > PHYSICS.stuckHintSeconds && this.time.now - (this.stuckHintAt ?? -1e9) > 20000) {
+      this.stuckHintAt = this.time.now;
+      this.events.emit('bark', `Stuck? Hold ${this.sys.game.device.input.touch ? 'STOP' : 'S or ↓'} to walk the bike backwards`);
+    }
   }
 
   /** Pushing the bike: the steps of the walk, and now and then a tired sound and word. */
@@ -1290,9 +1306,9 @@ export class RideScene extends Phaser.Scene {
     // Out of fuel or charge, or broken down: the bike rolls on with the rider on it; when it is slow,
     // the rider gets off, walks beside the bike and pushes it.
     const load = b.loadType ?? 'none';
-    const walking = b.engineDead && Math.abs(forwardSpeed(b)) * 3.6 <= PHYSICS.rideOffKmh;
+    const walking = (b.engineDead && Math.abs(forwardSpeed(b)) * 3.6 <= PHYSICS.rideOffKmh) || (b.reversing && forwardSpeed(b) < -0.05);
     const key = walking && !(b.crashed > 0)
-      ? `push-${b.type}-${load === 'passenger' ? 'none' : load}-${bikeFrameForHeading(b.heading)}-${Math.floor((this.pushMetres ?? 0) / 0.7) % 2}`
+      ? `push-${b.type}-${load}-${bikeFrameForHeading(b.heading)}-${Math.floor((this.pushMetres ?? 0) / 0.7) % 2}`
       : `bike-${b.type}-${load}-${bikeFrameForHeading(b.heading)}`;
     this.bikeScreen = s;
     this.bikeDepth = depth;

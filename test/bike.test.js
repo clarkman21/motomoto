@@ -453,3 +453,32 @@ describe('running out of fuel while riding', () => {
     expect(kmh(bike)).toBeLessThan(1);
   });
 });
+
+describe('walking the bike backwards (hold the brake when it stands still)', () => {
+  it('works on every surface: tarmac, murram, wet murram, sand and grass', () => {
+    for (const ch of ['#', 'm', 'w', 's', '.']) {
+      const world = straight(ch);
+      const bike = createBike(world, 'petrol');
+      bike.x = 100;
+      const x0 = bike.x;
+      run(bike, world, { brake: 1 }, 3);
+      expect(bike.reversing, ch).toBe(true);
+      expect(x0 - bike.x, ch).toBeGreaterThan(1.5); // about 3 m in 3 s at walking speed
+      expect(kmh(bike), ch).toBeGreaterThan(-BIKES.petrol.reverseSpeedKmh - 0.1);
+    }
+  });
+});
+
+describe('never stuck in a wall', () => {
+  it('a bike that touches a wall (pushed there) can walk backwards and ride away', () => {
+    // A road with a building ('t' tree blocks) right in front of the bike.
+    const world = new World({ name: 'w', start: { x: 1.5, y: 1.5, headingDeg: 0 }, rows: ['#'.repeat(10) + 't' + '#'.repeat(10), '#'.repeat(21), '#'.repeat(21)] });
+    const bike = createBike(world, 'petrol');
+    // Put the bike so close to the tree that its edge is inside it.
+    bike.x = 10 * 4 - 0.1;
+    bike.y = 0.5 * 4;
+    const x0 = bike.x;
+    run(bike, world, { brake: 1 }, 3);
+    expect(x0 - bike.x).toBeGreaterThan(1);
+  });
+});

@@ -40,6 +40,9 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Out of fuel during a job: the bike rolls to a stop, then the customer leaves ("MANA WE!", "UMVA, BE SERIOUS!") and you lose the fare; no smoke and no engine sound with an empty tank | Done |
 | Fuel moto (T, or the T touch button): a moto from the nearest station brings 1 litre (electric: a charged battery) for the station price + 20%; you pay when it comes; at any time | Done |
 | Guards against double payments: a job pays only once; the HUD removes its old listeners when it starts again | Done |
+| Walk the bike backwards (hold S / ↓ / STOP when it stands still): the rider gets off and pushes it back, the passenger stays on and loses comfort; works on murram, sand and grass; a hint when you are stuck | Done |
+| Fix: the bike can never be stuck in a wall (a crowd push cannot move it into a wall, and a bike that touches a wall can always move away) | Done |
+| Police find a way around buildings (A* path on the tiles) when they chase you and when they walk back | Done |
 | Fix: vehicle lights stay on the vehicle when it turns or jumps on a bump | Done |
 | Fix: building signs, road signs and police posts stand on whole pixels and fade with their building | Done |
 | Passenger and cargo jobs, cash, fares and tips | Done |

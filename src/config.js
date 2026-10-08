@@ -93,6 +93,8 @@ export const PHYSICS = {
   // It uses no fuel and does not wear the brakes, so a downshift is a free brake.
   engineBrakeMs2: 2.4,
   pushSpeedKmh: 4, // with no fuel or charge left, you push the bike at walking speed
+  stuckHintSeconds: 1.5, // throttle but no movement this long: a hint to walk the bike backwards
+  reverseMs2: 1.2, // walking the bike backwards: the push on top of the rolling resistance
   deadEngineDragMs2: 0.5, // no fuel: the bike rolls on with no engine braking (it slows down slowly)
   rideOffKmh: 7, // no fuel: the rider stays on the rolling bike until it is slower than this, then walks
   pushMs2: 1.2, // how fast you get to walking speed (on top of the ground resistance and the slope)
@@ -284,7 +286,7 @@ export const JOBS = {
   passenger: { base: 750, perGameKm: 300, maxTipFraction: 0.3, kg: 65 },
   cargo: { base: 600, perGameKm: 240, perKg: 18, kgMin: 20, kgMax: 80, fragileChance: 0.4 },
   // Passenger comfort lost (0..100) and cargo damage (fraction of pay, fragile cargo only).
-  comfortLoss: { pothole: 20, bumpHard: 15, wall: 35, crash: 50, hardBrakePerSecond: 25, offRoadPerSecond: 10 },
+  comfortLoss: { pothole: 20, bumpHard: 15, wall: 35, crash: 50, hardBrakePerSecond: 25, offRoadPerSecond: 10, reversePerSecond: 6 },
   // A passenger on the bike waits while you fill up, swap, see the mechanic or push the bike: the tip goes down.
   waitComfort: { atStop: 8, perSecond: 1.5 }, // guesses
   cargoDamage: { pothole: 0.1, bumpHard: 0.1, wall: 0.3, crash: 0.4, offRoadPerSecond: 0.03 },
@@ -588,6 +590,9 @@ export const MOMO = {
 
 // Traffic police on the corners of the junctions (decoration; later levels add helmet checks).
 export const POLICE = {
+  repathSeconds: 0.5, // a chasing officer finds a new way around the buildings this often
+  pathTiles: 12, // the path search looks this many tiles around the officer and the target
+  pathMaxNodes: 1500,
   jailKmh: 15, // hit an officer at this speed or more: jail, and the game is over — guess
   jailDelaySeconds: 2.5, // the time from the hit to the game over screen
   postFlashMs: 450, // the light on the POLICE post changes between blue and red

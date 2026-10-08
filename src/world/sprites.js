@@ -96,6 +96,7 @@ export function drawBike(type, frame, load = 'none', rider = true, pose = 'ride'
     blob([0.36, 0.56, 1.6], 2.6, look.helmet, 0.04); // helmet
     blob([0.44, 0.54, 1.58], 1.1, 0x9fd3f0, 0.05); // visor
     if (step > 0) blob([0.3, 0.75, 1.82], 0.9, 0x9fd3f0, 0.06); // sweat
+    if (load === 'passenger') drawPassenger(seg, blob, false); // the passenger stays on the seat
     if (load === 'bananas' || load === 'rice') return drawBikeLoad(c, parts, P, seg, blob, load);
     parts.sort((a, b) => a.depth - b.depth);
     for (const p of parts) p.draw();
@@ -119,14 +120,7 @@ export function drawBike(type, frame, load = 'none', rider = true, pose = 'ride'
   blob([0.16, 0, 1.66], 1.1, 0x9fd3f0, 0.04); // visor
 
   if (load === 'passenger') {
-    // Passenger on the back seat, with a helmet (the law in Kigali), holding the rider.
-    for (const side of [-1, 1]) {
-      seg([-0.48, 0.12 * side, 0.9], [-0.22, 0.2 * side, 0.74], 2.6, PASSENGER.trousers); // thigh
-      seg([-0.22, 0.2 * side, 0.74], [-0.32, 0.24 * side, 0.44], 2.2, PASSENGER.trousers); // shin to the foot peg
-      seg([-0.36, 0.18 * side, 1.36], [-0.08, 0.16 * side, 1.12], 2, SKIN); // arm round the rider
-    }
-    seg([-0.5, 0, 0.92], [-0.38, 0, 1.4], 4.4, PASSENGER.shirt, -0.02); // torso
-    blob([-0.36, 0, 1.64], 2.5, PASSENGER.helmet, -0.01); // helmet
+    drawPassenger(seg, blob, true);
   } else if (load === 'bananas' || load === 'rice') {
     return drawBikeLoad(c, parts, P, seg, blob, load);
   }
@@ -135,6 +129,21 @@ export function drawBike(type, frame, load = 'none', rider = true, pose = 'ride'
   for (const p of parts) p.draw();
   c.outline(0x161616);
   return c;
+}
+
+/**
+ * The passenger on the back seat, with a helmet (the law in Kigali). holdRider: the arms go round the
+ * rider; else (the rider walks beside the bike) the hands hold the seat.
+ */
+function drawPassenger(seg, blob, holdRider) {
+  for (const side of [-1, 1]) {
+    seg([-0.48, 0.12 * side, 0.9], [-0.22, 0.2 * side, 0.74], 2.6, PASSENGER.trousers); // thigh
+    seg([-0.22, 0.2 * side, 0.74], [-0.32, 0.24 * side, 0.44], 2.2, PASSENGER.trousers); // shin to the foot peg
+    if (holdRider) seg([-0.36, 0.18 * side, 1.36], [-0.08, 0.16 * side, 1.12], 2, SKIN); // arm round the rider
+    else seg([-0.4, 0.2 * side, 1.34], [-0.3, 0.22 * side, 0.92], 2, SKIN); // hand on the seat
+  }
+  seg([-0.5, 0, 0.92], [-0.38, 0, 1.4], 4.4, PASSENGER.shirt, -0.02); // torso
+  blob([-0.36, 0, 1.64], 2.5, PASSENGER.helmet, -0.01); // helmet
 }
 
 /** Cargo on the rear rack (bananas or a rice sack), then draw all the parts. */

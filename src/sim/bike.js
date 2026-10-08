@@ -168,16 +168,18 @@ export function stepBike(bike, input, world, dt) {
   }
   // input.hold: the bike stands at a station (fuel, swap, garage). The brake holds it; it never walks back.
   const reversing = brake > 0 && throttle === 0 && v < 0.3 && !input.hold;
+  bike.reversing = reversing; // the rider gets off and walks the bike backwards (see the ride scene)
   if (reversing) {
-    // Walk the bike backwards slowly, to get away from a wall.
+    // Walk the bike backwards slowly, to get away from a wall. The push must beat the rolling
+    // resistance (murram, sand, grass) and a slope behind the bike, like pushing with no fuel.
     const target = -spec.reverseSpeedKmh * KMH;
-    accel += v > target ? -1.5 : 0;
+    if (v > target) accel -= surface.rollingMs2 + Math.max(0, slopeAccel) + PHYSICS.reverseMs2;
   }
   v += accel * dt;
 
   // Drag always works against motion and never flips its direction.
   let drag = surface.rollingMs2 + PHYSICS.airDragPerMs * Math.abs(v);
-  if (throttle === 0 && !bike.pushing) {
+  if (throttle === 0 && !bike.pushing && !reversing) {
     // Petrol: engine braking grows with revs, so a downshift slows you without the brakes.
     // With no fuel the engine does not turn: no engine braking, the bike rolls on and slows down slowly.
     if (!engineRuns) drag += PHYSICS.deadEngineDragMs2;
@@ -243,7 +245,13 @@ export function stepBike(bike, input, world, dt) {
     }
   }
   // Moving things and poles near the bike (set by the game): vehicles, rival motos, people, lamps.
+  // Their push must not move the bike into a wall (it would be stuck there).
+  const bx = bike.x, by = bike.y, wasFree = !blocked(world, bx, by);
   hits.push(...collideBike(bike, world.dynamicAgents ?? []));
+  if (wasFree && blocked(world, bike.x, bike.y)) {
+    bike.x = bx;
+    bike.y = by;
+  }
   for (const h of hits) {
     events.push(h);
     // A hard hit throws the rider off the bike.
@@ -347,12 +355,17 @@ function scaleSpeed(bike, k) {
 }
 
 function blocked(world, x, y) {
-  if (world.isSolidAt(x, y, false)) return true;
+  return overlap(world, x, y) > 0;
+}
+
+/** How many of the probe points around (x, y) (and the centre) are in a wall. 0 = free. */
+function overlap(world, x, y) {
+  let n = world.isSolidAt(x, y, false) ? 1 : 0;
   for (let i = 0; i < PROBES; i++) {
     const a = (i / PROBES) * Math.PI * 2;
-    if (world.isSolidAt(x + Math.cos(a) * COLLISION_RADIUS, y + Math.sin(a) * COLLISION_RADIUS, false)) return true;
+    if (world.isSolidAt(x + Math.cos(a) * COLLISION_RADIUS, y + Math.sin(a) * COLLISION_RADIUS, false)) n++;
   }
-  return false;
+  return n;
 }
 
 /**
@@ -361,6 +374,14 @@ function blocked(world, x, y) {
  */
 function moveWithCollision(bike, world, dx, dy) {
   if (!blocked(world, bike.x + dx, bike.y + dy)) {
+    bike.x += dx;
+    bike.y += dy;
+    return 0;
+  }
+  // Already touching a wall (for example pushed there by a crowd): a move that does not go deeper
+  // into the wall is free, so the bike can always get away from it.
+  const now = overlap(world, bike.x, bike.y);
+  if (now > 0 && overlap(world, bike.x + dx, bike.y + dy) <= now) {
     bike.x += dx;
     bike.y += dy;
     return 0;
