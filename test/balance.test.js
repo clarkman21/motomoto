@@ -26,6 +26,12 @@ describe('balance: can the levels be passed?', () => {
     }
   });
 
+  it('hired riders (from level 7) add money each day', () => {
+    expect(row(6, 'average').fleet).toBe(0);
+    expect(row(7, 'average').fleet).toBeGreaterThan(3000);
+    expect(row(9, 'average').fleet).toBeCloseTo(2 * row(7, 'average').fleet);
+  });
+
   it('a beginner on level 1 loses only a little each day (time to learn before the cash runs out)', () => {
     expect(row(1, 'beginner').profit).toBeGreaterThan(-BALANCE.beginnerMaxLossPerDay);
   });

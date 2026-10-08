@@ -10,9 +10,12 @@ import { LEVELS, SAVINGS_FLOAT, MONEY, STREAK } from '../src/config.js';
 const world = new World(buildKigaliMap());
 
 describe('levels', () => {
-  it('has the first four levels from the spec, then free play', () => {
-    expect(LEVELS.slice(0, 4).map((l) => l.goal)).toEqual([15000, 25000, 40000, 60000]);
-    expect(levelDef(5).freePlay).toBe(true);
+  it('has the 10 levels from the spec, then free play', () => {
+    expect(LEVELS.slice(0, 10).map((l) => l.goal)).toEqual([15000, 25000, 40000, 60000, 80000, 120000, 160000, 220000, 300000, 400000]);
+    expect(LEVELS.slice(0, 10).every((l) => !l.freePlay)).toBe(true);
+    expect(levelDef(11).freePlay).toBe(true);
+    expect(levelDef(6).effect).toBe('rider1');
+    expect(levelDef(8).effect).toBe('rider2');
     expect(levelDef(1).shift).toEqual({ start: 19, end: 23, realSeconds: 240 });
   });
 
@@ -47,9 +50,9 @@ describe('levels', () => {
     expect(levelSettings(w).bikeType).toBe('electric');
   });
 
-  it('free play (level 5) has no milestone to buy yet', () => {
+  it('free play (after level 10) has no milestone to buy', () => {
     const w = createWallet(1e6);
-    w.level = 5;
+    w.level = 11;
     expect(milestoneReady(w)).toBe(false);
     expect(buyMilestone(w)).toBeNull();
   });
@@ -64,12 +67,12 @@ describe('levels', () => {
   });
 
   it('gets harder: more traffic, more rivals, faster offers, dearer petrol', () => {
-    for (let i = 1; i < 4; i++) {
+    for (let i = 1; i < 10; i++) {
       const a = levelDef(i), b = levelDef(i + 1);
       expect(b.traffic).toBeGreaterThanOrEqual(a.traffic);
       expect(b.rivals).toBeGreaterThan(a.rivals);
       expect(b.raceChance).toBeGreaterThan(a.raceChance);
-      expect(b.offerLife[1]).toBeLessThan(a.offerLife[1]);
+      expect(b.offerLife[1]).toBeLessThanOrEqual(a.offerLife[1]);
       expect(b.petrol).toBeGreaterThanOrEqual(a.petrol);
       expect(b.goal).toBeGreaterThan(a.goal);
     }

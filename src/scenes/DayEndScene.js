@@ -292,7 +292,7 @@ export class DayEndScene extends Phaser.Scene {
     for (const l of wrapRetro(next.news ?? '', n)) { T(y, l, UI.dim); y += LINE; }
     y += 4;
     const shift = `${String(next.shift.start).padStart(2, '0')}:00–${String(next.shift.end).padStart(2, '0')}:00`;
-    const goal = next.freePlay ? 'Free play: the next levels come in the next build.' : `Next goal: ${next.milestone} (${money(next.goal)}).`;
+    const goal = next.freePlay ? 'Free play: the house is finished. Ride on and keep the fleet busy.' : `Next goal: ${next.milestone} (${money(next.goal)}).`;
     for (const l of wrapRetro(`Shift ${shift} · ${next.rivals} rivals · fares ×${next.fare.toFixed(1)} · petrol ×${next.petrol.toFixed(1)}`, n)) { T(y, l, UI.grey); y += LINE; }
     for (const l of wrapRetro(goal, n)) { T(y, l, UI.grey); y += LINE; }
     const H = y + 6;

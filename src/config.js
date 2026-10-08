@@ -288,7 +288,7 @@ export const MONEY = {
 // ---------------------------------------------------------------------------
 export const BALANCE = {
   sampleJobs: 300,
-  targetDaysAverage: [5, 6, 7, 8], // an average player must pass levels 1 to 4 in this many days at most
+  targetDaysAverage: [5, 6, 7, 8, 9, 10, 11, 12, 13, 15], // an average player must pass levels 1 to 10 in this many days at most
   beginnerMaxLossPerDay: 1000, // a beginner on level 1 may lose at most this much each day
   policeFine: 5000, // a fine from a police officer (levels with no cameras)
   crashCost: 1200, // an average crash repair
@@ -509,14 +509,75 @@ export const LEVELS = [
     news: 'Kimihurura opens: the Convention Centre, Parliament and cobblestone lanes. Rush hour: heavy traffic, 10 rivals. Petrol +20%.',
   },
   {
-    n: 5, name: 'Electric rider', goal: 80000, milestone: 'A plot of land', kind: 'life', freePlay: true,
-    story: 'One day this plot will hold the family house.',
-    shift: { start: 6, end: 22, realSeconds: 360 }, rent: 6000,
+    n: 5, name: 'Electric rider', goal: 80000, milestone: 'A plot of land', kind: 'life',
+    story: 'You sign for a small plot of land in Kicukiro. The family walks round it in the evening: one day this will be the family house.',
+    shift: { start: 6, end: 22, realSeconds: 420 }, rent: 6000,
     traffic: 1.0, rivals: 12, cyclists: 3, raceChance: 0.5, offerLife: [15, 40], hailEvery: 1,
-    fare: 1.2, petrol: 1.3, cameras: true,
-    news: 'You ride electric now, and Kicukiro opens: busy junctions, workshops and trucks. Levels 6 to 10 (and Nyarutarama) come in the next build: free play.',
+    fare: 1.5, petrol: 1.3, cameras: true,
+    news: 'You ride electric now, and Kicukiro opens: busy junctions, workshops and trucks. Daily app quests and special jobs come on your phone.',
+  },
+  {
+    n: 6, name: 'City rider', goal: 120000, milestone: 'A second moto, with a hired rider', kind: 'asset', effect: 'rider1',
+    story: 'Your cousin Jean-Paul rides your second moto now. Each evening he brings you his rent, and he is proud to work.',
+    shift: { start: 6, end: 22, realSeconds: 420 }, rent: 6000,
+    traffic: 1.2, rivals: 14, cyclists: 3, raceChance: 0.55, offerLife: [12, 35], hailEvery: 0.8,
+    fare: 1.6, petrol: 1.4, cameras: true, events: { umuganda: 0.34 },
+    news: 'Nyarutarama opens: the golf course, the lake and big villas. On Umuganda days the roads are empty until 11:00, then everybody wants a moto.',
+  },
+  {
+    n: 7, name: 'Rainy season', goal: 160000, milestone: 'Foundation and walls of a house', kind: 'life',
+    story: 'The builders lay the foundation and the walls go up, brick by brick. Aline and Eric write their names in the wet cement.',
+    shift: { start: 6, end: 22, realSeconds: 420 }, rent: 6000,
+    traffic: 1.2, rivals: 16, cyclists: 2, raceChance: 0.6, offerLife: [12, 35], hailEvery: 0.8,
+    fare: 1.7, petrol: 1.5, cameras: true, events: { umuganda: 0.25, rain: 0.5 },
+    news: 'The rainy season: on rainy days the murram is wet and slippery, but everybody wants a moto, and fares are higher.',
+  },
+  {
+    n: 8, name: 'Match days', goal: 220000, milestone: 'A third moto, with a second hired rider', kind: 'asset', effect: 'rider2',
+    story: 'A third moto joins your little fleet, and your neighbour Claudine rides it. People in the street start to call you "boss".',
+    shift: { start: 6, end: 22, realSeconds: 420 }, rent: 6000,
+    traffic: 1.4, rivals: 18, cyclists: 3, raceChance: 0.65, offerLife: [10, 30], hailEvery: 0.7,
+    fare: 1.8, petrol: 1.6, cameras: true, events: { umuganda: 0.25, rain: 0.35 },
+    news: 'Heavy traffic all day and more rivals. Your hired rider pays you each evening: look after the fleet.',
+  },
+  {
+    n: 9, name: 'Fleet owner', goal: 300000, milestone: 'Roof, doors and windows', kind: 'life',
+    story: 'The roof goes on, with blue doors and big windows. When it rains now, the house stays dry.',
+    shift: { start: 6, end: 22, realSeconds: 420 }, rent: 6000,
+    traffic: 1.5, rivals: 20, cyclists: 3, raceChance: 0.7, offerLife: [10, 30], hailEvery: 0.6,
+    fare: 1.9, petrol: 1.7, cameras: true, events: { umuganda: 0.25, rain: 0.4 },
+    news: 'You run a fleet of three motos. All the events of the city, and the toughest competition yet.',
+  },
+  {
+    n: 10, name: 'Kigali legend', goal: 400000, milestone: 'Finish the house and move in', kind: 'life',
+    story: 'The whole family moves into the new house. Uwase cooks for the neighbours, the children paint their rooms, and you park three motos by the gate. You are a Kigali legend.',
+    shift: { start: 6, end: 22, realSeconds: 420 }, rent: 6000,
+    traffic: 1.6, rivals: 24, cyclists: 3, raceChance: 0.75, offerLife: [8, 25], hailEvery: 0.6,
+    fare: 2.0, petrol: 1.8, cameras: true, events: { umuganda: 0.3, rain: 0.5 },
+    news: 'The last goal: finish the house. Events come more often, and the city is at its busiest.',
+  },
+  {
+    n: 11, name: 'Free play', goal: 0, milestone: 'Free play', kind: 'life', freePlay: true,
+    story: 'You have done it. Ride on for the joy of it, and keep the fleet busy.',
+    shift: { start: 6, end: 22, realSeconds: 420 }, rent: 6000,
+    traffic: 1.6, rivals: 24, cyclists: 3, raceChance: 0.75, offerLife: [8, 25], hailEvery: 0.6,
+    fare: 2.0, petrol: 1.8, cameras: true, events: { umuganda: 0.3, rain: 0.5 },
+    news: 'Free play: the house is finished. Ride for the joy of it.',
   },
 ];
+
+// Hired riders (levels 6 and 8: a second and a third moto). The rider rides your moto in the city and
+// pays you a daily rent; you pay the service and repairs. Some days go badly. Guesses (from the spec).
+export const FLEET = {
+  rentPerDay: 6000, // the same rent you paid at level 1
+  costPerDay: 600, // service of an electric moto
+  badDayChance: 0.1, // about 1 day in 10: a crash (a repair) or no rent
+  repair: [3000, 8000],
+  helpChance: 0.35, // a day when the rider calls you for help (out of battery or a flat tyre)
+  helpMinutes: 1.5, // real minutes to get to the rider; if you come, the day goes on; if not, no rent that day
+  helpReward: 0, // the rent is the reward
+  speedKmh: 30,
+};
 
 export const STREAK = { step: 0.1, max: 1.5, minComfort: 80 }; // clean ride streak: fares × (1 + streak)
 

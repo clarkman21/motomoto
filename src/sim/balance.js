@@ -1,4 +1,4 @@
-import { BALANCE, JOBS, MONEY, MAINTENANCE, LAW, SAVINGS_FLOAT, LEVELS } from '../config.js';
+import { BALANCE, JOBS, MONEY, MAINTENANCE, LAW, SAVINGS_FLOAT, LEVELS, FLEET } from '../config.js';
 import { makeOffer, mulberry32, tripMetres } from './jobs.js';
 import { legFuel } from './fuel.js';
 import { districtsForLevel } from './levels.js';
@@ -28,8 +28,14 @@ export function sampleJobs(world, level, n = BALANCE.sampleJobs, seed = 7) {
   return { pay: pay / n, tripMetres: trip / n, approachMetres: approach / Math.max(1, n - 1), kg: kg / n };
 }
 
-/** The money of one day at a level, for a player profile. jobs: from sampleJobs. */
-export function dayEstimate(level, jobs, player, bikeType = 'petrol') {
+/** The expected money from one hired rider in one day (rent, less costs and bad days). */
+export function fleetDayNet() {
+  const avgRepair = (FLEET.repair[0] + FLEET.repair[1]) / 2;
+  return FLEET.rentPerDay * (1 - FLEET.badDayChance / 2) - FLEET.costPerDay - (FLEET.badDayChance / 2) * avgRepair;
+}
+
+/** The money of one day at a level, for a player profile. jobs: from sampleJobs. riders: hired riders. */
+export function dayEstimate(level, jobs, player, bikeType = 'petrol', riders = 0) {
   const metresPerJob = jobs.tripMetres + jobs.approachMetres;
   const rideSeconds = metresPerJob / (player.kmh / 3.6);
   const jobSeconds = rideSeconds + player.overheadSeconds;
@@ -44,7 +50,8 @@ export function dayEstimate(level, jobs, player, bikeType = 'petrol') {
   const fines = player.finesPerDay * (level.cameras ? LAW.cameraFine : BALANCE.policeFine);
   const repairs = player.crashesPerDay * BALANCE.crashCost;
   const costs = level.rent + energy + service + fines + repairs;
-  return { jobsPerDay, income, energy, service, fines, repairs, rent: level.rent, costs, profit: income - costs };
+  const fleet = riders * fleetDayNet();
+  return { jobsPerDay, income, energy, service, fines, repairs, rent: level.rent, costs, fleet, profit: income + fleet - costs };
 }
 
 /**
@@ -59,7 +66,8 @@ export function levelReport(world, players = BALANCE.players) {
     for (const level of LEVELS) {
       if (level.freePlay) continue;
       const bikeType = level.n > 4 ? 'electric' : 'petrol';
-      const day = dayEstimate(level, sampleJobs(world, level), player, bikeType);
+      const riders = LEVELS.filter((l) => l.n < level.n && (l.effect === 'rider1' || l.effect === 'rider2')).length;
+      const day = dayEstimate(level, sampleJobs(world, level), player, bikeType, riders);
       const need = level.goal + SAVINGS_FLOAT - cash;
       const days = day.profit > 0 ? Math.max(1, Math.ceil(need / day.profit)) : Infinity;
       rows.push({ level: level.n, player: name, ...day, days });
