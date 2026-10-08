@@ -231,6 +231,8 @@ export const PALETTE = {
   paintLime: 0xc8dc78, paintOchre: 0xe0b860, paintCream: 0xefe4c8, paintTerracotta: 0xd07a50,
   // Roofs and walls
   tin: 0x9a9e9c, tinRust: 0x9a5a3a, clayTile: 0xb5543a, roofRed: 0x9a2f2a, roofGreen: 0x3f7f4a, roofBlue: 0x2f5f9a,
+  // The flag of Rwanda: sky blue, yellow, green (the flag's own yellow, not Surge Yellow)
+  rwBlue: 0x20a0e0, rwYellow: 0xe5be01, rwGreen: 0x20603d,
   slate: 0x4a4e58, water: 0x3f7fb8, waterLight: 0x8ac0e8, concrete: 0xb5b0a5, mudWall: 0xa8724a, mudLight: 0xc08a5a, brick: 0x9a4a32, stone: 0x6a645a,
   // Police
   uniform: 0x1c2a5a, policeWhite: 0xf4f4f4, boots: 0x101010, policeSilver: 0xd8dce4,

@@ -24,7 +24,7 @@ const CHAR_INFO = {
   p: { surface: 'pavement' },
   r: { surface: 'water', solid: true },
   s: { surface: 'sand' },
-  K: { surface: 'tarmac', block: 'dome', blockLevels: 1 },
+  K: { surface: 'pavement', block: 'dome', blockLevels: 1 }, // the KCC: a plaza under the dome
 };
 
 // Building styles (map data 'styles': one character per tile). They change the look of a building.
@@ -148,7 +148,7 @@ export class World {
       }
       nextId++;
     }
-    // The Convention Centre dome: each tile is a step of a round dome (high in the middle).
+    // The Convention Centre dome: the height of each tile (for collisions and the canvas). The front tile draws the whole egg.
     const domeHeight = new Map();
     const domeTiles = this.tiles.filter((t) => t.block === 'dome');
     for (const id of new Set(domeTiles.map((t) => ids.get(t)))) {

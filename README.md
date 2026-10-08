@@ -50,6 +50,7 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Full game, city phase 1: tall thin palms; plain white government buses; truck taglines (GOD IS WIN, JESUS SAVE ME, JESUS TAKE THE WHEEL) | Done |
 | Round roundabouts: one way (anticlockwise), cars give way to the ring, a grass island with flower beds; the MTN roundabout with the yellow MTN fountain; the town, KCC and US Embassy roundabouts | Done |
 | The Kacyiru boulevard: a double carriageway with palms, flower beds and lamps in the median; you turn only at junctions; it ends at the US Embassy roundabout (a concrete castle with a US flag) | Done |
+| The KCC dome: one egg shape like a woven basket, in the colours of the flag of Rwanda (blue with the sun, yellow, green); it shines in these colours at night. Government buildings and the Kacyiru ministries fly a waving flag of Rwanda | Done |
 | The car free zone: the I LOVE KIGALI sign, and an officer who chases motos that ride in (as on the pavement) | Done |
 | New houses: colourful paint, pitched tin roofs, steep dark roofs on new apartments, mud houses with bricks that show and rusty roofs with stones (Nyabugogo); a row of houses is a row of small separate houses | Done |
 | Fix: building signs, road signs and police posts stand on whole pixels and fade with their building | Done |

@@ -222,8 +222,9 @@ export function drawBlock(block, world) {
   // Canvas bounds: the tile footprint from base to top, with room for tree crowns.
   const pad = block.kind === 'tree' ? (block.style === 'palm' ? 18 : 16) : block.kind === 'monument' ? 8 : block.kind === 'fuel' ? 22 : block.kind === 'garage' ? 6
     : block.kind === 'fountain' ? 64
+    : block.kind === 'dome' ? 240
     : block.kind === 'lovesign' ? 72
-    : block.kind === 'building' ? (block.style === 'government' || block.style === 'embassy' ? 52 : 14 + Math.ceil((buildingLook(block, world).roof?.levels ?? 0) * WORLD.levelPx)) : 2; // room for roofs, tanks and flags
+    : block.kind === 'building' ? (block.style === 'government' || block.style === 'embassy' || (block.style === 'office' && world.tile(block.tx, block.ty)?.district === 'kacyiru') ? 64 : 14 + Math.ceil((buildingLook(block, world).roof?.levels ?? 0) * WORLD.levelPx)) : 2; // room for roofs, tanks and flags
   const corners = [];
   for (const [x, y] of [[tx, ty], [tx + 1, ty], [tx + 1, ty + 1], [tx, ty + 1]]) {
     corners.push(pt(x, y, block.baseLevel), pt(x, y, block.topLevel));
@@ -349,6 +350,8 @@ function drawBuilding(c, block, pt, world, glow) {
   const { tx, ty, baseLevel, topLevel, groupId } = block;
   const { style, roof: pitched } = buildingLook(block, world);
   const look = STYLE_LOOKS[style] ?? STYLE_LOOKS.house;
+  // The offices in Kacyiru are the ministries (Alp): they fly the flag of Rwanda too.
+  const ministry = style === 'office' && world.tile(tx, ty)?.district === 'kacyiru';
   const pick = pitched?.single ? Math.floor(hash2(tx, ty, groupId) * 97) : groupId; // small houses in a row differ
   const wall = look.walls[pick % look.walls.length];
   const roof = look.roofs[(pick >> 1) % look.roofs.length];
@@ -494,13 +497,8 @@ function drawBuilding(c, block, pt, world, glow) {
         c.plot(p.x + x, p.y + r + wave, col);
       }
     }
-  } else if (look.flag && isFlagTile(block, world)) {
-    drawBox(c, tx + 0.48, ty + 0.48, tx + 0.53, ty + 0.53, topLevel, topLevel + 3, pt, flat(0xd8d8d8), side(0xc0c0c0, 0.8), side(0xc0c0c0, 1));
-    // The flag of Rwanda: blue (with the sun), yellow, green. The yellow is the flag's own, not Surge Yellow.
-    const p = pt(tx + 0.5, ty + 0.5, topLevel + 3);
-    const colours = [0x20a0e0, 0x20a0e0, 0xe5be01, 0x20603d];
-    for (let r = 0; r < 4; r++) for (let x = 1; x <= 7; x++) c.plot(p.x + x, p.y + r, colours[r]);
-    c.plot(p.x + 6, p.y, 0xe5be01);
+  } else if ((look.flag || ministry) && isFlagTile(block, world)) {
+    drawRwandaFlag(c, pt, tx + 0.5, ty + 0.5, topLevel);
   }
 }
 
@@ -576,6 +574,27 @@ function drawPitchedRoof(c, block, pt, r, roofColour, wallColour, look, style) {
       c.plot(p.x + 1, p.y, P.stone);
     }
   }
+}
+
+/**
+ * The flag of Rwanda on a tall pole (government buildings and ministries): a blue band (half of
+ * the flag) with the golden sun at the fly end, then yellow, then green. It waves a little.
+ */
+function drawRwandaFlag(c, pt, x, y, top) {
+  const pole = (k) => () => shadeColour(P.chrome, k);
+  drawBox(c, x - 0.03, y - 0.03, x + 0.03, y + 0.03, top, top + 3.4, pt, pole(1), pole(0.68), pole(0.86));
+  const p = pt(x, y, top + 3.4);
+  const W = 14, H = 8;
+  for (let fx = 1; fx <= W; fx++) {
+    const wave = Math.round(Math.sin(fx * 0.55) * 1.3);
+    for (let r = 0; r < H; r++) {
+      const col = r < H / 2 ? P.rwBlue : r < (H * 3) / 4 ? P.rwYellow : P.rwGreen;
+      c.plot(p.x + fx, p.y + r + wave, col);
+    }
+  }
+  // The sun near the fly end of the blue band.
+  const sx = p.x + W - 2, sy = p.y + 1 + Math.round(Math.sin((W - 2) * 0.55) * 1.3);
+  for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1], [-1, 0], [2, 1], [0, -1], [1, 2]]) c.plot(sx + dx, sy + dy, P.rwYellow);
 }
 
 /** The flag stands on one tile of a government building: the one with the smallest x + y. */
@@ -714,19 +733,60 @@ function drawPalm(c, block, pt, world) {
   c.outline(PALM.outline);
 }
 
-// The Convention Centre dome: white steps with ribs. At night it shines in many colours.
-const DOME_NIGHT = [0xff4fa0, 0x4fb0ff, 0x7cff6a, 0xffa040, 0xb070ff];
+// The Kigali Convention Centre dome (Alp): an egg shape like a woven basket, in the colours of the
+// flag of Rwanda: blue at the top (with the golden sun), then yellow, then green. At night it shines
+// in the same colours. The tile at the front of the dome draws all of it; the other tiles of the
+// dome draw nothing (they are there for collisions).
+const DOME = { radiusTiles: 2.9, heightLevels: 11 };
+function domeGroup(world, block) {
+  const tiles = world.blocks.filter((b) => b.kind === 'dome' && b.groupId === block.groupId);
+  const x0 = Math.min(...tiles.map((t) => t.tx)), x1 = Math.max(...tiles.map((t) => t.tx)) + 1;
+  const y0 = Math.min(...tiles.map((t) => t.ty)), y1 = Math.max(...tiles.map((t) => t.ty)) + 1;
+  const front = tiles.reduce((f, t) => (t.tx + t.ty > f.tx + f.ty ? t : f), tiles[0]);
+  return { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, front };
+}
 function drawDome(c, block, pt, world, glow) {
-  const { tx, ty, baseLevel, topLevel } = block;
-  const night = DOME_NIGHT[Math.round(topLevel) % DOME_NIGHT.length];
-  const wallShade = (k) => (along, z, px, py) => {
-    const rib = (along * 4) % 1 < 0.12;
-    const col = rib ? 0xc9cdd2 : 0xeef0f2;
-    if (glow && z - baseLevel > 0.5) glow.setPixel(px, py, shadeColour(night, 0.75 + 0.25 * k), rib ? 160 : 230);
-    return shadeColour(col, k);
-  };
-  const roofShade = (u, v, px, py) => (hash2(px + c.ox, py + c.oy, 4) > 0.93 ? 0xd8dce0 : 0xf6f7f8);
-  drawBox(c, tx, ty, tx + 1, ty + 1, baseLevel, topLevel, pt, roofShade, wallShade(0.72), wallShade(0.88), visibleFaces(block, world));
+  const g = domeGroup(world, block);
+  if (g.front !== block) return; // only the front tile draws the dome
+  const ground = world.heightAt(g.cx * WORLD.tileMetres, g.cy * WORLD.tileMetres) / WORLD.levelMetres;
+  const { radiusTiles: R, heightLevels: H } = DOME;
+  // Stacked slices from the bottom up: a higher slice hides what is behind it (the camera looks down).
+  const step = 1 / WORLD.levelPx; // one pixel of height
+  for (let z = 0; z <= H; z += step) {
+    const t = z / H;
+    const rho = R * Math.sqrt(Math.max(0, 1 - t * t)) * (1 - 0.1 * t); // an egg: wider low down
+    if (rho <= 0.02) break;
+    const centre = pt(g.cx, g.cy, ground + z);
+    const hw = rho * (WORLD.tileWidthPx / 2), hh = rho * (WORLD.tileHeightPx / 2);
+    const band = t > 0.55 ? P.rwBlue : t > 0.3 ? P.rwYellow : P.rwGreen; // the flag: blue, yellow, green
+    for (let y = Math.floor(-hh); y <= hh; y++) {
+      const w = hw * Math.sqrt(Math.max(0, 1 - (y / hh) ** 2));
+      for (let x = Math.floor(-w); x <= w; x++) {
+        // The point on the slice (world offsets) gives the angle round the dome.
+        const wx = (x / (WORLD.tileWidthPx / 2) + y / (WORLD.tileHeightPx / 2)) / 2;
+        const wy = (y / (WORLD.tileHeightPx / 2) - x / (WORLD.tileWidthPx / 2)) / 2;
+        const a = Math.atan2(wy, wx);
+        // The woven basket: two sets of diagonal strips that cross.
+        const u = (a / (Math.PI * 2)) * 18, v = z * 0.9;
+        const weave = (u + v) % 1 < 0.14 || (((u - v) % 1) + 1) % 1 < 0.14;
+        const face = t > 0.62 ? 'top' : faceTone(Math.cos(a), Math.sin(a));
+        let col = tone(band, face);
+        if (weave) col = tone(band, face === 'right' ? 'right' : face === 'left' ? 'right' : 'left');
+        c.plot(centre.x + x, centre.y + y, col);
+        if (glow) glow.setPixel(Math.floor(centre.x + x - c.ox), Math.floor(centre.y + y - c.oy), band, weave ? 140 : 210);
+      }
+    }
+  }
+  // The golden sun of the flag on the blue part, on the front left.
+  const sun = pt(g.cx + R * 0.35, g.cy + R * 0.55, ground + H * 0.7);
+  for (let k = 0; k < 24; k++) {
+    const a = (k / 24) * Math.PI * 2;
+    for (const d of [5, 6]) c.plot(sun.x + Math.round(Math.cos(a) * d), sun.y + Math.round(Math.sin(a) * d * 0.8), P.rwYellow); // the 24 rays
+  }
+  c.fillDisc(sun.x, sun.y, 3.4, P.rwYellow);
+  c.fillDisc(sun.x, sun.y, 2.2, P.rwBlue); // the blue ring in the sun
+  c.fillDisc(sun.x, sun.y, 1.6, P.rwYellow);
+  if (glow) glow.setPixel(Math.floor(sun.x - c.ox), Math.floor(sun.y - c.oy), P.rwYellow, 255);
 }
 
 /**
