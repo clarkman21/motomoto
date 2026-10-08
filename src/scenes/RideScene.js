@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS } from '../config.js';
+import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS, FLEET } from '../config.js';
 import { World } from '../world/world.js';
 import { buildKigaliMap } from '../world/maps/kigali.js';
 import { ChunkStreamer, groupKey } from './chunks.js';
@@ -41,6 +41,7 @@ import { SignView } from './SignView.js';
 import { daylight } from '../sim/daylight.js';
 import { pickDayEvent, eventStage, eventBark, rainTint, parkTraffic, wakeTraffic } from '../sim/events.js';
 import { RainView } from './RainView.js';
+import { fleetRiders, planFleetDay, attachFleet, stepFleet, waitingRider, fleetDayMoney } from '../sim/fleet.js';
 import { dayStats, pickQuests, recordDelivery, recordFine, checkQuests, maybeMission, stepMission, missionResult, findSecret } from '../sim/missions.js';
 
 const FIXED_DT = 1 / 120; // physics step in seconds
@@ -125,6 +126,10 @@ export class RideScene extends Phaser.Scene {
     addCanvasTexture(this, 'pin-rival', drawMarkerPin(0xec5825));
     this.rivalPin = this.add.image(0, 0, 'pin-rival').setOrigin(0.5, 1).setDepth(1e5).setVisible(false);
     this.rivalPin.noAmbient = true;
+    // A blue pin over a hired rider who waits for your help (the blue of the riders' helmets).
+    addCanvasTexture(this, 'pin-help', drawMarkerPin(0x3a7fd0));
+    this.helpPin = this.add.image(0, 0, 'pin-help').setOrigin(0.5, 1).setDepth(1e5).setVisible(false);
+    this.helpPin.noAmbient = true;
     // The bike collides with vehicles, people and poles near it (see sim/collide.js).
     this.world.dynamicAgents = [];
 
@@ -628,6 +633,8 @@ export class RideScene extends Phaser.Scene {
     for (const kind of ['car', 'bus', 'truck']) counts[kind] = Math.round(TRAFFIC.perDistrict[kind] * L.districts.length * L.traffic);
     counts.moto = L.rivals;
     counts.cyclist = (L.cyclists ?? 0) * L.districts.length; // slow bicycles from level 3
+    const riders = fleetRiders(this.wallet);
+    counts.fleet = riders.length; // your hired riders (levels 6 and 8)
     this.trafficView?.destroy();
     this.peopleView?.destroy();
     this.traffic = createTraffic(this.world, this.roadGraph, mulberry32(Date.now() & 0xffff), counts);
@@ -636,6 +643,9 @@ export class RideScene extends Phaser.Scene {
     this.eventStage = undefined; // #updateEvent barks at the first frame
     this.world.rain = this.dayEvent === 'rain';
     this.rainView.setRain(this.world.rain);
+    // The plan of the day for the hired riders: bad days and calls for help (none on the Umuganda morning).
+    this.fleetPlan = planFleetDay(riders, this.wallet.day, L.shift, this.dayEvent === 'umuganda' ? EVENTS.umuganda.endHour : L.shift.start);
+    attachFleet(this.traffic, this.fleetPlan, mulberry32(this.wallet.day * 53 + 1));
     if (this.dayEvent === 'umuganda') parkTraffic(this.traffic, EVENTS.umuganda.trafficShare, mulberry32(this.wallet.day * 31 + 5));
     this.trafficView = new TrafficView(this, this.traffic);
     this.lights.setTraffic(this.traffic);
@@ -692,7 +702,12 @@ export class RideScene extends Phaser.Scene {
     cancelMission(this.raceRival);
     this.raceRival = null;
     this.refuel = null;
+    // The hired riders pay their rent (sim/fleet.js), and you pay the service of their motos.
+    const fleet = fleetDayMoney(this.fleetPlan ?? []);
+    if (fleet.rent) earn(this.wallet, 'fleet', fleet.rent);
+    if (fleet.costs) spend(this.wallet, 'fleet', fleet.costs);
     const summary = endDay(this.wallet, this.bike, this.level.rent);
+    summary.fleetLines = fleet.lines;
     summary.level = this.level;
     summary.event = this.dayEvent;
     // Game over: stranded (an empty tank and no cash), or below zero cash after the rent. There is no loan.
@@ -867,7 +882,7 @@ export class RideScene extends Phaser.Scene {
           continue;
         }
         if (e.type === 'wall' && e.hit?.kind) {
-          this.events.emit('bark', `Crash! You hit a ${e.hit.kind === 'moto' ? 'moto' : e.hit.kind === 'bus' ? 'minibus' : e.hit.kind === 'cyclist' ? 'cyclist' : e.hit.kind}`);
+          this.events.emit('bark', `Crash! You hit a ${e.hit.kind === 'moto' ? 'moto' : e.hit.kind === 'fleet' ? 'moto of your fleet' : e.hit.kind === 'bus' ? 'minibus' : e.hit.kind === 'cyclist' ? 'cyclist' : e.hit.kind}`);
           e.hit.stopTimer = 2; // the other driver stops
           continue;
         }
@@ -884,6 +899,7 @@ export class RideScene extends Phaser.Scene {
     this.#updateRescue(dt);
     this.#updateStation();
     this.#updateEvent(dt);
+    this.#updateFleet(dt);
     updateBoard(this.board, this.world, dt);
     this.#updateJobFuel(dt);
     this.speedLimit = speedLimitAt(this.world, this.bike.x, this.bike.y);
@@ -1302,6 +1318,35 @@ export class RideScene extends Phaser.Scene {
   }
 
   // A red pin over the rival who races you to your pickup.
+  /** The hired riders: their work on the map, and their calls for help. */
+  #updateFleet(dt) {
+    const b = this.bike, view = this.cameras.main.worldView;
+    const inView = (x, y) => {
+      const s = toScreen(x, y, this.world.heightAt(x, y));
+      return s.x > view.x - 60 && s.x < view.right + 60 && s.y > view.y - 60 && s.y < view.bottom + 60;
+    };
+    const speed = Math.abs(forwardSpeed(b));
+    for (const e of stepFleet(this.traffic, this.fleetPlan, { x: b.x, y: b.y, speed }, this.clockHours, dt, this.rng, inView)) {
+      const name = e.rider.name;
+      if (e.type === 'call') {
+        const what = e.rider.help.problem === 'battery' ? 'the battery is empty' : 'a flat tyre';
+        const t = FLEET.helpMinutes * 60;
+        this.events.emit('bark', `${name} calls: ${what}! Ride to the blue pin within ${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}, or the rent of today is lost.`);
+        this.engineSound.jingle('reward');
+      } else if (e.type === 'helped') {
+        this.events.emit('bark', `You help ${name}: ${e.rider.help.problem === 'battery' ? 'a fresh battery from the swap station' : 'the tyre is fixed'}. "Thank you, boss!"`);
+        this.engineSound.jingle('reward');
+      } else if (e.type === 'missed') this.events.emit('bark', `${name} waited too long for help. No rent from ${name} today.`);
+    }
+    const w = waitingRider(this.traffic);
+    this.helpWait = w;
+    this.helpPin.setVisible(!!w);
+    if (w) {
+      const v = w.vehicle, s = toScreen(v.x, v.y, this.world.heightAt(v.x, v.y));
+      this.helpPin.setPosition(s.x, s.y - 30 - 3 * Math.sin(this.time.now / 200));
+    }
+  }
+
   #updateRivalPin() {
     const v = this.raceRival;
     const show = !!v && !!v.mission;

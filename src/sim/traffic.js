@@ -147,7 +147,8 @@ function gapAhead(v, others) {
     }
     const side = Math.abs(-rx * fy + ry * fx);
     // A cyclist at the road edge and a car in the lane can pass each other when there is room.
-    const cyclist = o.kind === 'cyclist' || v.kind === 'cyclist';
+    // A moto that stands at the roadside (o.roadside: a hired rider who waits for help) counts the same.
+    const cyclist = o.kind === 'cyclist' || v.kind === 'cyclist' || o.roadside;
     const room = cyclist ? (v.width + (o.width ?? 0.8)) / 2 + 0.25 : 1.6 + (o.width ?? 0.8) / 2;
     if (side > room) continue;
     const free = along - v.length / 2 - (o.length ?? 1) / 2;
@@ -297,6 +298,13 @@ export function sendBusToPark(traffic, v, parkEdge) {
   v.route = best.route;
   v.lastStop = null;
   return true;
+}
+
+/** Move a vehicle to a point s on an edge (for example a hired rider who calls for help). */
+export function moveVehicle(v, edge, s, rng) {
+  Object.assign(v, { edge, s, prev: null, route: [], speed: 0 });
+  v.next = chooseNext(v, edge.to, rng);
+  place(v);
 }
 
 /** True if a point is inside a vehicle's footprint (a rectangle turned to its heading). */

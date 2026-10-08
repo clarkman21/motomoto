@@ -71,6 +71,7 @@ export class DayEndScene extends Phaser.Scene {
     for (const l of wrapRetro(`${bikeName} · ${summary.gameKm.toFixed(1)} km${offRoad} · service ${Math.round(summary.serviceDue * 100)}%`, n)) { T(10, y, l, UI.dim); y += LINE; }
     const event = eventSummary(summary.event);
     if (event) for (const l of wrapRetro(event, n)) { T(10, y, l, UI.orange); y += LINE; }
+    for (const line of summary.fleetLines ?? []) for (const l of wrapRetro(line, n)) { T(10, y, l, UI.dim); y += LINE; }
     // The family card: what today's money means at home.
     const story = dayEndStory(summary);
     const cardTop = y + 4;

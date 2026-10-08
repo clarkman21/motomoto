@@ -1,7 +1,7 @@
 import { WORLD, TRAFFIC } from '../config.js';
 import { toScreen } from '../world/iso.js';
 import { bikeFrameForHeading, BIKE_DIRECTIONS, BIKE_CANVAS } from '../world/sprites.js';
-import { drawVehicle, drawRivalMoto, drawCyclist, VEHICLE_CANVAS, VEHICLE_VARIANTS } from '../world/vehicle-sprites.js';
+import { drawVehicle, drawRivalMoto, drawFleetMoto, drawCyclist, VEHICLE_CANVAS, VEHICLE_VARIANTS } from '../world/vehicle-sprites.js';
 import { packShelves } from './chunks.js';
 
 // Draws the traffic: one sprite and one shadow per vehicle, all frames in one atlas.
@@ -15,7 +15,7 @@ export class TrafficView {
     // Dormant vehicles (off the road on an Umuganda morning) get sprites too, hidden until they come back.
     for (const v of [...traffic.vehicles, ...(traffic.dormant ?? [])]) {
       const shadow = scene.add.image(0, 0, 'shadow').setAlpha(0.9).setVisible(false);
-      const moto = v.kind === 'moto' || v.kind === 'cyclist'; // two wheels: the bike canvas
+      const moto = v.kind === 'moto' || v.kind === 'fleet' || v.kind === 'cyclist'; // two wheels: the bike canvas
       const c = moto ? BIKE_CANVAS : VEHICLE_CANVAS;
       const img = scene.add.image(0, 0, 'vehicles', this.#frame(v)).setOrigin(c.groundX / c.width, c.groundY / c.height).setVisible(false);
       // Shadow size from the vehicle size (the shadow texture is 24 × 12 px).
@@ -26,7 +26,7 @@ export class TrafficView {
 
   #frame(v) {
     const f = bikeFrameForHeading(v.heading);
-    if (v.kind === 'moto') return `moto-${v.loaded ? 'passenger' : 'none'}-${f}`;
+    if (v.kind === 'moto' || v.kind === 'fleet') return `${v.kind}-${v.loaded ? 'passenger' : 'none'}-${f}`;
     if (v.kind === 'cyclist') return `cyclist-${v.variant}-${f}`;
     return `${v.kind}-${v.variant}-${f}`;
   }
@@ -44,6 +44,7 @@ export class TrafficView {
     }
     for (const load of ['none', 'passenger']) {
       for (let f = 0; f < BIKE_DIRECTIONS; f++) frames.push({ name: `moto-${load}-${f}`, canvas: drawRivalMoto(f, load) });
+      for (let f = 0; f < BIKE_DIRECTIONS; f++) frames.push({ name: `fleet-${load}-${f}`, canvas: drawFleetMoto(f, load) });
     }
     const { width, height, places } = packShelves(frames.map((fr) => fr.canvas));
     const tex = this.scene.textures.createCanvas('vehicles', width, height);

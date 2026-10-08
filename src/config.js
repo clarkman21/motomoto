@@ -408,6 +408,8 @@ export const TRAFFIC = {
     bus: { length: 5.0, width: 1.9, maxKmh: 45, accel: 1.8, brake: 5, limitFactor: 1.0, hillSlowdown: 1.6, minHillFactor: 0.35, exhaust: 1.0, variants: 2 },
     truck: { length: 7.0, width: 2.4, maxKmh: 35, accel: 1.0, brake: 4, limitFactor: 0.9, hillSlowdown: 2.4, minHillFactor: 0.18, exhaust: 2.0, variants: 3 },
     moto: { length: 2.0, width: 0.8, maxKmh: 55, accel: 3.5, brake: 7, limitFactor: 1.1, hillSlowdown: 0.8, minHillFactor: 0.5, exhaust: 0.6, variants: 1 },
+    // Your hired riders on your electric motos: they keep to the speed limit, and an electric moto has no exhaust.
+    fleet: { length: 2.0, width: 0.8, maxKmh: 50, accel: 3.5, brake: 7, limitFactor: 1.0, hillSlowdown: 0.6, minHillFactor: 0.6, exhaust: 0, variants: 1 },
     // Cyclists ride slowly at the edge of the road (laneOffset), so cars can pass them. Very slow uphill.
     cyclist: { length: 1.8, width: 0.6, maxKmh: 16, accel: 0.8, brake: 4, limitFactor: 1, hillSlowdown: 4, minHillFactor: 0.3, exhaust: 0, variants: 3, laneOffset: 3.6 },
   },
@@ -592,6 +594,12 @@ export const FLEET = {
   helpMinutes: 1.5, // real minutes to get to the rider; if you come, the day goes on; if not, no rent that day
   helpReward: 0, // the rent is the reward
   speedKmh: 30,
+  names: ['Jean-Paul', 'Claudine'], // the hired riders, in the order you hire them (levels 6 and 8)
+  helpRangeMetres: 6, // stop this near the rider to help
+  helpStopKmh: 8, // and this slow
+  helpWorkSeconds: 3, // the time to fix the problem
+  callDistance: [120, 350], // metres from you: where the rider waits for help
+  jobSeconds: [25, 70], // on the map, a rider carries a passenger for this long, then looks for the next one
 };
 
 // Day events (from level 6). A level's `events` gives the chance of each event on a day; one event at most.

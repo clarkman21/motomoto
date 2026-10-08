@@ -82,7 +82,7 @@ export class LightsView {
 
   /** Light sprites for one vehicle: a cone on the ground, head lights and tail lights. */
   #vehicleLights(kind) {
-    const pairs = kind === 'moto' ? 1 : 2;
+    const pairs = kind === 'moto' || kind === 'fleet' ? 1 : 2;
     const cone = this.light('headlights', GROUND_LIGHT_DEPTH + 1).setFrame('cone-0');
     const heads = Array.from({ length: pairs }, () => this.light('dot-head', 0));
     const tails = Array.from({ length: pairs }, () => this.light('dot-tail', 0));

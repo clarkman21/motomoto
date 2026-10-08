@@ -242,6 +242,11 @@ export function drawRivalMoto(frame, load = 'none') {
   return drawBike('rival', frame, load);
 }
 
+/** Your hired riders on your electric motos (a blue helmet), with or without a passenger. */
+export function drawFleetMoto(frame, load = 'none') {
+  return drawBike('fleet', frame, load);
+}
+
 // ---------------------------------------------------------------------------
 // People: a 3/4 view that looks to the right, towards the camera (facing 0) or away from it
 // (facing 1), 2 walk frames, and the same frames to the left (drawn again, not flipped, so that the

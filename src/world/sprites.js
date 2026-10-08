@@ -17,6 +17,7 @@ export const VEST = { colour: 0xd4e83a, stripe: 0xe8e8e8 };
 export const BIKE_LOOKS = {
   petrol: { body: 0x8c2b23, seat: 0x222222, vest: VEST.colour, helmet: 0xc0392b, trousers: 0x2a3550 },
   electric: { body: COLOURS.ampersandYellow, seat: 0x111111, vest: VEST.colour, helmet: 0x111111, trousers: 0x2a3550 },
+  fleet: { body: COLOURS.ampersandYellow, seat: 0x111111, vest: VEST.colour, helmet: 0x2a4f8a, trousers: 0x2a3550 }, // your hired riders: your electric moto, a blue helmet
   rival: { body: 0x2b2f36, seat: 0x111111, vest: VEST.colour, helmet: 0xe8e8e8, trousers: 0x3a3a3a }, // other moto taxi riders
   // Motos that wait for repair at the garage (no rider).
   parkedRed: { body: 0x9a2a20, seat: 0x1a1a1a },

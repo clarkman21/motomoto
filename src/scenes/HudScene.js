@@ -91,6 +91,7 @@ export class HudScene extends Phaser.Scene {
     });
     this.questLines = [0, 1, 2].map(() => small()); // the daily app quests, under the jobs
     this.eventText = small(); // the day event (Umuganda, rain), under the jobs title
+    this.riderHelpText = small(UI.orange); // a hired rider who waits for your help
 
     // Bottom: station prompt (tap = F), fuel choices (tap = 1, 2, 3), the help line.
     this.promptLines = [0, 1, 2].map(() => label());
@@ -294,6 +295,15 @@ export class HudScene extends Phaser.Scene {
     this.eventText.setVisible(!!ev);
     if (ev) {
       this.eventText.setText(ev.text).setTint(ev.tone === 'warn' ? UI.orange : ev.tone === 'good' ? UI.green : UI.dim).setPosition(box.x + 6, y);
+      y += SMALL_LINE + 3;
+    }
+    // A hired rider calls for help: the name, the time left and the distance.
+    const help = ride.helpWait;
+    this.riderHelpText.setVisible(!!help);
+    if (help) {
+      const t = Math.max(0, help.rider.help.timeLeft), d = Math.round(Math.hypot(help.vehicle.x - bike.x, help.vehicle.y - bike.y));
+      const blink = t < 20 && Math.floor(this.time.now / 300) % 2 === 0;
+      this.riderHelpText.setText(`HELP ${help.rider.name.toUpperCase()} · ${clock(t)} · ${d} M`).setTint(blink ? UI.red : UI.orange).setPosition(box.x + 6, y);
       y += SMALL_LINE + 3;
     }
     const fill = (card, i, lines, tints, tap) => {

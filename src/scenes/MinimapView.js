@@ -133,12 +133,17 @@ export class MinimapView {
       if (o) target = minimapPoint(world, f, o.x * WORLD.tileMetres, o.y * WORLD.tileMetres);
       colour = COLOURS.ampersandYellow;
     }
-    if (target) {
+    // A hired rider who waits for help: a blue mark (drawn first, so the job target stays on top).
+    const help = ride.helpWait?.vehicle;
+    const marks = [];
+    if (help) marks.push({ at: minimapPoint(world, f, help.x, help.y), colour: 0x3a7fd0 });
+    if (target) marks.push({ at: target, colour });
+    for (const m of marks) {
       const e = 3;
-      const cx = Math.round(Math.max(ox + e, Math.min(ox + v.w - e, target.x))), cy = Math.round(Math.max(oy + e, Math.min(oy + v.h - e, target.y)));
-      const out = cx !== Math.round(target.x) || cy !== Math.round(target.y);
+      const cx = Math.round(Math.max(ox + e, Math.min(ox + v.w - e, m.at.x))), cy = Math.round(Math.max(oy + e, Math.min(oy + v.h - e, m.at.y)));
+      const out = cx !== Math.round(m.at.x) || cy !== Math.round(m.at.y);
       const r = out ? 1.5 : 2 + Math.round((Math.sin(time / 160) + 1) / 2);
-      g.fillStyle(0x000000, 1).fillCircle(cx, cy, r + 1).fillStyle(colour, 1).fillCircle(cx, cy, r);
+      g.fillStyle(0x000000, 1).fillCircle(cx, cy, r + 1).fillStyle(m.colour, 1).fillCircle(cx, cy, r);
     }
     // You: a white arrow in the direction of the bike.
     const d = minimapDirection(b.heading);
