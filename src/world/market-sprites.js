@@ -1,6 +1,7 @@
 import { PixelCanvas, hash2 } from './pixel-canvas.js';
 import { COLOURS } from '../config.js';
 import { drawText, textWidth } from './garage-sprites.js';
+import { finishFigure } from './palette.js';
 
 // Market life, drawn small and simple: mamas in kitenge who sell fruit and vegetables on a mat
 // (some under a big umbrella), goats and sheep tied up for sale, and kitenge for the walkers.
@@ -116,8 +117,7 @@ export function drawVendor(goods, kitenge, frame = 0, umbrella = null, seed = 0)
       for (let x = -w; x <= w; x++) c.plot(gx - 6 + x, gy - 36 + y, cols[Math.floor((x + 40) / 4) % 2]);
     }
   }
-  c.outline(0x161616);
-  return c;
+  return finishFigure(c);
 }
 
 export const ANIMAL_CANVAS = { width: 20, height: 16, groundX: 10, groundY: 15 };
@@ -143,8 +143,7 @@ export function drawGoat(coat, frame = 0) {
   c.line(hx - 0.5, hy - 1.5, hx - 2, hy - 3.5, 1, 0x9a8a6a); // horns that curve back
   c.plot(hx - 1.5, hy, 0x2a2a2a); // ear
   c.plot(hx + 1.5, hy + 2, 0x3a3a3a); // beard
-  c.outline(0x161616);
-  return c;
+  return finishFigure(c);
 }
 
 /** A sheep, side view, looking to the right: a fluffy white body, a dark face and dark legs. */
@@ -157,8 +156,7 @@ export function drawSheep(frame = 0) {
   const hy = frame ? gy - 3 : gy - 8, hx = gx + 7;
   c.fillDisc(hx, hy, 1.8, 0x2a2a2a);
   c.plot(hx - 2, hy - 1, 0x2a2a2a); // ear
-  c.outline(0x161616);
-  return c;
+  return finishFigure(c);
 }
 
 /**
@@ -198,6 +196,5 @@ export function drawMomoAgent(frame = 0, seed = 0) {
     for (let x = -w; x <= w; x++) c.plot(gx + 2 + x, gy - 34 + y, Math.floor((x + 40) / 4) % 2 ? Y : DARK_Y);
   }
   c.plot(gx + 2, gy - 35, B);
-  c.outline(0x161616);
-  return c;
+  return finishFigure(c);
 }

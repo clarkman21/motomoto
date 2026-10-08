@@ -14,7 +14,10 @@ export class PoliceView {
   constructor(scene, world, graph) {
     this.scene = scene;
     this.world = world;
-    for (const f of [0, 1, 2, 3]) if (!scene.textures.exists(`officer-${f}`)) addCanvasTexture(scene, `officer-${f}`, drawOfficer(f));
+    for (const f of [0, 1, 2, 3]) {
+      if (!scene.textures.exists(`officer-${f}`)) addCanvasTexture(scene, `officer-${f}`, drawOfficer(f));
+      if (!scene.textures.exists(`officer-${f}-L`)) addCanvasTexture(scene, `officer-${f}-L`, drawOfficer(f, true));
+    }
     for (const f of [0, 1]) if (!scene.textures.exists(`police-post-${f}`)) addCanvasTexture(scene, `police-post-${f}`, drawPolicePost(f));
     this.police = createPolice(policeSpots(world, graph));
     // The POLICE post at each corner (it stays when the officer runs). Its light flashes blue and red.
@@ -39,9 +42,10 @@ export class PoliceView {
 
   #place(o, frame) {
     const s = toScreen(o.x, o.y, this.world.heightAt(o.x, o.y));
-    o.img.setPosition(s.x, s.y).setDepth((o.x + o.y) / T).setFlipX(o.state !== 'post' && o.facing < 0);
-    if (frame !== o.frame) o.img.setTexture(`officer-${frame}`);
-    o.frame = frame;
+    o.img.setPosition(s.x, s.y).setDepth((o.x + o.y) / T);
+    const key = `officer-${frame}${o.state !== 'post' && o.facing < 0 ? '-L' : ''}`; // the left frames keep the light on the top left
+    if (key !== o.frame) o.img.setTexture(key);
+    o.frame = key;
     o.pole.x = o.x;
     o.pole.y = o.y;
   }
@@ -63,7 +67,7 @@ export class PoliceView {
       else if (o.state === 'return') frame = Math.floor(time / 260) % 2 ? 2 : 3;
       // At the corner: the arm goes up while the whistle blows, and now and then (directing the traffic).
       else frame = o.whistleTime > 0 || (time / 1400 + o.phase) % 3 < 0.8 ? 1 : 0;
-      if (o.state !== 'post' || frame !== o.frame) this.#place(o, frame);
+      if (o.state !== 'post' || `officer-${frame}` !== o.frame) this.#place(o, frame);
     }
     return events;
   }

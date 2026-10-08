@@ -1,4 +1,5 @@
-import { WORLD, POLICE, COLOURS } from '../config.js';
+import { WORLD, POLICE, COLOURS, PALETTE } from '../config.js';
+import { finishFigure } from './palette.js';
 import { PixelCanvas, hash2 } from './pixel-canvas.js';
 import { PERSON_CANVAS } from './vehicle-sprites.js';
 import { drawText, textWidth } from './garage-sprites.js';
@@ -9,8 +10,8 @@ import { drawText, textWidth } from './garage-sprites.js';
 // stripes, and a blue POLICE post with a flashing light stands at each corner. No Phaser here.
 
 const T = WORLD.tileMetres;
-const UNIFORM = 0x1c2a5a, SKIN = 0x5a3820, WHITE = 0xf4f4f4, BOOTS = 0x101010;
-const VEST_COLOUR = COLOURS.policeVest, CHECK_BLUE = COLOURS.policeBlue, SILVER = 0xd8dce4;
+const UNIFORM = PALETTE.uniform, SKIN = PALETTE.skinDeep, WHITE = PALETTE.policeWhite, BOOTS = PALETTE.boots;
+const VEST_COLOUR = COLOURS.policeVest, CHECK_BLUE = COLOURS.policeBlue, SILVER = PALETTE.policeSilver;
 
 /** The vest from (top) to (top + 6): green, a blue and white check band, silver stripes at the hem. */
 function vest(c, x0, x1, top) {
@@ -33,12 +34,12 @@ function cap(c, x, y, dir = 1) {
 
 /**
  * A police officer. frame 0: stands; 1: one arm up (directs the traffic, blows the whistle);
- * 2 and 3: runs (long steps, arms swing; the officer looks to the right).
+ * 2 and 3: runs (long steps, arms swing; the officer looks to the right). left: look to the left.
  */
-export function drawOfficer(frame = 0) {
+export function drawOfficer(frame = 0, left = false) {
   const c = new PixelCanvas(PERSON_CANVAS.width, PERSON_CANVAS.height);
   const gx = PERSON_CANVAS.groundX, gy = PERSON_CANVAS.groundY;
-  if (frame >= 2) return drawRunning(c, gx, gy, frame === 2 ? 1 : -1);
+  if (frame >= 2) return finishFigure(drawRunning(c, gx, gy, frame === 2 ? 1 : -1), left);
   c.line(gx - 1, gy - 2, gx - 1, gy - 8, 2.2, UNIFORM); // trousers
   c.line(gx + 1, gy - 2, gx + 1, gy - 8, 2.2, UNIFORM);
   c.line(gx - 1, gy - 1, gx - 1.5, gy - 1, 1.4, BOOTS);
@@ -57,9 +58,9 @@ export function drawOfficer(frame = 0) {
     c.plot(gx + 4, gy - 9, WHITE);
   }
   c.fillDisc(gx + 0.5, gy - 19, 2.4, SKIN);
+  c.plot(gx + 2, gy - 19, PALETTE.hair); // the eye
   cap(c, gx, gy - 21);
-  c.outline(0x161616);
-  return c;
+  return finishFigure(c, left);
 }
 
 function drawRunning(c, gx, gy, step) {
@@ -75,8 +76,8 @@ function drawRunning(c, gx, gy, step) {
   c.plot(gx + 1 - 3 * step, gy - 11, WHITE);
   c.fillDisc(gx + 2, gy - 19, 2.4, SKIN);
   cap(c, gx + 2, gy - 21);
-  c.plot(gx + 4, gy - 17, 0xc0c0c0); // the whistle in the mouth
-  c.outline(0x161616);
+  c.plot(gx + 3, gy - 19, PALETTE.hair); // the eye
+  c.plot(gx + 4, gy - 17, PALETTE.chrome); // the whistle in the mouth
   return c;
 }
 

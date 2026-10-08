@@ -20,6 +20,7 @@ export class AttendantView {
       for (const f of ATTENDANT_FRAMES) {
         const key = `attendant-${kind}-${f}`;
         if (!scene.textures.exists(key)) addCanvasTexture(scene, key, drawAttendant(kind, f));
+        if (!scene.textures.exists(`${key}-L`)) addCanvasTexture(scene, `${key}-L`, drawAttendant(kind, f, true));
       }
     }
     const w = PERSON_CANVAS.width + 6;
@@ -82,7 +83,7 @@ export class AttendantView {
       this.facing = (b.x - this.pos.x) - (b.y - this.pos.y); // look at the bike
     }
     const s = toScreen(this.pos.x, this.pos.y, this.world.heightAt(this.pos.x, this.pos.y));
-    this.img.setTexture(`attendant-${this.kind}-${frame}`).setVisible(true).setPosition(s.x, s.y)
-      .setFlipX((this.facing ?? 1) < 0).setDepth((this.pos.x + this.pos.y) / T + 0.01);
+    this.img.setTexture(`attendant-${this.kind}-${frame}${(this.facing ?? 1) < 0 ? '-L' : ''}`).setVisible(true).setPosition(s.x, s.y)
+      .setDepth((this.pos.x + this.pos.y) / T + 0.01);
   }
 }

@@ -44,6 +44,10 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Fix: the bike can never be stuck in a wall (a crowd push cannot move it into a wall, and a bike that touches a wall can always move away) | Done |
 | Police find a way around buildings (A* path on the tiles) when they chase you and when they walk back | Done |
 | Fix: vehicle lights stay on the vehicle when it turns or jumps on a bump | Done |
+| Visual design system: one palette and one light rule (`PALETTE`, `LIGHT`, `ROOFS` in `src/config.js`; helpers in `src/world/palette.js`); a test checks that the traffic and the people use only palette colours | Done |
+| New traffic: cars with bumpers, lights, number plates and mirrors; white minibuses with a stripe and a roof rack; lorries with a chrome grille, a wooden cargo bed and a load (rice sacks, bananas or a tarpaulin); slogans on the windscreen and the side boards ("GOD IS WIN", "GOD BLESS", "IMANA", "AMEN") | Done |
+| New people: a 3/4 view with long steps, arms that swing, an eye or the back of the head; the left frames keep the light on the top left | Done |
+| New houses: colourful paint, pitched tin roofs, steep dark roofs on new apartments, mud houses with bricks that show and rusty roofs with stones (Nyabugogo); a row of houses is a row of small separate houses | Done |
 | Fix: building signs, road signs and police posts stand on whole pixels and fade with their building | Done |
 | Passenger and cargo jobs, cash, fares and tips | Done |
 | Fuel station (pay per litre) and Ampersand swap station (flat fee) | Done |
@@ -207,6 +211,9 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `MOMO` | How many MTN MoMo agents, and the space between them |
 | `POLICE` | How many junctions have an officer, the whistle, the chase (how far they see, how fast they run, when they give up), the fine, the speed that sends you to jail, the flashing light of the post |
 | `ROAD_SIGNS` | How often speed limit signs repeat, where the bump warnings stand, how many junction arms have a zebra crossing |
+| `PALETTE` | The colours of the game (the lit tone of each material); sprites get the mid and dark tones from `LIGHT` |
+| `LIGHT` | The light rule: top faces, faces to the left of the screen, faces to the right |
+| `ROOFS` | Pitched roofs: the pitch and the highest ridge of each house type, how many villas are new steep apartments, how many Nyabugogo houses are mud houses |
 
 The game map is built in code in [`src/world/maps/kigali.js`](src/world/maps/kigali.js): district rectangles, hills, roads, landmarks, stations and places. Each block has a building style (`h` house, `s` shop, `o` office, `t` tower, `g` government, `c` school, `w` warehouse, `v` villa). The district rules set the style, and a landmark sets the style, the height in levels and the sign text of its block. The small test map for the unit tests is an ASCII grid in [`src/world/map-data.js`](src/world/map-data.js). The legend is at the top of the file. Hills are plateaus with ramps; each hill has a height and a ramp length for each side. The same file has the job places, speed limit zones, cameras and signs.
 
@@ -220,6 +227,7 @@ src/
     iso.js               Isometric projection (world metres ↔ screen pixels)
     map-data.js          Small test map (ASCII), used by the tests
     maps/kigali.js       Kigali map: 6 districts, hills, roads, landmarks, built in code
+    palette.js           The light rule (tones), palette checks, the finish of small figures (shade and outline)
     vehicle-sprites.js   Cars, minibuses, trucks, rival motos, people
     world.js             Heights, slopes, surfaces, solid blocks
     pixel-canvas.js      Small software rasterizer for pixel art

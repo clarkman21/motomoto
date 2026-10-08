@@ -184,6 +184,59 @@ export const COLOURS = {
 };
 
 // ---------------------------------------------------------------------------
+// Visual design system: the palette and the light rule. See "Visual design system" in the spec.
+// - Each palette entry is a base colour (the lit tone). A sprite gets the other two tones from
+//   the light rule (world/palette.js tone()), so each material has 3 tones only.
+// - The light comes from the top left of the screen. Top faces get the lit tone, faces that look to
+//   the left of the screen get the mid tone, faces that look to the right get the dark tone.
+// - People and other small figures: the right edge of the body gets the dark tone, and a 1 px ink
+//   outline goes around all things that move.
+// The traffic, the people, the police and the attendants use only these colours (a test checks it).
+// The other sprites move to the palette step by step.
+// Roofs: houses and villas on a rectangular plot get a pitched roof (a ridge along the long side).
+// The roof planes follow the light rule too: the plane that looks to the top left of the screen is lit.
+// ---------------------------------------------------------------------------
+export const LIGHT = { top: 1, left: 0.86, right: 0.68 };
+// Pitched roofs. pitch: rise / run; maxLevels: the highest ridge (1 level = 1.5 m); steepChance: the part
+// of the villas and the Kicukiro houses that are new apartments with a very steep roof (Alp: "the new
+// face of Kigali"; which districts is a guess).
+export const ROOFS = {
+  house: { pitch: 0.5, maxLevels: 2 },
+  mud: { pitch: 0.45, maxLevels: 1.2 },
+  mudChance: 0.6, // the part of the Nyabugogo houses that are mud houses (the others are painted)
+  villa: { pitch: 0.6, maxLevels: 2.2 },
+  steep: { pitch: 1.3, maxLevels: 3.6 },
+  steepChance: 0.35,
+  eave: 0.06, // the roof sticks out over the walls (tiles)
+};
+export const PALETTE = {
+  ink: 0x161616, // the outline of all things that move
+  // People
+  skinLight: 0x7a4a2a, skin: 0x6b4226, skinDeep: 0x5a3820,
+  hair: 0x1a1a1a, shoe: 0x2a2a2a,
+  // Cloth (shirts, trousers, kitenge)
+  red: 0xc0392b, green: 0x3f8f4a, orange: 0xe0a030, purple: 0x6a4aa0, cloth: 0xe8e8e4, blue: 0x2f6fb0,
+  navy: 0x2a3550, charcoal: 0x3a3a3a, mud: 0x5a4a3a, teal: 0x2a8a8a, pink: 0xb0306a, cream: 0xf2efe6,
+  kOrange: 0xe07a2a, kGreen: 0x2f7f4a, kPurple: 0x6a2f8a, kBlue: 0x1f4f9a, kGold: 0xe8b030, kSand: 0xe8e0c0, kTeal: 0x3fa0a0,
+  // Vehicle paint
+  white: 0xf0efe6, silver: 0xa9adb3, carRed: 0xb83a2e, carBlue: 0x2e4a7a, carGreen: 0x3a6a4a, cabBlue: 0x2e5a9a, cabGreen: 0x2f7a5a,
+  // Vehicle parts
+  glass: 0x2c3e4c, glassShine: 0x6a8496, tyre: 0x1b1b1b, hub: 0x8a8a8a, chrome: 0xc8ccd0, plate: 0xf2f2e8,
+  bumper: 0x3a3c40, headlight: 0xfff2b0, tailLight: 0xd03a2a, indicator: 0xf0a030,
+  // Goods and materials
+  wood: 0x8a5a32, woodDark: 0x6a4224, sack: 0xe6e0cc, banana: 0x7aa83a, bananaDark: 0x5a8a2a, tomato: 0xd0302a,
+  basket: 0xc8a060, basketDark: 0xa8804a, tarp: 0x56703f,
+  // House paint: Kigali houses are colourful (not Surge Yellow: that colour is only for Ampersand)
+  paintPeach: 0xf2b48a, paintMint: 0x9fd8b8, paintSky: 0x8ec4e8, paintPink: 0xe8a0b8, paintLilac: 0xb8a0d8,
+  paintLime: 0xc8dc78, paintOchre: 0xe0b860, paintCream: 0xefe4c8, paintTerracotta: 0xd07a50,
+  // Roofs and walls
+  tin: 0x9a9e9c, tinRust: 0x9a5a3a, clayTile: 0xb5543a, roofRed: 0x9a2f2a, roofGreen: 0x3f7f4a, roofBlue: 0x2f5f9a,
+  slate: 0x4a4e58, mudWall: 0xa8724a, mudLight: 0xc08a5a, brick: 0x9a4a32, stone: 0x6a645a,
+  // Police
+  uniform: 0x1c2a5a, policeWhite: 0xf4f4f4, boots: 0x101010, policeSilver: 0xd8dce4,
+};
+
+// ---------------------------------------------------------------------------
 // Load. A passenger or cargo makes the bike heavier: less pull, less braking, more energy.
 // ---------------------------------------------------------------------------
 export const LOAD = {
@@ -340,9 +393,9 @@ export const TRAFFIC = {
   perDistrict: { car: 8, bus: 3, truck: 2 },
   kinds: {
     // limitFactor: how they treat the speed limit (motos ride a little over it).
-    car: { length: 4.2, width: 1.8, maxKmh: 50, accel: 2.5, brake: 6, limitFactor: 1.0, hillSlowdown: 1.0, minHillFactor: 0.5, exhaust: 0.5, variants: 4 },
-    bus: { length: 5.0, width: 1.9, maxKmh: 45, accel: 1.8, brake: 5, limitFactor: 1.0, hillSlowdown: 1.6, minHillFactor: 0.35, exhaust: 1.0, variants: 2 },
-    truck: { length: 7.0, width: 2.4, maxKmh: 35, accel: 1.0, brake: 4, limitFactor: 0.9, hillSlowdown: 2.4, minHillFactor: 0.18, exhaust: 2.0, variants: 2 },
+    car: { length: 4.2, width: 1.8, maxKmh: 50, accel: 2.5, brake: 6, limitFactor: 1.0, hillSlowdown: 1.0, minHillFactor: 0.5, exhaust: 0.5, variants: 5 },
+    bus: { length: 5.0, width: 1.9, maxKmh: 45, accel: 1.8, brake: 5, limitFactor: 1.0, hillSlowdown: 1.6, minHillFactor: 0.35, exhaust: 1.0, variants: 3 },
+    truck: { length: 7.0, width: 2.4, maxKmh: 35, accel: 1.0, brake: 4, limitFactor: 0.9, hillSlowdown: 2.4, minHillFactor: 0.18, exhaust: 2.0, variants: 3 },
     moto: { length: 2.0, width: 0.8, maxKmh: 55, accel: 3.5, brake: 7, limitFactor: 1.1, hillSlowdown: 0.8, minHillFactor: 0.5, exhaust: 0.6, variants: 1 },
     // Cyclists ride slowly at the edge of the road (laneOffset), so cars can pass them. Very slow uphill.
     cyclist: { length: 1.8, width: 0.6, maxKmh: 16, accel: 0.8, brake: 4, limitFactor: 1, hillSlowdown: 4, minHillFactor: 0.3, exhaust: 0, variants: 3, laneOffset: 3.6 },

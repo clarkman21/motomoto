@@ -1,4 +1,5 @@
-import { WORLD, COLOURS, LIGHTS } from '../config.js';
+import { WORLD, COLOURS, LIGHTS, PALETTE, ROOFS } from '../config.js';
+import { tone } from './palette.js';
 import { toScreen } from './iso.js';
 import { PixelCanvas, shadeColour, hash2 } from './pixel-canvas.js';
 
@@ -219,7 +220,7 @@ export function drawBlock(block, world) {
   };
   // Canvas bounds: the tile footprint from base to top, with room for tree crowns.
   const pad = block.kind === 'tree' ? 16 : block.kind === 'monument' ? 8 : block.kind === 'fuel' ? 22 : block.kind === 'garage' ? 6
-    : block.kind === 'building' ? (block.style === 'government' ? 52 : 14) : 2; // room for roof tanks and flags
+    : block.kind === 'building' ? (block.style === 'government' ? 52 : 14 + Math.ceil((buildingLook(block, world).roof?.levels ?? 0) * WORLD.levelPx)) : 2; // room for roofs, tanks and flags
   const corners = [];
   for (const [x, y] of [[tx, ty], [tx + 1, ty], [tx + 1, ty + 1], [tx, ty + 1]]) {
     corners.push(pt(x, y, block.baseLevel), pt(x, y, block.topLevel));
@@ -270,25 +271,80 @@ function visibleFaces(block, world) {
 
 // Building styles (block.style). Each style has its own walls, windows, ground floor and roof.
 // The colours of one building come from its group id, so neighbours look different.
+const P = PALETTE;
 const STYLE_LOOKS = {
-  house: { walls: [0xe8dcc0, 0xd98c6a, 0x9fc4d6, 0xe0a7b5, 0xc9d6a0, 0xf0efe6], roofs: [0x8a3b2a, 0x9a9a96, 0xa0522d], corrugated: true, tanks: 0.5 },
+  // Colourful paint and a pitched tin roof (painted red, green or blue, or bare zinc).
+  house: { walls: [P.paintPeach, P.paintMint, P.paintSky, P.paintPink, P.paintLilac, P.paintLime, P.paintOchre, P.paintCream, P.paintTerracotta], roofs: [P.tin, P.roofRed, P.roofGreen, P.roofBlue, P.tinRust], corrugated: true, tanks: 0.5 },
+  // Informal houses (Nyabugogo): mud walls with bricks that show, a rusty tin roof with stones on it.
+  mud: { walls: [P.mudWall, P.mudLight, P.mudWall, P.paintOchre], roofs: [P.tin, P.tinRust, P.tin], corrugated: true },
+  // New apartments: white or grey walls and a very steep dark roof.
+  steep: { walls: [P.cream, P.paintCream, P.silver, P.cloth], roofs: [P.slate, P.roofRed, P.slate], tanks: 0.2 },
   shop: { walls: [0xe8dcc0, 0xf0efe6, 0xd8c8a8, 0xc9d6a0], roofs: [0x8a3b2a, 0x9a9a96], corrugated: true, tanks: 0.4 },
   office: { walls: [0xd8d4c8, 0xbfc6cc, 0xe8e2d6, 0xc9b8a0], roofs: [0x8a8a86, 0x7a7e82], tanks: 0.5, ac: true },
   tower: { walls: [0x5f8fa8, 0x4a7f8a, 0x6a8fb8, 0x3f6a7a], roofs: [0x5a5e62, 0x4a4e52], ac: true },
   government: { walls: [0xefe6cc, 0xf2efe6], roofs: [0x9a3b2a], flag: true },
   school: { walls: [0xf0efe6], roofs: [0x3f7f4a, 0x8a3b2a], corrugated: true },
   warehouse: { walls: [0xa0a4a8, 0x8f9aa0, 0xb0a890], roofs: [0x9a9a96, 0x8a8a86], corrugated: true },
-  villa: { walls: [0xf0efe6, 0xe8dcc0, 0xe0d0b0, 0xd8e0e8], roofs: [0xb5543a, 0xa0482e], tanks: 0.3 },
+  villa: { walls: [P.cream, P.paintCream, P.paintPeach, P.paintSky, P.paintMint, P.paintPink], roofs: [P.clayTile, P.roofRed], tanks: 0.3 },
 };
 // Bright paint for shop fronts (not Surge Yellow: that colour is only for Ampersand).
+const KITENGE_CURTAIN = [PALETTE.red, PALETTE.kBlue, PALETTE.kOrange, PALETTE.kPurple];
 const SHOP_PAINT = [0xc0392b, 0x3f8f4a, 0x2f6fb0, 0xe07a2a, 0x8a4ab0];
+
+/** The tiles of each building (group id → its bounds), once per world. */
+const groupCache = new WeakMap();
+function groupOf(world, groupId) {
+  if (!groupCache.has(world)) {
+    const m = new Map();
+    for (const b of world.blocks) {
+      if (b.kind !== 'building') continue;
+      const g = m.get(b.groupId) ?? { x0: b.tx, x1: b.tx, y0: b.ty, y1: b.ty, n: 0 };
+      g.x0 = Math.min(g.x0, b.tx); g.x1 = Math.max(g.x1, b.tx); g.y0 = Math.min(g.y0, b.ty); g.y1 = Math.max(g.y1, b.ty);
+      g.n++;
+      m.set(b.groupId, g);
+    }
+    for (const g of m.values()) g.rect = g.n === (g.x1 - g.x0 + 1) * (g.y1 - g.y0 + 1);
+    groupCache.set(world, m);
+  }
+  return groupCache.get(world).get(groupId);
+}
+
+/**
+ * The look of a building: its style (house, mud, steep, villa, ...) and its roof. Houses and villas on
+ * a rectangular plot get a pitched roof with the ridge along the long side; the others stay flat.
+ * roof: { levels (the ridge height), alongX (the ridge direction), g (the plot) } or null.
+ */
+export function buildingLook(block, world) {
+  if (block.kind !== 'building') return { style: block.style, roof: null };
+  let style = block.style ?? 'house';
+  const district = world.tile(block.tx, block.ty)?.district;
+  const plot = groupOf(world, block.groupId);
+  const key = plot && !plot.rect ? hash2(block.tx, block.ty, 53) : hash2(block.groupId, 3, 53); // a row of small houses: each one
+  if (style === 'house' && district === 'nyabugogo' && key < ROOFS.mudChance) style = 'mud';
+  if ((style === 'villa' || (style === 'house' && district === 'kicukiro')) && hash2(block.groupId, 7, 77) < ROOFS.steepChance) style = 'steep';
+  let g = plot;
+  const rule = ROOFS[style];
+  if (!rule || !g) return { style, roof: null };
+  let single = false;
+  if (!g.rect) {
+    // Rows of small houses (not a rectangle): each tile is a small house with its own roof and colour.
+    if (style !== 'house' && style !== 'mud') return { style, roof: null };
+    g = { x0: block.tx, x1: block.tx, y0: block.ty, y1: block.ty, n: 1, rect: true };
+    single = true;
+  }
+  const alongX = single ? hash2(block.tx, block.ty, 19) < 0.5 : g.x1 - g.x0 >= g.y1 - g.y0;
+  const across = (alongX ? g.y1 - g.y0 : g.x1 - g.x0) + 1; // tiles
+  const levels = Math.min(rule.maxLevels, (rule.pitch * across * WORLD.tileMetres) / 2 / WORLD.levelMetres);
+  return { style, roof: { levels, alongX, g, single } };
+}
 
 function drawBuilding(c, block, pt, world, glow) {
   const { tx, ty, baseLevel, topLevel, groupId } = block;
-  const style = block.style ?? 'house';
+  const { style, roof: pitched } = buildingLook(block, world);
   const look = STYLE_LOOKS[style] ?? STYLE_LOOKS.house;
-  const wall = look.walls[groupId % look.walls.length];
-  const roof = look.roofs[groupId % look.roofs.length];
+  const pick = pitched?.single ? Math.floor(hash2(tx, ty, groupId) * 97) : groupId; // small houses in a row differ
+  const wall = look.walls[pick % look.walls.length];
+  const roof = look.roofs[(pick >> 1) % look.roofs.length];
   const paint = SHOP_PAINT[groupId % SHOP_PAINT.length];
   const floor = block.floorLevel ?? baseLevel;
   const lit = (along, zl, k, px, py, perFloor) => {
@@ -351,7 +407,17 @@ function drawBuilding(c, block, pt, world, glow) {
       if (zl < 1.6 && (along % 1) > 0.25 && (along % 1) < 0.75) col = 0x4a4f55; // a big door
       return shadeColour(col, k);
     }
-    const perFloor = style === 'office' ? 4 : style === 'villa' ? 2 : 3;
+    if (style === 'mud') {
+      // Mud plaster with bricks that show where it fell off, one small window with a wooden shutter,
+      // a door with a cloth curtain.
+      const bx = Math.floor(along * 8 + (Math.floor(zl * 6) & 1) * 0.5), by = Math.floor(zl * 6);
+      if (hash2(Math.floor(along * 3), Math.floor(zl), groupId + 31) > 0.6 && hash2(bx, by, groupId) > 0.35) col = (zl * 6) % 1 < 0.2 ? P.stone : P.brick;
+      const a1 = along % 1;
+      if (zl < 1.3 && a1 > 0.6 && a1 < 0.78) col = a1 < 0.69 ? KITENGE_CURTAIN[groupId % KITENGE_CURTAIN.length] : P.woodDark; // the door
+      else if (zl > 0.75 && zl < 1.25 && a1 > 0.2 && a1 < 0.38) col = a1 < 0.29 ? WINDOW : P.wood; // the window and its shutter
+      return shadeColour(col, k);
+    }
+    const perFloor = style === 'office' ? 4 : style === 'villa' || style === 'steep' ? 2 : 3;
     const a = (along * perFloor) % 1;
     if (floorPos > 0.7 && floorPos < 1.6 && a > 0.22 && a < 0.78) {
       col = hash2(Math.floor(along * perFloor), Math.floor(zl / 2), groupId) > 0.75 ? WINDOW_LIT : WINDOW;
@@ -371,7 +437,14 @@ function drawBuilding(c, block, pt, world, glow) {
     else if (hash2(px + c.ox, py + c.oy, 4) > 0.9) col = shadeColour(roof, 0.92);
     return col;
   };
-  drawBox(c, tx, ty, tx + 1, ty + 1, baseLevel, topLevel, pt, roofShade, wallShade(0.68), wallShade(0.86), visibleFaces(block, world));
+  const faces = visibleFaces(block, world);
+  if (pitched) {
+    // The walls only; the pitched roof covers the top.
+    drawBox(c, tx, ty, tx + 1, ty + 1, baseLevel, topLevel, pt, () => -1, wallShade(0.68), wallShade(0.86), faces);
+    drawPitchedRoof(c, block, pt, pitched, roof, wall, look, style);
+    return; // no roof tank or air conditioner on a pitched roof
+  }
+  drawBox(c, tx, ty, tx + 1, ty + 1, baseLevel, topLevel, pt, roofShade, wallShade(0.68), wallShade(0.86), faces);
   // Roof details: black water tanks, air conditioners, and the flag of Rwanda on government buildings.
   const h = hash2(tx, ty, groupId + 11);
   const flat = (col) => () => col;
@@ -390,6 +463,80 @@ function drawBuilding(c, block, pt, world, glow) {
     const colours = [0x20a0e0, 0x20a0e0, 0xe5be01, 0x20603d];
     for (let r = 0; r < 4; r++) for (let x = 1; x <= 7; x++) c.plot(p.x + x, p.y + r, colours[r]);
     c.plot(p.x + 6, p.y, 0xe5be01);
+  }
+}
+
+/**
+ * One tile of a pitched roof. The ridge runs along the long side of the plot (x or y), in the middle.
+ * Each tile draws its part: one or two roof planes (two when the ridge crosses the tile), and the
+ * gable wall (a triangle) when the tile is on the front end of the plot. The roof sticks out a little
+ * over the walls (the eaves). The plane that looks to the top left of the screen gets the lit tone.
+ */
+function drawPitchedRoof(c, block, pt, r, roofColour, wallColour, look, style) {
+  const { tx, ty, topLevel, groupId } = block;
+  const { g, levels, alongX } = r;
+  const e = ROOFS.eave;
+  // Coordinates: a = along the ridge, b = across it (tiles). The ridge is at b = mid.
+  const b0 = alongX ? g.y0 : g.x0, b1 = (alongX ? g.y1 : g.x1) + 1, mid = (b0 + b1) / 2, half = (b1 - b0) / 2;
+  const height = (b) => topLevel + levels * Math.max(0, 1 - Math.abs(b - mid) / half);
+  const tb0 = alongX ? ty : tx, ta0 = alongX ? tx : ty;
+  const atEdge = (lo, hi, v0, v1) => [v0 <= lo ? v0 - e : v0, v1 >= hi ? v1 + e : v1];
+  const [a0, a1] = atEdge(alongX ? g.x0 : g.y0, (alongX ? g.x1 : g.y1) + 1, ta0, ta0 + 1);
+  const [bLo, bHi] = atEdge(b0, b1, tb0, tb0 + 1);
+  const P3 = (a, b, z) => (alongX ? pt(a, b, z) : pt(b, a, z));
+  const zAt = (b) => height(Math.min(b1, Math.max(b0, b))) - (b < b0 || b > b1 ? 0.15 : 0); // the eaves hang a little lower
+  // The roof cover: corrugated sheets run down the slope; clay tiles and slates lie in rows.
+  const cover = (a, b) => {
+    if (style === 'mud' && hash2(Math.floor(a * 3), Math.floor(b * 2), groupId + 5) < 0.35) {
+      return Math.floor(a * 10) & 1 ? P.tinRust : shadeColour(P.tinRust, 0.88); // old rusty sheets between the newer ones
+    }
+    if (look.corrugated) return Math.floor(a * 10) & 1 ? roofColour : shadeColour(roofColour, 0.88);
+    return Math.floor(Math.abs(b - mid) * 8) & 1 ? roofColour : shadeColour(roofColour, 0.9);
+  };
+  const planes = [];
+  if (bLo < mid && bHi > mid) planes.push([bLo, mid], [mid, bHi]);
+  else planes.push([bLo, bHi]);
+  for (const [p0, p1] of planes) {
+    // Which way the plane looks: to -b (back) or +b (front). Along x, +b is +y (the left of the screen);
+    // along y, +b is +x (the right of the screen), and -b looks to the top left (the light).
+    const front = (p0 + p1) / 2 > mid;
+    const face = alongX ? (front ? 'top' : 'left') : (front ? 'right' : 'top');
+    const k = face === 'top' ? 1 : face === 'left' ? 0.86 : 0.68;
+    c.fillQuad(
+      { ...P3(a0, p0, zAt(p0)), u: a0, v: p0 }, { ...P3(a1, p0, zAt(p0)), u: a1, v: p0 },
+      { ...P3(a1, p1, zAt(p1)), u: a1, v: p1 }, { ...P3(a0, p1, zAt(p1)), u: a0, v: p1 },
+      (a, b) => shadeColour(cover(a, b), k),
+    );
+  }
+  // The ridge cap: a line of the lit tone along the top.
+  if (tb0 <= mid && tb0 + 1 >= mid) {
+    const A = P3(a0, mid, height(mid)), B = P3(a1, mid, height(mid));
+    c.line(A.x, A.y, B.x, B.y, 1, shadeColour(roofColour, 1.12));
+  }
+  // The gable wall on the front end of the plot (+a): the end that faces the camera.
+  if (ta0 + 1 === (alongX ? g.x1 : g.y1) + 1) {
+    const aEnd = ta0 + 1, k = alongX ? 0.68 : 0.86;
+    const pts = [];
+    const lo = Math.max(tb0, b0), hi = Math.min(tb0 + 1, b1);
+    pts.push(P3(aEnd, lo, topLevel));
+    for (const b of [lo, ...(lo < mid && hi > mid ? [mid] : []), hi]) pts.push(P3(aEnd, b, height(b)));
+    pts.push(P3(aEnd, hi, topLevel));
+    c.fillPoly(pts, shadeColour(wallColour, k));
+    // A small vent or window high in the gable of the big roofs.
+    if (levels > 1.5 && lo <= mid && hi >= mid) {
+      const v = P3(aEnd, mid, topLevel + levels * 0.45);
+      for (let dy = -2; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) c.plot(v.x + dx, v.y + dy, WINDOW);
+    }
+  }
+  // Stones on the tin roofs of the mud houses (they hold the sheets down in the wind).
+  if (style === 'mud') {
+    for (let i = 0; i < 3; i++) {
+      if (hash2(tx * 3 + i, ty, groupId + 13) > 0.45) continue;
+      const a = ta0 + hash2(tx, ty * 3 + i, 1), b = tb0 + hash2(tx + i, ty, 2);
+      const p = P3(a, b, height(b));
+      c.plot(p.x, p.y, P.stone);
+      c.plot(p.x + 1, p.y, P.stone);
+    }
   }
 }
 
