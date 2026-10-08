@@ -301,7 +301,7 @@ export function buildKigaliMap(seed = 7) {
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (g[y][x] === '2' && st[y][x] === '.') st[y][x] = 's';
 
   // Trees: avenue trees on the Kacyiru boulevard, many trees in the rich districts and the golf course.
-  for (let x = 66; x < 126; x += 3) for (const y of [35, 38]) if (g[y][x] === '.' || g[y][x] === 'p') set(x, y, 't');
+  for (let x = 66; x < 126; x += 3) for (const y of [35, 38]) if (g[y][x] === '.' || g[y][x] === 'p') { set(x, y, 't'); st[y][x] = 'P'; } // palms
   const treeChance = { nyabugogo: 0.04, town: 0.05, kacyiru: 0.1, kimihurura: 0.12, nyarutarama: 0.12, kicukiro: 0.05 };
   for (let y = 4; y < H - 1; y++) for (let x = 0; x < W - 1; x++) {
     if (g[y][x] !== '.' || (reserved[y][x] && !(y >= 24 && y <= 41 && x >= 130))) continue;

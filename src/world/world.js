@@ -25,7 +25,7 @@ const CHAR_INFO = {
 };
 
 // Building styles (map data 'styles': one character per tile). They change the look of a building.
-export const BUILDING_STYLES = { h: 'house', s: 'shop', o: 'office', t: 'tower', g: 'government', c: 'school', w: 'warehouse', v: 'villa' };
+export const BUILDING_STYLES = { h: 'house', s: 'shop', o: 'office', t: 'tower', g: 'government', c: 'school', w: 'warehouse', v: 'villa', P: 'palm' }; // P: a palm tree (on a tree tile)
 
 // Blocks that join with neighbours of the same kind into one building (one colour, no inner walls).
 const GROUPED = ['building', 'fuel', 'swap', 'garage', 'dome'];
@@ -160,7 +160,7 @@ export class World {
       const baseLevel = Math.min(...corners);
       const topOfGround = Math.max(...corners);
       let levels = t.blockLevels;
-      if (t.block === 'tree') levels = 5;
+      if (t.block === 'tree') levels = t.style === 'palm' ? 7 : 5;
       if (t.block === 'monument') levels = 8;
       if (t.block === 'dome') levels = domeHeight.get(t);
       blocks.push({

@@ -11,16 +11,17 @@ import { KITENGE, drawKitengeDress, drawHeadWrap } from './market-sprites.js';
 
 export const VEHICLE_CANVAS = { width: 112, height: 96, groundX: 56, groundY: 66 };
 const C = PALETTE;
-// Each variant: the paint (car), the stripe (minibus) or the cab colour (truck). Minibuses and
-// trucks carry a sticker with a slogan across the top of the windscreen, as in Kigali. The truck
-// variants also carry a different load: sacks, bananas or a tarpaulin.
+// Each variant: the paint (car), the roof rack (bus) or the cab colour (truck). Trucks carry a
+// tagline on the windscreen and on the side boards, as in Kigali, and a load: sacks, bananas or a tarpaulin.
 export const VEHICLE_VARIANTS = {
   car: [C.white, C.silver, C.carRed, C.carBlue, C.carGreen],
-  bus: [{ stripe: C.kBlue, slogan: ['IMANA', 'AMEN'] }, { stripe: C.green, slogan: ['JESUS', 'HOZA'] }, { stripe: C.red, slogan: ['MERCI', 'AMEN'] }],
+  // Buses are plain white government buses (Alp); one kind has a roof rack.
+  bus: [{ rack: false }, { rack: true }],
   truck: [
-    { cab: C.carRed, load: 'sacks', slogan: ['GOD IS WIN', 'BLESSED', 'IMANA'] },
-    { cab: C.cabBlue, load: 'bananas', slogan: ['GOD BLESS', 'BLESSED', 'AMEN'] },
-    { cab: C.cabGreen, load: 'tarp', slogan: ['ONLY GOD', 'IMANA', 'HOZA'] },
+    // Taglines from Alp; the first one that fits is painted (long ones on the side boards).
+    { cab: C.carRed, load: 'sacks', slogan: ['GOD IS WIN', 'GOD IS KING', 'IMANA'] },
+    { cab: C.cabBlue, load: 'bananas', slogan: ['JESUS SAVE ME', 'GOD IS KING', 'AMEN'] },
+    { cab: C.cabGreen, load: 'tarp', slogan: ['JESUS TAKE THE WHEEL', 'JESUS SAVE ME', 'GOD IS WIN', 'HOZA'] },
   ],
 };
 
@@ -158,10 +159,9 @@ const BUILD = {
     };
   },
   bus: (v) => {
-    // A white minibus (the Toyota Hiace kind): a coloured stripe, many side windows, a sliding door.
+    // A plain white minibus: many side windows, a sliding door, maybe a roof rack.
     const L = 5.0, W = 1.9;
     const body = (u, z, face) => {
-      if (band(z, 0.92, 1.08)) return v.stripe;
       if (face === 'front') {
         if (z < 0.42) return band(u, 0.38, 0.62) && z > 0.3 ? C.plate : C.bumper;
         if (band(z, 0.58, 0.74) && edge(u, 0.18)) return C.headlight;
@@ -180,7 +180,7 @@ const BUILD = {
       if (Math.abs(u - (face === 'right' ? 0.62 : 0.38)) < 0.01 && z < 1.9) return C.bumper; // the sliding door
       return C.white;
     };
-    const roof = (u, w) => (edge(w, 0.08) || (u * 5) % 1 < 0.08 ? C.chrome : C.cream); // the roof rack
+    const roof = (u, w) => (v.rack && (edge(w, 0.08) || (u * 5) % 1 < 0.08) ? C.chrome : C.cream); // the roof rack
     return {
       parts: [
         ...wheels(L, W, 0.32, 0.9),
@@ -188,7 +188,6 @@ const BUILD = {
         { f0: 2.3, f1: 2.4, s0: -W / 2 - 0.16, s1: -W / 2, z0: 1.3, z1: 1.45, top: C.bumper, side: C.bumper },
         { f0: 2.3, f1: 2.4, s0: W / 2, s1: W / 2 + 0.16, z0: 1.3, z1: 1.45, top: C.bumper, side: C.bumper },
       ],
-      stickers: [{ a: [L / 2, -W / 2], b: [L / 2, W / 2], n: [1, 0], z: 1.9, colour: v.stripe, slogan: v.slogan }],
     };
   },
   truck: (v) => {

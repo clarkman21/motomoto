@@ -219,7 +219,7 @@ export function drawBlock(block, world) {
     return { x: s.x, y: s.y };
   };
   // Canvas bounds: the tile footprint from base to top, with room for tree crowns.
-  const pad = block.kind === 'tree' ? 16 : block.kind === 'monument' ? 8 : block.kind === 'fuel' ? 22 : block.kind === 'garage' ? 6
+  const pad = block.kind === 'tree' ? (block.style === 'palm' ? 18 : 16) : block.kind === 'monument' ? 8 : block.kind === 'fuel' ? 22 : block.kind === 'garage' ? 6
     : block.kind === 'building' ? (block.style === 'government' ? 52 : 14 + Math.ceil((buildingLook(block, world).roof?.levels ?? 0) * WORLD.levelPx)) : 2; // room for roofs, tanks and flags
   const corners = [];
   for (const [x, y] of [[tx, ty], [tx + 1, ty], [tx + 1, ty + 1], [tx, ty + 1]]) {
@@ -583,6 +583,7 @@ const TREE_MIX = {
 /** The kind of tree on a tile (it depends on the district and the tile). */
 export function treeKind(world, tx, ty) {
   const t = world.tile(tx, ty);
+  if (t?.style === 'palm') return 'palm';
   const mix = TREE_MIX[t?.district] ?? [0.25, 0.25, 0.25];
   const h = hash2(tx, ty, 41);
   if (h < mix[0]) return 'acacia';
@@ -593,6 +594,7 @@ export function treeKind(world, tx, ty) {
 
 function drawTree(c, block, pt, world) {
   const { tx, ty, baseLevel } = block;
+  if (treeKind(world, tx, ty) === 'palm') return drawPalm(c, block, pt, world);
   const kind = TREES[treeKind(world, tx, ty)];
   // A small random offset, so a row of trees does not look like a grid.
   const cx = tx + 0.35 + 0.3 * hash2(tx, ty, 42), cy = ty + 0.35 + 0.3 * hash2(ty, tx, 43);
@@ -623,6 +625,55 @@ function drawTree(c, block, pt, world) {
     }
   }
   c.outline(kind.outline);
+}
+
+// A tall thin palm (like a Washingtonia), as on the Kacyiru boulevard: a slim ringed trunk that
+// leans a little, a skirt of dry brown fronds under the crown, and a round crown of fan leaves.
+const PALM = {
+  height: 6.4, // levels (about 9.6 m) to the crown
+  trunk: [0x8a7a62, 0x6e604c], skirt: [0x9a7448, 0x7a5a36],
+  leaves: [0x2f6a2a, 0x3f8a34, 0x5aa843, 0x78c058], outline: 0x1a3418,
+};
+function drawPalm(c, block, pt, world) {
+  const { tx, ty, baseLevel } = block;
+  const cx = tx + 0.4 + 0.2 * hash2(tx, ty, 42), cy = ty + 0.4 + 0.2 * hash2(ty, tx, 43);
+  const ground = world.heightAt(cx * WORLD.tileMetres, cy * WORLD.tileMetres) / WORLD.levelMetres;
+  const foot = pt(cx, cy, Math.min(baseLevel, ground));
+  const top = pt(cx, cy, ground + PALM.height);
+  const lean = (hash2(tx, ty, 46) - 0.5) * 6; // pixels at the top
+  // The trunk: 2 px wide, with rings, a little wider at the foot.
+  const n = Math.ceil(foot.y - top.y);
+  for (let i = 0; i <= n; i++) {
+    const k = i / n, y = foot.y - i, x = foot.x + lean * k * k;
+    const ring = Math.floor(i / 2) % 2 ? PALM.trunk[0] : PALM.trunk[1];
+    c.plot(x - 1, y, PALM.trunk[1]);
+    c.plot(x, y, ring);
+    if (i < 4) c.plot(x + 1, y, PALM.trunk[1]); // the wide foot
+  }
+  const hx = top.x + lean, hy = top.y;
+  // The skirt of dry fronds that hang down the trunk under the crown.
+  for (let y = 0; y <= 6; y++) {
+    const w = 3 - Math.floor(y / 3);
+    for (let x = -w; x <= w; x++) c.plot(hx + x, hy + 2 + y, (x + y) % 2 ? PALM.skirt[0] : PALM.skirt[1]);
+  }
+  // The crown: fan leaves that spread out from the top and bend down at their ends.
+  const fronds = 13;
+  for (let f = 0; f < fronds; f++) {
+    const a = (f / fronds) * Math.PI * 2 + hash2(tx, ty, 47);
+    const dx = Math.cos(a), dy = Math.sin(a) * 0.55; // a flat round crown, seen from the side
+    const len = 10 + hash2(tx * 3 + f, ty, 48) * 4;
+    for (let s = 1; s <= len; s++) {
+      const droop = (s / len) ** 2 * 4;
+      const x = hx + dx * s, y = hy + dy * s + droop;
+      // Lit from the top left: the fronds on the upper left are lighter.
+      const lit = 1.6 - dx * 0.7 - dy * 1.2 - s / len;
+      const col = PALM.leaves[Math.max(0, Math.min(3, Math.floor(lit * 1.6)))];
+      c.plot(x, y, col);
+      if (s > 2 && s < len - 1) c.plot(x, y + 1, PALM.leaves[Math.max(0, Math.min(3, Math.floor(lit * 1.6) - 1))]); // leaf width
+    }
+  }
+  c.fillDisc(hx, hy, 2, PALM.leaves[2]);
+  c.outline(PALM.outline);
 }
 
 // The Convention Centre dome: white steps with ribs. At night it shines in many colours.
