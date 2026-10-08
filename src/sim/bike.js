@@ -179,7 +179,9 @@ export function stepBike(bike, input, world, dt) {
   let drag = surface.rollingMs2 + PHYSICS.airDragPerMs * Math.abs(v);
   if (throttle === 0 && !bike.pushing) {
     // Petrol: engine braking grows with revs, so a downshift slows you without the brakes.
-    if (spec.gears && bike.shiftTimer === 0 && v > 0.5) drag += PHYSICS.engineBrakeMs2 * Math.min(1.2, bike.revs) ** 2;
+    // With no fuel the engine does not turn: no engine braking, the bike rolls on and slows down slowly.
+    if (!engineRuns) drag += PHYSICS.deadEngineDragMs2;
+    else if (spec.gears && bike.shiftTimer === 0 && v > 0.5) drag += PHYSICS.engineBrakeMs2 * Math.min(1.2, bike.revs) ** 2;
     else drag += PHYSICS.coastDragMs2;
   }
   if (brake > 0 && v < 0 && !reversing) drag += spec.brakeMs2 * brake;

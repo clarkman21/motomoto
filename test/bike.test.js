@@ -431,3 +431,25 @@ describe('fuel and shifting (petrol)', () => {
     expect(ride(GEARBOX.ecoRevs - 0.05).events.some((e) => e.type === 'redZone')).toBe(false);
   });
 });
+
+describe('running out of fuel while riding', () => {
+  it('the bike rolls on and slows down slowly (no engine braking), then stops', () => {
+    const world = straight();
+    const ride = (energy) => {
+      const bike = createBike(world, 'petrol');
+      bike.vx = 50 / 3.6; // 50 km/h in third gear
+      bike.gear = 2;
+      bike.energy = energy;
+      run(bike, world, { throttle: 0 }, 2);
+      return kmh(bike);
+    };
+    const dead = ride(0), running = ride(1);
+    expect(dead).toBeGreaterThan(running); // a running engine brakes the bike harder
+    expect(dead).toBeGreaterThan(35); // after 2 s it still rolls
+    const bike = createBike(world, 'petrol');
+    bike.vx = 50 / 3.6;
+    bike.energy = 0;
+    run(bike, world, { throttle: 0 }, 30);
+    expect(kmh(bike)).toBeLessThan(1);
+  });
+});

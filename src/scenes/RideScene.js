@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER } from '../config.js';
+import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS } from '../config.js';
 import { World } from '../world/world.js';
 import { buildKigaliMap } from '../world/maps/kigali.js';
 import { ChunkStreamer, groupKey } from './chunks.js';
@@ -15,7 +15,7 @@ import { readControls, STEERING_MODES, STEERING_LABELS } from '../sim/controls.j
 import { EngineSound } from '../audio/engine-sound.js';
 import { createWallet, earn, spend, buyFuel, swapBattery, fuelFillCost, fuelChoices, repairCost, endDay, stranded, payGarage } from '../sim/economy.js';
 import { garageQuote, serviceDue } from '../sim/maintenance.js';
-import { createJobBoard, updateBoard, acceptOffer, cancelJob, updateJob, jobTarget, acceptHail, tripMetres, passengerWaits } from '../sim/jobs.js';
+import { createJobBoard, updateBoard, acceptOffer, cancelJob, updateJob, jobTarget, acceptHail, tripMetres, passengerWaits, loseJobWhenEmpty } from '../sim/jobs.js';
 import { createCameraState, checkCameras, speedLimitAt } from '../sim/law.js';
 import { buildRoadGraph, openRoads } from '../sim/roads.js';
 import { createTraffic, stepTraffic, insideVehicle, sendBusToPark } from '../sim/traffic.js';
@@ -43,7 +43,7 @@ const FIXED_DT = 1 / 120; // physics step in seconds
 const BARKS = {
   bumpHard: 'Speed bump too fast!',
   wall: 'Bang!',
-  empty: 'Out of energy! Hold throttle to push the bike to a station',
+  empty: 'Out of energy! The bike rolls to a stop, and a customer on it will leave. Hold throttle to push the bike to a station',
   pothole: 'Pothole! Speed −30%, more wear',
   overRev: 'Too fast to shift down',
   noGears: 'Electric moto: no gears',
@@ -827,8 +827,9 @@ export class RideScene extends Phaser.Scene {
       this.engineSound.jingle('reward');
     }
     if (this.bike.engineDead) {
-      this.engineSound.silence(); // no engine sound: you push the bike
+      this.engineSound.silence(); // no engine sound: the bike rolls on, then you push it
       this.#updatePushing(dt);
+      this.#loseJobWhenEmpty();
     } else this.engineSound.update(this.bike.type, Math.min(1, this.bike.revs), this.controls.throttle);
     this.dayTime += dt;
     if (this.jailTimer != null && (this.jailTimer -= dt) <= 0) {
@@ -950,9 +951,22 @@ export class RideScene extends Phaser.Scene {
     this.#bubble(this.bike.x - 0.6, this.bike.y - 0.6, 44, words[Math.floor(this.rng() * words.length)], 0xffa080);
   }
 
+  /** Out of fuel during a job: when the bike stops, the customer leaves and you lose the fare. */
+  #loseJobWhenEmpty() {
+    const lost = loseJobWhenEmpty(this.board, this.bike, forwardSpeed(this.bike));
+    if (!lost) return;
+    updateStreak(this.wallet, false);
+    this.engineSound.grumble();
+    this.#bubble(this.bike.x, this.bike.y, 46, 'EH! EH!', 0xffa080);
+    this.events.emit('bark', lost.type === 'passenger'
+      ? 'Out of fuel! Your passenger gets off and takes another moto. You lose the fare'
+      : 'Out of fuel! The customer sends the cargo with another moto. You lose the pay');
+  }
+
   /** Pushing the bike: the steps of the walk, and now and then a tired sound and word. */
   #updatePushing(dt) {
     const v = Math.abs(forwardSpeed(this.bike));
+    if (v * 3.6 > PHYSICS.rideOffKmh) return; // the bike still rolls: the rider sits on it
     this.pushMetres = (this.pushMetres ?? 0) + v * dt;
     if (v < 0.3) return;
     this.gruntTimer = (this.gruntTimer ?? 1) - dt;
@@ -1207,9 +1221,11 @@ export class RideScene extends Phaser.Scene {
     const s = toScreen(b.x, b.y, b.z);
     const bounce = b.bump > 0 ? Math.sin((b.bump / 0.3) * Math.PI) * 2 : 0;
     const depth = (b.x + b.y) / WORLD.tileMetres;
-    // Out of fuel or charge, or broken down: the rider walks beside the bike and pushes it.
+    // Out of fuel or charge, or broken down: the bike rolls on with the rider on it; when it is slow,
+    // the rider gets off, walks beside the bike and pushes it.
     const load = b.loadType ?? 'none';
-    const key = b.engineDead && !(b.crashed > 0)
+    const walking = b.engineDead && Math.abs(forwardSpeed(b)) * 3.6 <= PHYSICS.rideOffKmh;
+    const key = walking && !(b.crashed > 0)
       ? `push-${b.type}-${load === 'passenger' ? 'none' : load}-${bikeFrameForHeading(b.heading)}-${Math.floor((this.pushMetres ?? 0) / 0.7) % 2}`
       : `bike-${b.type}-${load}-${bikeFrameForHeading(b.heading)}`;
     this.bikeScreen = s;
@@ -1227,7 +1243,7 @@ export class RideScene extends Phaser.Scene {
   #updateSmoke(dt) {
     const b = this.bike;
     this.puffTimer -= dt;
-    if (BIKES[b.type].smoke && this.puffTimer <= 0) {
+    if (BIKES[b.type].smoke && !b.engineDead && this.puffTimer <= 0) { // no fuel: no exhaust
       const throttle = this.controls.throttle;
       this.puffTimer = throttle > 0 ? 0.06 : 0.3;
       const back = 1.0; // metres behind the bike centre

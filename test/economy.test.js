@@ -4,7 +4,7 @@ import { TEST_MAP } from '../src/world/map-data.js';
 import { createBike, stepBike } from '../src/sim/bike.js';
 import { createWallet, earn, buyFuel, swapBattery, fuelFillCost, repairCost, endDay, stranded, payGarage } from '../src/sim/economy.js';
 import { speedLimitAt, checkCameras, createCameraState, cameraFine } from '../src/sim/law.js';
-import { createJobBoard, acceptOffer, updateJob, updateBoard, jobTarget, makeOffer, mulberry32 } from '../src/sim/jobs.js';
+import { createJobBoard, acceptOffer, updateJob, updateBoard, jobTarget, makeOffer, mulberry32, loseJobWhenEmpty } from '../src/sim/jobs.js';
 import { MONEY, LAW, JOBS, WORLD, MAINTENANCE } from '../src/config.js';
 import { serviceDue, garageQuote, rideWearKm } from '../src/sim/maintenance.js';
 import { BIKES, SURFACES } from '../src/config.js';
@@ -413,5 +413,23 @@ describe('a passenger who waits', () => {
     // No passenger on the bike yet (on the way to the pickup), or cargo: nothing changes.
     expect(passengerWaits({ active: { type: 'passenger', stage: 'toPickup', comfort: 100 } }, 5)).toBe(false);
     expect(passengerWaits({ active: { type: 'cargo', stage: 'toDropoff', comfort: 100 } }, 5)).toBe(false);
+  });
+});
+
+describe('out of fuel during a job', () => {
+  it('when the bike stops with an empty tank, the customer leaves and you lose the fare', () => {
+    const world = new World(TEST_MAP);
+    const board = createJobBoard(world, 3);
+    const bike = createBike(world, 'petrol');
+    acceptOffer(board, 0);
+    board.active.stage = 'toDropoff';
+    bike.loadType = 'passenger';
+    expect(loseJobWhenEmpty(board, bike, 0)).toBeNull(); // fuel left: nothing happens
+    bike.energy = 0;
+    expect(loseJobWhenEmpty(board, bike, 5)).toBeNull(); // the bike still rolls
+    const lost = loseJobWhenEmpty(board, bike, 0.2);
+    expect(lost).not.toBeNull();
+    expect(board.active).toBeNull();
+    expect(bike.loadType).toBeNull();
   });
 });

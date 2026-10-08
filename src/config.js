@@ -93,6 +93,8 @@ export const PHYSICS = {
   // It uses no fuel and does not wear the brakes, so a downshift is a free brake.
   engineBrakeMs2: 2.4,
   pushSpeedKmh: 4, // with no fuel or charge left, you push the bike at walking speed
+  deadEngineDragMs2: 0.5, // no fuel: the bike rolls on with no engine braking (it slows down slowly)
+  rideOffKmh: 7, // no fuel: the rider stays on the rolling bike until it is slower than this, then walks
   pushMs2: 1.2, // how fast you get to walking speed (on top of the ground resistance and the slope)
   // Hard limit on how far one physics step can move, for collision safety.
   maxStepMetres: 0.5,
@@ -276,6 +278,7 @@ export const JOBS = {
   waitComfort: { atStop: 8, perSecond: 1.5 }, // guesses
   cargoDamage: { pothole: 0.1, bumpHard: 0.1, wall: 0.3, crash: 0.4, offRoadPerSecond: 0.03 },
   hardBrakeMs2: 5, // braking harder than this upsets the passenger
+  loseJobBelowKmh: 3, // out of fuel during a job: when the bike is this slow, the customer leaves (no fare)
 };
 
 // ---------------------------------------------------------------------------
