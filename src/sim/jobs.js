@@ -187,6 +187,9 @@ export function updateJob(board, bike, bikeEvents, dt) {
   board.active = null;
   bike.loadKg = 0;
   bike.loadType = null;
+  // A job pays only once, whatever happens (a guard against double payments).
+  if (job.paid) return [];
+  job.paid = true;
   if (job.type === 'passenger') {
     const tip = round10(job.pay * JOBS.passenger.maxTipFraction * (job.comfort / 100));
     return [{ type: 'delivered', job, fare: job.pay, tip }];

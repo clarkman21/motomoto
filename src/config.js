@@ -239,6 +239,17 @@ export const BALANCE = {
   },
 };
 
+// The emergency fuel moto (key T): a moto from the nearest station brings 1 litre of fuel (or a
+// charged battery for the electric moto), for the station price plus a premium. Guesses.
+export const RESCUE = {
+  premium: 0.2, // 20% more than at the station (Alp)
+  answerSeconds: 4, // the phone call, before the moto leaves the station
+  speedKmh: 45,
+  handoverMetres: 3,
+  handoverSeconds: 2.5,
+  leavePoints: 3, // the moto rides back this many road points, then it is gone
+};
+
 // Road signs and zebra crossings, made from the road list (see world/road-signs.js). Guesses.
 export const ROAD_SIGNS = {
   repeatTiles: 24, // a speed limit sign again after this many tiles (96 m) on the same road
@@ -372,6 +383,7 @@ export const PEOPLE = {
   yellSpeed: 4, // m/s (about 15 km/h)
   yellCooldown: 8, // seconds before the same person yells again
   yellGap: 1.5, // seconds between two yells (any people)
+  leaveWords: ['MANA WE!', 'UMVA, BE SERIOUS!'], // out of fuel: the passenger gets off (Alp)
   yells: ['AYII!', 'WITONDE!', 'EH! EH!', 'MANA WE!', 'BUHORO!'], // Kinyarwanda: "be careful", "oh my God", "slowly"
   // The horn: people in front of the bike and this close step out of the way.
   honkRadius: 16, // metres
@@ -504,6 +516,7 @@ export const FUEL = {
   // Buying fuel: fixed amounts, your choice (not from the jobs): a quarter or a half of a tank, or a full tank.
   // At the base price, 25% of a tank is 1,000 RWF. Job cards still show the fuel that each job needs.
   buySteps: [0.25, 0.5],
+  tankLitres: 2.5, // the game tank: a full tank is 4,000 RWF, so 1 litre is about 1,600 RWF (Kigali price, about) — guess
   // The estimate for a known job, as a fraction of the tank or the battery (measured in a test ride with
   // stops; see test/fuel.test.js). The electric moto goes further: a bigger battery and no gears.
   flatTankPerKm: { petrol: 0.19, electric: 0.1 }, // riding on the flat with no load

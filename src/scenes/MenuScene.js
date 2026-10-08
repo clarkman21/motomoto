@@ -34,8 +34,9 @@ const HELP = [
       'E and Q: shift up and down (petrol moto).   G: automatic shift on or off.',
       '1 to 4: take a job. Stop next to a person who waves and press 1 to take a street hail.   Backspace: cancel the job.',
       'F: buy fuel (then 1, 2 or 3: 25% of a tank, 50% of a tank, or a full tank), swap the battery, or service the bike at the garage.',
+      'T: phone a moto that brings you 1 litre of fuel (or a charged battery), for 20% more than at a station. You can call at any time.',
       'H: horn.   V: sound.   R: put the bike back on the nearest road (your fuel and the bike wear stay as they are).   M: map on or off.   Esc or P: pause menu.',
-      'Touch: the stick on the left steers. GO and STOP are on the right, + and − shift. Tap a job card to take it.',
+      'Touch: the stick on the left steers. GO and STOP are on the right, + and − shift, T calls the fuel moto. Tap a job card to take it.',
     ],
   },
   {

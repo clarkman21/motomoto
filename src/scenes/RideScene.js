@@ -30,6 +30,7 @@ import { levelSettings, milestoneReady, buyMilestone, startAtLevel, streakMultip
 import { loadGame, saveGame, clearSave, loadSettings, saveSettings } from './save.js';
 import { deliveryLine } from '../sim/family.js';
 import { jobFuel } from '../sim/fuel.js';
+import { rescueOffer, createRescue, stepRescue } from '../sim/rescue.js';
 import { LightsView } from './LightsView.js';
 import { BarrierView } from './BarrierView.js';
 import { GarageView } from './GarageView.js';
@@ -43,7 +44,7 @@ const FIXED_DT = 1 / 120; // physics step in seconds
 const BARKS = {
   bumpHard: 'Speed bump too fast!',
   wall: 'Bang!',
-  empty: 'Out of energy! The bike rolls to a stop, and a customer on it will leave. Hold throttle to push the bike to a station',
+  empty: 'Out of energy! The bike rolls to a stop, and a customer on it will leave. Push the bike (throttle) to a station, or press T to call a fuel moto',
   pothole: 'Pothole! Speed −30%, more wear',
   overRev: 'Too fast to shift down',
   noGears: 'Electric moto: no gears',
@@ -291,6 +292,7 @@ export class RideScene extends Phaser.Scene {
         case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': this.acceptJob(Number(e.code.slice(5)) - 1); break;
         case 'Backspace': this.cancelJob(); break;
         case 'KeyF': this.startRefuel(); break;
+        case 'KeyT': this.callFuelMoto(); break;
         case 'KeyK': if (this.debug) this.dayTime = this.level.shift.realSeconds; break; // debug: end the shift now
       }
     });
@@ -606,6 +608,7 @@ export class RideScene extends Phaser.Scene {
    */
   #endDay(reason = null) {
     if (this.board.active) cancelJob(this.board, this.bike);
+    this.#endRescue(); // a fuel moto that has not come yet: no fuel and no payment
     cancelMission(this.raceRival);
     this.raceRival = null;
     this.refuel = null;
@@ -797,6 +800,7 @@ export class RideScene extends Phaser.Scene {
     }
     if (this.refuel || this.bike.engineDead) this.#passengerWaiting(dt);
     if (this.refuel && (this.refuel.timeLeft -= dt) <= 0) this.#finishRefuel();
+    this.#updateRescue(dt);
     this.#updateStation();
     updateBoard(this.board, this.world, dt);
     this.#updateJobFuel(dt);
@@ -951,13 +955,74 @@ export class RideScene extends Phaser.Scene {
     this.#bubble(this.bike.x - 0.6, this.bike.y - 0.6, 44, words[Math.floor(this.rng() * words.length)], 0xffa080);
   }
 
+  /**
+   * T: phone a moto rider at the nearest open station, who brings you 1 litre of fuel (or a charged
+   * battery) for the station price plus 20%. You pay when it comes. You can call at any time.
+   */
+  callFuelMoto() {
+    const money = (n) => `${n.toLocaleString('en')} RWF`;
+    if (this.rescue) {
+      this.events.emit('bark', `The fuel moto is on the way: about ${Math.ceil(this.rescue.eta)} s`);
+      return;
+    }
+    const electric = this.bike.type === 'electric';
+    const offer = rescueOffer(this.bike.type, this.level.petrol);
+    if (this.bike.energy > (electric ? 0.97 : 1 - offer.energy)) {
+      this.events.emit('bark', electric ? 'Your battery is almost full' : 'Your tank is too full for one more litre');
+      return;
+    }
+    if (this.wallet.cash < offer.cost) {
+      this.events.emit('bark', `The fuel moto costs ${money(offer.cost)}. Not enough cash`);
+      return;
+    }
+    const stations = this.world.placesWithTag(electric ? 'swap' : 'fuel').filter((p) => !this.world.isClosedTile(this.world.tile(Math.floor(p.x), Math.floor(p.y))));
+    const r = createRescue(this.roadGraph, stations, this.bike);
+    if (!r) {
+      this.events.emit('bark', 'No station answers the phone');
+      return;
+    }
+    this.rescue = { ...r, offer };
+    this.rescueSprite = this.add.image(0, 0, 'vehicles', 'moto-none-0').setOrigin(BIKE_CANVAS.groundX / BIKE_CANVAS.width, BIKE_CANVAS.groundY / BIKE_CANVAS.height).setVisible(false);
+    this.engineSound.honk('moto', 0.4);
+    this.events.emit('bark', `You phone a moto: ${offer.what} for ${money(offer.cost)} (20% more than at the station). It comes in about ${Math.ceil(r.eta)} s`);
+  }
+
+  /** The fuel moto rides to you, gives you the fuel (you pay), and rides away. */
+  #updateRescue(dt) {
+    const r = this.rescue;
+    if (!r) return;
+    for (const e of stepRescue(r, this.bike, dt)) {
+      if (e === 'arrived') this.#bubble(r.x, r.y, 40, r.offer.energy < 1 ? 'ONE LITRE!' : 'NEW BATTERY!', 0xffffff);
+      if (e === 'delivered') {
+        if (this.wallet.cash >= r.offer.cost) {
+          this.#pay('fuel', r.offer.cost, 'Fuel moto');
+          this.bike.energy = Math.min(1, this.bike.energy + r.offer.energy);
+          this.events.emit('bark', r.offer.energy < 1 ? 'One litre of fuel: ride to a station and fill up' : 'A charged battery: you can ride again');
+        } else this.events.emit('bark', 'You cannot pay the fuel moto: it rides away');
+      }
+      if (e === 'gone') {
+        this.#endRescue();
+        return;
+      }
+    }
+    const s = toScreen(r.x, r.y, this.world.heightAt(r.x, r.y));
+    this.rescueSprite.setVisible(r.state !== 'call').setFrame(`moto-none-${bikeFrameForHeading(r.heading)}`).setPosition(s.x, s.y).setDepth((r.x + r.y) / WORLD.tileMetres);
+  }
+
+  #endRescue() {
+    this.rescueSprite?.destroy();
+    this.rescueSprite = null;
+    this.rescue = null;
+  }
+
   /** Out of fuel during a job: when the bike stops, the customer leaves and you lose the fare. */
   #loseJobWhenEmpty() {
     const lost = loseJobWhenEmpty(this.board, this.bike, forwardSpeed(this.bike));
     if (!lost) return;
     updateStreak(this.wallet, false);
     this.engineSound.grumble();
-    this.#bubble(this.bike.x, this.bike.y, 46, 'EH! EH!', 0xffa080);
+    const words = PEOPLE.leaveWords;
+    this.#bubble(this.bike.x, this.bike.y, 46, words[Math.floor(this.rng() * words.length)], 0xffa080);
     this.events.emit('bark', lost.type === 'passenger'
       ? 'Out of fuel! Your passenger gets off and takes another moto. You lose the fare'
       : 'Out of fuel! The customer sends the cargo with another moto. You lose the pay');

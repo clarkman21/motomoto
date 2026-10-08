@@ -433,3 +433,20 @@ describe('out of fuel during a job', () => {
     expect(bike.loadType).toBeNull();
   });
 });
+
+describe('a job pays only once', () => {
+  it('a delivered job never pays again, even if it comes back as the active job', () => {
+    const world = new World(TEST_MAP);
+    const board = createJobBoard(world, 5);
+    const bike = createBike(world, 'petrol');
+    acceptOffer(board, 0);
+    const job = board.active;
+    job.stage = 'toDropoff';
+    Object.assign(bike, { x: (job.to.x + 0.5) * WORLD.tileMetres, y: (job.to.y + 0.5) * WORLD.tileMetres, vx: 0, vy: 0 });
+    const first = updateJob(board, bike, [], 1 / 60).filter((e) => e.type === 'delivered');
+    expect(first.length).toBe(1);
+    expect(updateJob(board, bike, [], 1 / 60).length).toBe(0); // no active job now
+    board.active = job; // the same job again (it must not happen, but if it does)
+    expect(updateJob(board, bike, [], 1 / 60).filter((e) => e.type === 'delivered').length).toBe(0);
+  });
+});

@@ -37,7 +37,9 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Dashed white lane lines on tarmac roads (gaps at junctions) | Done |
 | Fix: you can push the bike with no fuel on grass, sand and up moderate hills | Done |
 | Fix: the end of the shift waits for a fill, swap or service that has started (you pay and you get it) | Done |
-| Out of fuel during a job: the bike rolls to a stop, then the customer leaves and you lose the fare; no smoke and no engine sound with an empty tank | Done |
+| Out of fuel during a job: the bike rolls to a stop, then the customer leaves ("MANA WE!", "UMVA, BE SERIOUS!") and you lose the fare; no smoke and no engine sound with an empty tank | Done |
+| Fuel moto (T, or the T touch button): a moto from the nearest station brings 1 litre (electric: a charged battery) for the station price + 20%; you pay when it comes; at any time | Done |
+| Guards against double payments: a job pays only once; the HUD removes its old listeners when it starts again | Done |
 | Fix: vehicle lights stay on the vehicle when it turns or jumps on a bump | Done |
 | Fix: building signs, road signs and police posts stand on whole pixels and fade with their building | Done |
 | Passenger and cargo jobs, cash, fares and tips | Done |
@@ -153,6 +155,7 @@ The game is about money. You earn from jobs. You spend on energy, fines and the 
 - **Rival riders.** When you take an app job, a rival (blue vest) may race you to the pickup; a red pin shows the rival. If the rival gets there first, you lose the job. Rivals also take street hails, and app offers go away faster (15–40 s).
 - **Passengers and cargo show on the bike.** A passenger with a helmet rides behind you; cargo sacks ride on the rear rack. A person waves at a passenger pickup; sacks wait at a cargo pickup.
 - **Fuel and shifting.** A full petrol tank lasts 6 min at full throttle (the electric battery 8 min). A new game starts with 60%. Fuel use rises fast with the revs: in the green part of the RPM bar the engine uses about 0.6–0.9× fuel, in the red zone 1.45×, and lugging in a high gear also costs more. Shift up (E) before the gold. If you stay in the red zone for 1.5 s with the manual shift, the game tells you to shift up (at most once in 25 s).
+- **Fuel moto.** Press T at any time to phone a moto rider at the nearest open station. The rider comes along the roads (the HUD shows the time) and brings 1 litre of fuel (40% of the game tank) for 1,920 RWF at the base price (station price + 20%), or a charged battery for the electric moto (swap fee + 20%). You pay when the moto comes. At the end of the shift a moto that has not come yet goes back: no fuel and no payment.
 - **Empty tank or battery.** The engine stops: no sound and no smoke. The bike rolls on with no engine braking and slows down slowly; below 7 km/h the rider gets off and walks. If you carry a customer (or ride to one), the customer leaves when the bike stops: you lose the fare. So fill up before a job. Hold throttle to push the bike at walking speed to a station.
 - **Police.** Do not hit a police officer. At 15 km/h or more, the police arrest you: after 2.5 s the game over screen shows a jail cell, and you start again at level 1. A slow touch is only a warning.
 - **Buying fuel.** At a fuel station, press F, then 1 (25% of a tank), 2 (50%) or 3 (a full tank). At the base price, 25% costs 1,000 RWF; each district has its own price. The job cards still show the fuel that each job needs.
@@ -190,7 +193,8 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `BALANCE` | Player profiles for the balance model (speed, time lost at each job, tips, fines, crashes) and the targets that the tests check |
 | `DISTRICTS` | Name, unlock level, fuel price and fare factor of each district |
 | `BUS_PARK` | How often buses arrive at Nyabugogo and how many customers they bring |
-| `FUEL` | Start tank, idle use, low fuel and reserve warnings, fuel estimates for jobs (petrol and electric) |
+| `FUEL` | Start tank, idle use, low fuel and reserve warnings, fuel estimates for jobs (petrol and electric), litres in the game tank |
+| `RESCUE` | The fuel moto: premium, call time, speed, handover |
 | `COLLISION` | Bike radius, bounce, masses, crash speed and time, repair cost per km/h |
 | `FAMILY` | The family names, and what money pays for at home |
 | `DAYLIGHT` | Light at each hour, night colour, sunset colour |
@@ -248,6 +252,7 @@ src/
     daylight.js          Light and colour at each hour of the day
     family.js            What the money means for the rider's family
     fuel.js              Fuel estimate for a job: distance, climb and load
+    rescue.js            The fuel moto: what it brings and costs, its ride to you along the roads
   audio/engine-sound.js  Engine, horn, crash, yells, jingles and menu sounds (Web Audio)
   scenes/
     MenuScene.js         Welcome menu, pause menu, How to play, Settings

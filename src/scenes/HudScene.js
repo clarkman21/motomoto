@@ -27,9 +27,17 @@ export class HudScene extends Phaser.Scene {
     this.ride = this.scene.get('ride');
     ensureRetroFont(this);
     ensureIcons(this);
-    this.ride.events.on('bark', (text) => this.#bark(text));
-    this.ride.events.on('money', (amount, label) => this.#popup(amount, label));
-    this.ride.events.on('camera', (e) => this.flash.setAlpha(e.fine ? 0.75 : 0.2));
+    // Listen to the ride. When this HUD stops (or starts again), remove the old listeners: else each
+    // payment or message shows two or more times.
+    const listeners = {
+      bark: (text) => this.#bark(text),
+      money: (amount, label) => this.#popup(amount, label),
+      camera: (e) => this.flash.setAlpha(e.fine ? 0.75 : 0.2),
+    };
+    for (const [name, fn] of Object.entries(listeners)) this.ride.events.on(name, fn);
+    this.events.once('shutdown', () => {
+      for (const [name, fn] of Object.entries(listeners)) this.ride.events.off(name, fn);
+    });
 
     // Everything except the camera flash and the touch controls is in one container, in virtual pixels.
     this.ui = this.add.container(0, 0);
@@ -363,6 +371,9 @@ export class HudScene extends Phaser.Scene {
       const what = r.kind === 'fuel' ? 'FILLING UP' : r.kind === 'swap' ? 'SWAPPING THE BATTERY' : 'THE MECHANIC IS WORKING';
       text = `${what} · ${Math.ceil(r.timeLeft)} S`;
       progress = 1 - r.timeLeft / r.total;
+    } else if (ride.rescue && ride.rescue.state !== 'leaving') {
+      // The fuel moto (T): on the way, then here.
+      text = ride.rescue.state === 'handover' ? 'THE FUEL MOTO IS HERE' : `FUEL MOTO ON THE WAY · ${Math.ceil(ride.rescue.eta)} S`;
     } else if (ride.hailOffer) {
       text = `${this.isTouch ? 'TAP' : '1'}: STREET HAIL TO ${ride.hailOffer.to.name}`;
     } else {
@@ -456,7 +467,7 @@ export class HudScene extends Phaser.Scene {
     this.goBtn = this.#button('GO', () => (this.ride.touch.throttle = true), () => (this.ride.touch.throttle = false));
     this.stopBtn = this.#button('STOP', () => (this.ride.touch.brake = true), () => (this.ride.touch.brake = false));
     this.modeBtn = this.#button('C', () => this.ride.toggleSteering(), null, 22);
-    this.bikeBtn = this.#button('B', () => this.ride.toggleBike(), null, 22);
+    this.bikeBtn = this.#button('T', () => this.ride.callFuelMoto(), null, 22); // phone the fuel moto
     this.resetBtn = this.#button('R', () => this.ride.resetBike(), null, 22);
     this.hornBtn = this.#button('H', () => this.ride.horn(), null, 22);
     this.autoBtn = this.#button('G', () => this.ride.toggleAutoShift(), null, 22);
