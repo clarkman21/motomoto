@@ -36,6 +36,9 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Ride on the pavement or off road near an officer: the officer runs after you (22 km/h); caught = 5,000 RWF fine; you can get away on the road | Done |
 | Dashed white lane lines on tarmac roads (gaps at junctions) | Done |
 | Fix: you can push the bike with no fuel on grass, sand and up moderate hills | Done |
+| Fix: the end of the shift waits for a fill, swap or service that has started (you pay and you get it) | Done |
+| Fix: vehicle lights stay on the vehicle when it turns or jumps on a bump | Done |
+| Fix: building signs, road signs and police posts stand on whole pixels and fade with their building | Done |
 | Passenger and cargo jobs, cash, fares and tips | Done |
 | Fuel station (pay per litre) and Ampersand swap station (flat fee) | Done |
 | Speed limit zones, signs and speed cameras with fines; about 250 speed limit signs made from the roads (where the limit changes and every 96 m), speed bump warning signs and crossing signs | Done |

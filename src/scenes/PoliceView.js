@@ -3,7 +3,7 @@ import { toScreen } from '../world/iso.js';
 import { drawOfficer, drawPolicePost, policeSpots, POLICE_POST } from '../world/police.js';
 import { PERSON_CANVAS } from '../world/vehicle-sprites.js';
 import { createPolice, stepPolice } from '../sim/police.js';
-import { addCanvasTexture } from './textures.js';
+import { addCanvasTexture, placeOnPixels } from './textures.js';
 
 // Traffic police on the junction corners (see sim/police.js for the rules). This view moves the
 // sprites and the collision poles. The ride scene handles the events (whistle, chase, fine).
@@ -23,7 +23,7 @@ export class PoliceView {
       if (!o.post) continue;
       const { x, y } = o.post;
       const s = toScreen(x, y, world.heightAt(x, y));
-      const img = scene.add.image(s.x, s.y, 'police-post-0').setOrigin(POLICE_POST.groundX / POLICE_POST.width, POLICE_POST.groundY / POLICE_POST.height).setDepth((x + y) / T);
+      const img = placeOnPixels(scene.add.image(0, 0, 'police-post-0'), s, POLICE_POST.groundX, POLICE_POST.groundY).setDepth((x + y) / T);
       img.noAmbient = true; // the sign and the light are easy to see at night
       this.posts.push(img);
       world.poles.push({ kind: 'pole', x, y, radius: COLLISION.poleRadius });

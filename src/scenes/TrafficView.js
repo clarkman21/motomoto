@@ -72,12 +72,15 @@ export class TrafficView {
       shadow.setVisible(visible);
       if (!visible) continue;
       const depth = (v.x + v.y) / WORLD.tileMetres;
-      const bounce = v.bump > 0 ? Math.sin((v.bump / 0.3) * Math.PI) * (v.kind === 'truck' || v.kind === 'bus' ? 3 : 2) : 0;
+      const bounce = vehicleBounce(v);
       img.setFrame(this.#frame(v)).setPosition(s.x, s.y - bounce).setDepth(depth);
       shadow.setPosition(s.x, s.y + 1).setDepth(depth - 0.01);
     }
   }
 }
+
+/** How many pixels a vehicle jumps up on a speed bump or a pothole now (the lights jump with it). */
+export const vehicleBounce = (v) => (v.bump > 0 ? Math.sin((v.bump / 0.3) * Math.PI) * (v.kind === 'truck' || v.kind === 'bus' ? 3 : 2) : 0);
 
 export const isDiesel = (v) => v.kind === 'truck' || v.kind === 'bus';
 export { TRAFFIC };

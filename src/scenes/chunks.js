@@ -141,3 +141,10 @@ export function packShelves(canvases, maxWidth = 2048) {
   }
   return { width: Math.max(1, width), height: Math.max(1, y + shelf), places };
 }
+
+/** The key of the building that a block is part of (a building fades as one, with its signs). */
+export function groupKey(block) {
+  if (block.kind === 'building') return 'building-' + block.groupId;
+  if (block.kind === 'monument') return 'monument';
+  return block.kind + '-' + block.tx + ',' + block.ty;
+}

@@ -6,6 +6,7 @@ import {
   drawLightPool, drawHeadlightCone, headlightCanvasSize, drawLightDot, drawLampPost, lampHeadOffset, LAMP_CANVAS,
 } from '../world/light-sprites.js';
 import { addCanvasTexture } from './textures.js';
+import { vehicleBounce } from './TrafficView.js';
 
 // Night lights and the colour of the day. The scene calls update() each frame with the hour.
 // - The night tint multiplies the colour of every world sprite (dark blue at night, warm at sunset).
@@ -106,13 +107,19 @@ export class LightsView {
     for (const d of [...l.heads, ...l.tails]) d.setVisible(false);
   }
 
-  /** Place the lights of one vehicle. v: { x, y, z?, heading, length, width }. braking: brighter tail lights. */
-  #placeLights(l, v, z, braking) {
+  /**
+   * Place the lights of one vehicle. v: { x, y, z?, heading, length, width }. braking: brighter tail lights.
+   * lift: pixels up (the vehicle jumps on a bump). The lights use the heading of the sprite (one of 16
+   * directions), not the exact heading: so they stay on the vehicle when it turns.
+   */
+  #placeLights(l, v, z, braking, lift = 0) {
     const night = this.night;
     const s = toScreen(v.x, v.y, z);
     const depth = (v.x + v.y) / WORLD.tileMetres;
-    l.cone.setFrame(`cone-${bikeFrameForHeading(v.heading)}`).setPosition(s.x, s.y).setAlpha(night).setVisible(true);
-    const c = Math.cos(v.heading), sn = Math.sin(v.heading);
+    const frame = bikeFrameForHeading(v.heading);
+    l.cone.setFrame(`cone-${frame}`).setPosition(s.x, s.y).setAlpha(night).setVisible(true);
+    const heading = (frame / BIKE_DIRECTIONS) * Math.PI * 2;
+    const c = Math.cos(heading), sn = Math.sin(heading);
     const half = (v.length ?? 2) / 2;
     const side = l.heads.length > 1 ? (v.width ?? 1) / 2 - 0.3 : 0;
     const h = LIGHT_HEIGHT[l.kind] ?? 1;
@@ -121,7 +128,7 @@ export class LightsView {
       const p = toScreen(wx, wy, z + h);
       // A light on the far side of the vehicle is behind its sprite.
       const d = (wx + wy) / WORLD.tileMetres > depth ? depth + 0.005 : depth - 0.005;
-      dot.setPosition(p.x, p.y).setDepth(d).setAlpha(alpha).setVisible(alpha > 0.02);
+      dot.setPosition(p.x, p.y - lift).setDepth(d).setAlpha(alpha).setVisible(alpha > 0.02);
     };
     l.heads.forEach((dot, i) => put(dot, half, l.heads.length > 1 ? (i ? side : -side) : 0, night));
     const tail = Math.max(night * 0.7, braking ? 0.9 : 0);
@@ -179,7 +186,7 @@ export class LightsView {
         this.#hideLights(l);
         continue;
       }
-      this.#placeLights(l, v, z, v.speed < 0.5);
+      this.#placeLights(l, v, z, v.speed < 0.5, vehicleBounce(v));
     }
   }
 }

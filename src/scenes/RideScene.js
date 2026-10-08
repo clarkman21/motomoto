@@ -2,8 +2,8 @@ import Phaser from 'phaser';
 import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER } from '../config.js';
 import { World } from '../world/world.js';
 import { buildKigaliMap } from '../world/maps/kigali.js';
-import { ChunkStreamer } from './chunks.js';
-import { addCanvasTexture } from './textures.js';
+import { ChunkStreamer, groupKey } from './chunks.js';
+import { addCanvasTexture, placeOnPixels } from './textures.js';
 import { toScreen } from '../world/iso.js';
 import {
   drawBike, drawBlock, drawShadow, drawGlow, drawPuff, bikeFrameForHeading, BIKE_CANVAS, BIKE_DIRECTIONS,
@@ -827,8 +827,10 @@ export class RideScene extends Phaser.Scene {
       this.#endDay('jail');
       return;
     }
-    if (this.dayTime >= this.level.shift.realSeconds) this.#endDay();
-    else this.#updateStranded(dt);
+    // The shift is over. A fill, a swap or a service that has started finishes first (you pay and you get it).
+    if (this.dayTime >= this.level.shift.realSeconds) {
+      if (!this.refuel) this.#endDay();
+    } else this.#updateStranded(dt);
   }
 
   /**
@@ -1125,7 +1127,7 @@ export class RideScene extends Phaser.Scene {
     const ox = PROP_CANVAS.groundX / PROP_CANVAS.width, oy = PROP_CANVAS.groundY / PROP_CANVAS.height;
     const place = (key, x, y) => {
       const s = toScreen(x * WORLD.tileMetres, y * WORLD.tileMetres, this.world.heightAt(x * WORLD.tileMetres, y * WORLD.tileMetres));
-      this.add.image(s.x, s.y, key).setOrigin(ox, oy).setDepth(x + y);
+      placeOnPixels(this.add.image(0, 0, key), s, PROP_CANVAS.groundX, PROP_CANVAS.groundY).setDepth(x + y);
     };
     for (const c of this.world.cameras) place('camera', c.x, c.y);
     // Speed limit signs (from the map, and made from the roads), speed bump warnings and crossing signs.
@@ -1255,6 +1257,7 @@ export class RideScene extends Phaser.Scene {
       bs.img.setAlpha(alpha);
       bs.glow?.setAlpha(alpha * this.chunks.night); // lit windows fade with the building
     }
+    this.signs.fade(hidingGroups); // the names on the buildings fade with them
     const occluded = hidingGroups.size > 0;
     this.occluded = occluded;
     this.ghost.setVisible(occluded);
@@ -1275,10 +1278,4 @@ export class RideScene extends Phaser.Scene {
     this.camPos.y += (this.bikeScreen.y - 10 + ay - this.camPos.y) * k;
     this.cameras.main.centerOn(this.camPos.x, this.camPos.y);
   }
-}
-
-function groupKey(block) {
-  if (block.kind === 'building') return 'building-' + block.groupId;
-  if (block.kind === 'monument') return 'monument';
-  return block.kind + '-' + block.tx + ',' + block.ty;
 }
