@@ -1,8 +1,8 @@
-import { WORLD, COLLISION } from '../config.js';
+import { WORLD, COLLISION, CITY_ANIM } from '../config.js';
 import { BUILDING_STYLES } from '../world/world.js';
 import { toScreen } from '../world/iso.js';
 import { drawBuildingSign, drawFuelSign } from '../world/garage-sprites.js';
-import { FUEL_BRAND, drawBike, BIKE_CANVAS } from '../world/sprites.js';
+import { FUEL_BRAND, drawBike, BIKE_CANVAS, flagSpots, drawFlagCloth, fountainSpots, drawFountainSpray, SPRAY } from '../world/sprites.js';
 import { addCanvasTexture, placeOnPixels } from './textures.js';
 import { groupKey } from './chunks.js';
 
@@ -16,6 +16,8 @@ export class SignView {
     const T = WORLD.tileMetres, L = WORLD.levelMetres;
     this.items = []; // { img, keys: the building keys (groupKey) that the sign is on }
     this.#fuelSigns(scene, world);
+    this.#flags(scene, world);
+    this.#fountains(scene, world);
     for (const lm of world.landmarks) {
       if (!lm.sign) continue;
       if (lm.brand) this.#showroomMoto(scene, world, lm);
@@ -73,6 +75,49 @@ export class SignView {
       const img = placeOnPixels(scene.add.image(0, 0, 'fuel-sign'), p, sign.groundX, sign.groundY).setDepth((x + y) / T + 0.05);
       img.noAmbient = true; // the sign is lit at night
     }
+  }
+
+  /** The flag cloths on the poles of government buildings, ministries and the US Embassy. They wave. */
+  #flags(scene, world) {
+    const T = WORLD.tileMetres, L = WORLD.levelMetres;
+    this.flags = [];
+    for (const kind of ['rw', 'us']) for (let f = 0; f < CITY_ANIM.flagFrames; f++) {
+      const key = `flag-${kind}-${f}`;
+      if (!scene.textures.exists(key)) addCanvasTexture(scene, key, drawFlagCloth(kind, f, CITY_ANIM.flagFrames));
+    }
+    for (const spot of flagSpots(world)) {
+      const p = toScreen(spot.x * T, spot.y * T, spot.z * L);
+      const img = placeOnPixels(scene.add.image(0, 0, `flag-${spot.kind}-0`), p, -1, 2).setDepth(spot.block.tx + spot.block.ty + 1.3);
+      const offset = Math.floor((spot.x * 7 + spot.y * 3) % CITY_ANIM.flagFrames); // flags do not all move together
+      this.flags.push({ img, kind: spot.kind, offset });
+      this.items.push({ img, keys: new Set([groupKey(spot.block)]) });
+    }
+  }
+
+  /** The spray of the MTN fountain: only now and then (Alp). */
+  #fountains(scene, world) {
+    const T = WORLD.tileMetres, L = WORLD.levelMetres;
+    this.sprays = [];
+    for (let f = 0; f < CITY_ANIM.sprayFrames; f++) {
+      const key = `spray-${f}`;
+      if (!scene.textures.exists(key)) addCanvasTexture(scene, key, drawFountainSpray(f, CITY_ANIM.sprayFrames));
+    }
+    for (const spot of fountainSpots(world)) {
+      const p = toScreen(spot.x * T, spot.y * T, spot.z * L);
+      const img = placeOnPixels(scene.add.image(0, 0, 'spray-0'), p, SPRAY.groundX, SPRAY.groundY)
+        .setDepth(spot.block.tx + spot.block.ty + 1.2).setVisible(false);
+      this.sprays.push(img);
+    }
+  }
+
+  /** Call each frame (time in ms): the flags wave, and the fountain sprays now and then. */
+  update(time) {
+    const f = Math.floor(time / CITY_ANIM.flagFrameMs);
+    for (const fl of this.flags) fl.img.setTexture(`flag-${fl.kind}-${(f + fl.offset) % CITY_ANIM.flagFrames}`);
+    const t = (time / 1000) % CITY_ANIM.sprayEverySeconds;
+    const on = t >= CITY_ANIM.sprayEverySeconds - CITY_ANIM.sprayForSeconds; // at the end of each cycle
+    const sf = Math.floor(time / CITY_ANIM.sprayFrameMs) % CITY_ANIM.sprayFrames;
+    for (const img of this.sprays) img.setVisible(on).setTexture(`spray-${sf}`);
   }
 
   /** The building of a sign fades when it hides the bike: the sign fades too. hiding: a Set of building keys. */

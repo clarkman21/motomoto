@@ -1365,6 +1365,7 @@ export class RideScene extends Phaser.Scene {
       bs.glow?.setAlpha(alpha * this.chunks.night); // lit windows fade with the building
     }
     this.signs.fade(hidingGroups); // the names on the buildings fade with them
+    this.signs.update(this.time.now); // flags in the wind, the fountain spray
     const occluded = hidingGroups.size > 0;
     this.occluded = occluded;
     this.ghost.setVisible(occluded);

@@ -224,7 +224,7 @@ export function drawBlock(block, world) {
     : block.kind === 'fountain' ? 64
     : block.kind === 'dome' ? 240
     : block.kind === 'lovesign' ? 72
-    : block.kind === 'building' ? (block.style === 'government' || block.style === 'embassy' || block.flag ? 64 : 14 + Math.ceil((buildingLook(block, world).roof?.levels ?? 0) * WORLD.levelPx)) : 2; // room for roofs, tanks and flags
+    : block.kind === 'building' ? (block.style === 'government' || block.style === 'embassy' || block.flag ? 56 : 14 + Math.ceil((buildingLook(block, world).roof?.levels ?? 0) * WORLD.levelPx)) : 2; // room for roofs, tanks and flags
   const corners = [];
   for (const [x, y] of [[tx, ty], [tx + 1, ty], [tx + 1, ty + 1], [tx, ty + 1]]) {
     corners.push(pt(x, y, block.baseLevel), pt(x, y, block.topLevel));
@@ -352,8 +352,6 @@ function drawBuilding(c, block, pt, world, glow) {
   const { tx, ty, baseLevel, topLevel, groupId } = block;
   const { style, roof: pitched } = buildingLook(block, world);
   const look = STYLE_LOOKS[style] ?? STYLE_LOOKS.house;
-  // Named ministries (MINEDUC, MINAGRI, ...: a landmark with flag: true) fly the flag of Rwanda too.
-  const ministry = !!block.flag;
   const pick = pitched?.single ? Math.floor(hash2(tx, ty, groupId) * 97) : groupId; // small houses in a row differ
   const wall = look.walls[pick % look.walls.length];
   const roof = look.roofs[(pick >> 1) % look.roofs.length];
@@ -504,21 +502,12 @@ function drawBuilding(c, block, pt, world, glow) {
       if (!same(tx, ty + 1)) merlon(tx + i * 0.25, ty + 0.84);
     }
   }
-  if (look.flag === 'us' && isFlagTile(block, world)) {
-    // The flag of the United States on a tall pole: red and white stripes, a blue corner with white
-    // stars. It waves (a sine along the flag); the scene does not animate it yet.
-    drawBox(c, tx + 0.48, ty + 0.48, tx + 0.53, ty + 0.53, topLevel, topLevel + 3.5, pt, flat(0xd8d8d8), side(0xc0c0c0, 0.8), side(0xc0c0c0, 1));
-    const p = pt(tx + 0.5, ty + 0.5, topLevel + 3.5);
-    for (let x = 1; x <= 11; x++) {
-      const wave = Math.round(Math.sin(x * 0.7) * 1.2);
-      for (let r = 0; r < 7; r++) {
-        let col = r % 2 ? 0xf2f2f2 : 0xb22234;
-        if (x <= 5 && r <= 3) col = (x + r) % 2 && r > 0 && r < 3 ? 0xf2f2f2 : 0x3c3b6e;
-        c.plot(p.x + x, p.y + r + wave, col);
-      }
-    }
-  } else if ((look.flag || ministry) && isFlagTile(block, world)) {
-    drawRwandaFlag(c, pt, tx + 0.5, ty + 0.5, topLevel);
+  // A flag pole on the front corner of the roof. The flag cloth moves in the wind: the scene draws it
+  // (see flagSpots and drawFlagCloth), so here only the pole.
+  const flag = flagKind(block, world);
+  if (flag) {
+    const pole = (k) => () => shadeColour(P.chrome, k);
+    drawBox(c, tx + 0.47, ty + 0.47, tx + 0.53, ty + 0.53, topLevel, topLevel + FLAG_POLE_LEVELS, pt, pole(1), pole(0.68), pole(0.86));
   }
 }
 
@@ -596,25 +585,104 @@ function drawPitchedRoof(c, block, pt, r, roofColour, wallColour, look, style) {
   }
 }
 
+const FLAG_POLE_LEVELS = 3.4;
+
+/** 'rw' (the flag of Rwanda), 'us' (the US Embassy) or null: the flag on this building tile. */
+function flagKind(block, world) {
+  if (block.kind !== 'building' || !isFlagTile(block, world)) return null;
+  const { style } = buildingLook(block, world);
+  const look = STYLE_LOOKS[style];
+  if (look?.flag === 'us') return 'us';
+  if (look?.flag || block.flag) return 'rw'; // government buildings and named ministries
+  return null;
+}
+
+/** Where the flags fly: [{ kind, x, y (tiles), z (levels: the top of the pole), block }]. */
+export function flagSpots(world) {
+  const out = [];
+  for (const b of world.blocks) {
+    const kind = flagKind(b, world);
+    if (kind) out.push({ kind, x: b.tx + 0.5, y: b.ty + 0.5, z: b.topLevel + FLAG_POLE_LEVELS, block: b });
+  }
+  return out;
+}
+
+export const FLAG_CLOTH = { width: 16, height: 12 }; // the canvas; the cloth hangs from (0, 2)
+
 /**
- * The flag of Rwanda on a tall pole (government buildings and ministries): a blue band (half of
- * the flag) with the golden sun at the fly end, then yellow, then green. It waves a little.
+ * The cloth of a flag in the wind, for one frame of `frames`: a wave runs from the pole to the
+ * free end. 'rw': blue (half) with the golden sun, yellow, green. 'us': red and white stripes and
+ * a blue corner with white stars. Its top left corner is at (0, 2) of the canvas (at the pole top).
  */
-function drawRwandaFlag(c, pt, x, y, top) {
-  const pole = (k) => () => shadeColour(P.chrome, k);
-  drawBox(c, x - 0.03, y - 0.03, x + 0.03, y + 0.03, top, top + 3.4, pt, pole(1), pole(0.68), pole(0.86));
-  const p = pt(x, y, top + 3.4);
-  const W = 14, H = 8;
-  for (let fx = 1; fx <= W; fx++) {
-    const wave = Math.round(Math.sin(fx * 0.55) * 1.3);
+export function drawFlagCloth(kind, frame = 0, frames = 4) {
+  const c = new PixelCanvas(FLAG_CLOTH.width, FLAG_CLOTH.height);
+  const W = kind === 'us' ? 12 : 14, H = kind === 'us' ? 7 : 8;
+  const phase = (frame / frames) * Math.PI * 2;
+  const waveAt = (fx) => Math.round(Math.sin(fx * 0.55 - phase) * Math.min(1.6, fx * 0.25)); // still at the pole
+  for (let fx = 0; fx < W; fx++) {
+    const w = waveAt(fx);
     for (let r = 0; r < H; r++) {
-      const col = r < H / 2 ? P.rwBlue : r < (H * 3) / 4 ? P.rwYellow : P.rwGreen;
-      c.plot(p.x + fx, p.y + r + wave, col);
+      let col;
+      if (kind === 'us') {
+        col = r % 2 ? 0xf2f2f2 : 0xb22234;
+        if (fx <= 4 && r <= 3) col = (fx + r) % 2 && r > 0 && r < 3 ? 0xf2f2f2 : 0x3c3b6e;
+      } else col = r < H / 2 ? P.rwBlue : r < (H * 3) / 4 ? P.rwYellow : P.rwGreen;
+      // A fold of the cloth that is turned away from the light is a little darker.
+      if (Math.sin(fx * 0.55 - phase) < -0.4 && fx > 2) col = shadeColour(col, 0.86);
+      c.setPixel(fx, 2 + r + w, col);
     }
   }
-  // The sun near the fly end of the blue band.
-  const sx = p.x + W - 2, sy = p.y + 1 + Math.round(Math.sin((W - 2) * 0.55) * 1.3);
-  for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1], [-1, 0], [2, 1], [0, -1], [1, 2]]) c.plot(sx + dx, sy + dy, P.rwYellow);
+  if (kind === 'rw') {
+    // The golden sun near the free end of the blue band.
+    const sx = W - 3, sy = 3 + waveAt(W - 3);
+    for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1], [-1, 0], [2, 1], [0, -1], [1, 2]]) c.setPixel(sx + dx, sy + dy, P.rwYellow);
+  }
+  return c;
+}
+
+/**
+ * The spray of the MTN fountain, for one frame of `frames`: a jet of water up from the top of the
+ * column, that falls back into the basin (about 3 levels lower) in arcs of drops on all sides.
+ * The jet starts at (groundX, groundY) of the canvas.
+ */
+export const SPRAY = { width: 104, height: 120, groundX: 52, groundY: 58 };
+export function drawFountainSpray(frame = 0, frames = 4) {
+  const c = new PixelCanvas(SPRAY.width, SPRAY.height);
+  const gx = SPRAY.groundX, gy = SPRAY.groundY;
+  const up = 34, down = 52; // the jet goes up this far; the water surface is this far below the jet base
+  // The jet: a column of water, light in the middle, a little wider at the top where it opens.
+  for (let y = 0; y < up; y++) {
+    const w = y > up - 5 ? 2 : 1;
+    for (let x = -w; x <= w; x++) c.setPixel(gx + x, gy - y, x === 0 ? 0xf2f8ff : P.waterLight, 230);
+  }
+  // Arcs of drops on all sides (seen in 2:1 iso: the arcs to the front and back are shorter).
+  const arcs = 14;
+  for (let k = 0; k < arcs; k++) {
+    const a = (k / arcs) * Math.PI * 2 + 0.2;
+    const reach = 26 + (k % 3) * 6;
+    const dx = Math.cos(a) * reach, dy = Math.sin(a) * reach * 0.5;
+    for (let t = 0; t <= 1; t += 0.035) {
+      const tt = (t + frame / frames * 0.07) % 1;
+      if ((Math.floor(tt * 28) + k + frame) % 3 === 0) continue; // gaps between the drops
+      const x = gx + dx * tt, y = gy - up + 10 * tt + (down + up - 10) * tt * tt + dy * tt;
+      c.setPixel(Math.round(x), Math.round(y), tt < 0.5 ? 0xf2f8ff : P.waterLight, 210);
+    }
+  }
+  // Splashes where the drops fall into the water.
+  for (let k = 0; k < arcs; k++) {
+    const a = (k / arcs) * Math.PI * 2 + 0.2, reach = 26 + (k % 3) * 6;
+    const x = Math.round(gx + Math.cos(a) * reach), y = Math.round(gy + down + Math.sin(a) * reach * 0.5);
+    for (const [ox, oy] of [[0, 0], [-1, 0], [1, 0], [0, -1 - ((k + frame) % 2)]]) c.setPixel(x + ox, y + oy, 0xf2f8ff, 200);
+  }
+  return c;
+}
+
+/** The fountains on the map: [{ x, y (tiles: the centre), z (levels: the top of the column), block }]. */
+export function fountainSpots(world) {
+  return world.blocks.filter((b) => b.kind === 'fountain').map((b) => {
+    const x = b.tx + 1, y = b.ty + 1;
+    return { x, y, z: world.heightAt(x * WORLD.tileMetres, y * WORLD.tileMetres) / WORLD.levelMetres + 3.8, block: b };
+  });
 }
 
 /** The flag stands on one tile of a government building: the one with the smallest x + y. */

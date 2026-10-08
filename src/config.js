@@ -200,6 +200,12 @@ export const LIGHT = { top: 1, left: 0.86, right: 0.68 };
 // Pitched roofs. pitch: rise / run; maxLevels: the highest ridge (1 level = 1.5 m); steepChance: the part
 // of the villas and the Kicukiro houses that are new apartments with a very steep roof (Alp: "the new
 // face of Kigali"; which districts is a guess).
+// Moving details of the city (the scene animates them).
+export const CITY_ANIM = {
+  flagFrames: 4, flagFrameMs: 170, // flags in the wind
+  sprayFrames: 4, sprayFrameMs: 110, // the MTN fountain spray
+  sprayEverySeconds: 40, sprayForSeconds: 9, // Alp: the fountain sprays only now and then
+};
 export const ROOFS = {
   house: { pitch: 0.5, maxLevels: 2 },
   mud: { pitch: 0.45, maxLevels: 1.2 },

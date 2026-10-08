@@ -267,7 +267,7 @@ export function buildKigaliMap(seed = 7) {
   // Ministries (Alp: some fly the flag, like MINEDUC and MINAGRI). The other offices do not.
   landmark(66, 26, 72, 31, '5', 'o', { sign: 'MINEDUC', sign2: 'MINISTRY OF EDUCATION', flag: true });
   landmark(74, 26, 81, 31, '5', 'o', { sign: 'MINAGRI', sign2: 'MINISTRY OF AGRICULTURE', flag: true });
-  landmark(111, 43, 116, 46, '5', 'o', { sign: 'MINISANTE', sign2: 'MINISTRY OF HEALTH', flag: true });
+  landmark(112, 43, 116, 46, '5', 'o', { sign: 'MINISANTE', sign2: 'MINISTRY OF HEALTH', flag: true });
   // Hotels (Alp). Places are guesses on the compressed map: the Mille Collines (the "Hotel Rwanda") and
   // the Serena in Kiyovu (town), the Umubano on the boulevard, the Radisson Blu beside the KCC.
   landmark(52, 112, 58, 117, '9', 'H', { levels: 12, sign: 'HOTEL DES', sign2: 'MILLE COLLINES' });
