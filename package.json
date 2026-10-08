@@ -1,8 +1,8 @@
 {
-  "name": "moto-kigali",
+  "name": "moto-inziza",
   "version": "0.1.0",
   "private": true,
-  "description": "Moto Kigali: isometric moto taxi game prototype (milestone 1: ride feel)",
+  "description": "Moto Inziza: isometric moto taxi game in Kigali (web)",
   "type": "module",
   "scripts": {
     "dev": "vite",

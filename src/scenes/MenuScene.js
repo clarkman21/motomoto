@@ -133,13 +133,13 @@ export class MenuScene extends Phaser.Scene {
     const cx = Math.floor(this.vw / 2);
     let y = Math.max(10, Math.floor(this.vh * 0.1));
     // The title: big letters with a red shadow and a gold underline.
-    this.#label(cx + 3, y + 3, 'MOTO KIGALI', RED, 3).setOrigin(0.5, 0);
-    this.#label(cx, y, 'MOTO KIGALI', WHITE, 3).setOrigin(0.5, 0);
+    this.#label(cx + 3, y + 3, 'MOTO INZIZA', RED, 3).setOrigin(0.5, 0);
+    this.#label(cx, y, 'MOTO INZIZA', WHITE, 3).setOrigin(0.5, 0);
     y += 31;
     const g = this.#gfx();
     g.fillStyle(GOLD, 1).fillRect(cx - 66, y, 132, 2);
     y += 7;
-    this.#label(cx, y, 'A MOTO TAXI GAME', DIM).setOrigin(0.5, 0);
+    this.#label(cx, y, 'A MOTO TAXI GAME IN KIGALI', DIM).setOrigin(0.5, 0);
     y += 11;
     this.#label(cx, y, 'START ON PETROL. SAVE FOR ELECTRIC.', DIM).setOrigin(0.5, 0);
     y += 16;

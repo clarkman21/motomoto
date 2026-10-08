@@ -1,7 +1,7 @@
 // Save and load the game in this browser (localStorage). Storage can be missing or blocked
 // (a private window), so every call is wrapped and the game works without it.
 
-const KEY = 'motoKigali.save.v1';
+const KEY = 'motoKigali.save.v1'; // the old working name stays in the keys, so that saves are not lost
 
 export function loadGame() {
   try {

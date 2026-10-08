@@ -1,8 +1,8 @@
-# Moto Kigali — prototype
+# Moto Inziza — prototype
 
-Moto Kigali is an isometric open city driving game. You are a moto taxi rider on the hills of Kigali. The story moves you from a petrol moto to an Ampersand electric moto.
+Moto Inziza is an isometric open city driving game (until 8 October 2026 its working name was Moto Kigali). You are a moto taxi rider on the hills of Kigali. The story moves you from a petrol moto to an Ampersand electric moto.
 
-This repository holds the web prototype. The game spec is the doc "Moto Kigali: Game Spec v0.1".
+This repository holds the web prototype. The game spec is the doc "Moto Inziza: Game Spec v0.1". The game will be published on the web with Vercel.
 
 ## Status: milestones 1 and 2 done, milestone 3 (district slice) playable
 

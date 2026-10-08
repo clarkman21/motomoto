@@ -1,6 +1,6 @@
 # Notes for Claude
 
-- Game: Moto Kigali, an isometric moto taxi game. Spec: the Claude Docs doc "Moto Kigali: Game Spec v0.1".
+- Game: Moto Inziza (working name before: Moto Kigali), an isometric moto taxi game. Spec: the Claude Docs doc "Moto Inziza: Game Spec v0.1". Web only; it will be published on Vercel.
 - Stack: Phaser 3, Vite, Vitest. Plain JavaScript (ES modules).
 - Use metric units. Keep all tunable numbers in `src/config.js`.
 - Keep `src/sim` and `src/world` free of Phaser, so `npm test` can run them in Node.
