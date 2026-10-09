@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { loadGame } from './save.js';
 import { levelDef } from '../sim/levels.js';
+import { MODES } from '../config.js';
+import { modeOf } from '../sim/modes.js';
 import { STEERING_LABELS } from '../sim/controls.js';
 import { drawRetroFontSheet, RETRO_CHARS, RETRO_CELL, RETRO_PER_ROW, retroText, wrapRetro } from '../world/retro-font.js';
 import { PixelCanvas } from '../world/pixel-canvas.js';
@@ -124,6 +126,7 @@ export class MenuScene extends Phaser.Scene {
     else if (this.screen === 'help') this.#help();
     else if (this.screen === 'settings') this.#settings();
     else if (this.screen === 'confirm') this.#confirmScreen();
+    else if (this.screen === 'mode') this.#modeScreen();
     this.focus = Math.min(this.focus, Math.max(0, this.items.length - 1));
     this.#showFocus();
   }
@@ -151,7 +154,7 @@ export class MenuScene extends Phaser.Scene {
     }
     const lines = [];
     if (session || save) lines.push(['CONTINUE', () => this.#start('continue')]);
-    lines.push(['NEW GAME', () => ((session || save) ? this.#ask('START A NEW GAME? YOUR SAVED GAME WILL BE DELETED.', 'YES, NEW GAME', () => this.#start('new')) : this.#start('new'))]);
+    lines.push(['NEW GAME', () => this.#go('mode')]);
     lines.push(['HOW TO PLAY', () => this.#go('help')]);
     lines.push(['SETTINGS', () => this.#go('settings')]);
     this.#menuWindow(lines, y + 4, 120);
@@ -219,6 +222,35 @@ export class MenuScene extends Phaser.Scene {
     ], y + 28, 240);
   }
 
+  /** New game: choose the difficulty mode (a year of the city). */
+  #modeScreen() {
+    const save = loadGame();
+    const session = this.ride?.started;
+    const cx = Math.floor(this.vw / 2);
+    let y = Math.max(8, Math.floor(this.vh * 0.08));
+    this.#label(cx, y, 'CHOOSE YOUR KIGALI', GOLD, 2).setOrigin(0.5, 0);
+    y += 22;
+    const w = Math.min(this.vw - 12, 300);
+    const x = Math.floor((this.vw - w) / 2);
+    const n = Math.floor((w - 16) / RETRO_CELL.width);
+    // One description for each mode, in a window.
+    const texts = Object.values(MODES).map((m) => wrapRetro(`${m.name} (${m.short}): ${m.text}`, n));
+    const h = 8 + texts.reduce((a, t) => a + t.length * 9 + 3, 0);
+    this.#window(x, y, w, h);
+    let ty = y + 5;
+    Object.values(MODES).forEach((m, i) => {
+      texts[i].forEach((l, j) => this.#label(x + 8, ty + j * 9, l, j === 0 ? WHITE : DIM));
+      ty += texts[i].length * 9 + 3;
+    });
+    const start = (id) => () => ((session || save)
+      ? this.#ask('START A NEW GAME? YOUR SAVED GAME WILL BE DELETED.', 'YES, NEW GAME', () => this.#start('new', id))
+      : this.#start('new', id));
+    this.#menuWindow([
+      ...Object.entries(MODES).map(([id, m]) => [`${m.name} · ${m.short}`, start(id)]),
+      ['BACK', () => this.#back()],
+    ], y + h + 6, 160);
+  }
+
   #confirmScreen() {
     const w = Math.min(this.vw - 12, 260);
     const x = Math.floor((this.vw - w) / 2);
@@ -240,7 +272,7 @@ export class MenuScene extends Phaser.Scene {
   #go(screen) {
     this.screen = screen;
     if (screen === 'help') this.page = 0;
-    this.focus = 0;
+    this.focus = screen === 'mode' ? 1 : 0; // the mode screen starts on Kigali 2015 (medium)
     this.#redraw();
   }
 
@@ -266,9 +298,9 @@ export class MenuScene extends Phaser.Scene {
     this.#redraw();
   }
 
-  #start(how) {
+  #start(how, mode) {
     this.scene.stop();
-    this.ride.startGame(how);
+    this.ride.startGame(how, mode);
   }
 
   #resume() {
@@ -288,7 +320,7 @@ export class MenuScene extends Phaser.Scene {
   #saveSummary(save) {
     const w = save.wallet ?? {};
     const def = levelDef(w.level ?? 1);
-    return retroText(`Saved: level ${def.n} · day ${w.day ?? 1} · ${money(w.cash ?? 0)}`);
+    return retroText(`Saved: ${modeOf(w).name} · level ${def.n} · day ${w.day ?? 1} · ${money(w.cash ?? 0)}`);
   }
 
   #sessionSummary() {

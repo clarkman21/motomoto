@@ -42,6 +42,7 @@ import { daylight } from '../sim/daylight.js';
 import { pickDayEvent, eventStage, eventBark, rainTint, parkTraffic, wakeTraffic } from '../sim/events.js';
 import { RainView } from './RainView.js';
 import { buyPart as shopBuy, partEffects, partsTip } from '../sim/shop.js';
+import { modeOf, forcedAutoShift, setHazardShare } from '../sim/modes.js';
 import { fleetRiders, planFleetDay, attachFleet, stepFleet, waitingRider, fleetDayMoney } from '../sim/fleet.js';
 import { dayStats, pickQuests, recordDelivery, recordFine, checkQuests, maybeMission, stepMission, missionResult, findSecret } from '../sim/missions.js';
 
@@ -165,6 +166,7 @@ export class RideScene extends Phaser.Scene {
       this.engineSound.setEnabled(settings.sound !== false);
       if (STEERING_MODES.includes(settings.steering)) this.steeringMode = settings.steering;
       this.bike.autoShift = !!settings.autoShift;
+      this.autoChoice = !!settings.autoShift; // the player's choice (a mode can force automatic or manual)
       this.showMap = settings.map !== false;
       this.testLevel = settings.testLevel ?? 1;
     }
@@ -188,7 +190,9 @@ export class RideScene extends Phaser.Scene {
   // ---------------------------------------------------------------------------
 
   /** From the welcome menu. how: 'continue' (the saved or paused game) or 'new' (a new game). */
-  startGame(how) {
+  /** how: 'new' or 'continue'. mode: the difficulty mode of a new game ('easy', 'medium', 'hard'). */
+  startGame(how, mode) {
+    if (how === 'new') this.newMode = mode;
     if (how === 'new') this.#startDay('newGame'); // also saves the start of the shift for "Restart shift"
     this.started = true;
     this.#snapCamera();
@@ -348,7 +352,12 @@ export class RideScene extends Phaser.Scene {
   }
 
   toggleAutoShift() {
+    if (this.mode && this.mode.gears !== 'choice') {
+      this.events.emit('bark', `${this.mode.name}: ${this.mode.gears === 'auto' ? 'automatic' : 'manual'} gears only`);
+      return;
+    }
     this.bike.autoShift = !this.bike.autoShift;
+    this.autoChoice = this.bike.autoShift;
     this.events.emit('bark', this.bike.autoShift ? 'Auto shift on' : 'Manual shift');
     this.#saveSettings();
   }
@@ -469,6 +478,14 @@ export class RideScene extends Phaser.Scene {
     this.#passengerAtStop();
   }
 
+  /** The effects on the bike: the parts you own, times the fuel use and wear of the mode. */
+  #bikeMods() {
+    const m = partEffects(this.wallet, this.bike.type);
+    m.wear *= this.mode.wear;
+    m.fuel *= this.mode.fuelUse;
+    return m;
+  }
+
   /** The garage screen: the ride waits behind it. */
   #openGarage() {
     if (this.scene.isActive('garage')) return;
@@ -501,7 +518,7 @@ export class RideScene extends Phaser.Scene {
   buyPart(id) {
     const res = shopBuy(this.wallet, id, this.bike.type);
     if (res.ok) {
-      this.bike.mods = partEffects(this.wallet, this.bike.type);
+      this.bike.mods = this.#bikeMods();
       this.events.emit('money', -res.item.price, res.item.name);
       this.#save();
     }
@@ -583,7 +600,7 @@ export class RideScene extends Phaser.Scene {
   #economyStep(bikeEvents) {
     const b = this.bike;
     for (const e of bikeEvents) {
-      const cost = Math.round((repairCost(e) * (b.mods?.crash ?? 1)) / 10) * 10; // crash bars: cheaper repairs
+      const cost = Math.round((repairCost(e) * (b.mods?.crash ?? 1) * this.mode.crashRepair) / 10) * 10; // crash bars and easy mode: cheaper repairs
       if (cost) this.#pay('repairs', cost, REPAIR_LABELS[e.type]);
     }
     stepMission(this.board.active, FIXED_DT); // the clock of a rush delivery or a hotel guest
@@ -633,7 +650,7 @@ export class RideScene extends Phaser.Scene {
       }
     }
     const kmh = Math.abs(forwardSpeed(b)) * 3.6;
-    const cameraEvents = this.level.cameras ? checkCameras(this.world, this.cameraState, b, kmh) : [];
+    const cameraEvents = this.level.cameras && this.mode.cameras ? checkCameras(this.world, this.cameraState, b, kmh) : [];
     for (const e of cameraEvents) {
       this.events.emit('camera', e);
       if (e.fine) this.#pay('fines', e.fine, `Speed camera: ${Math.round(e.speedKmh)} km/h in a ${e.limitKmh} zone`);
@@ -667,7 +684,12 @@ export class RideScene extends Phaser.Scene {
   /** The level's settings, traffic, people and job board. Called at the start and at each new day. */
   #applyLevel() {
     const L = (this.level = levelSettings(this.wallet));
-    this.bike.mods = partEffects(this.wallet, this.bike.type); // parts and upgrades from the garage
+    // The difficulty mode (sim/modes.js): gears, fuel use, wear, potholes, traffic.
+    const mode = (this.mode = modeOf(this.wallet));
+    this.bike.autoShift = forcedAutoShift(mode, this.autoChoice ?? this.bike.autoShift);
+    // Parts and upgrades from the garage, and the fuel use and wear of the mode.
+    this.bike.mods = this.#bikeMods();
+    if (setHazardShare(this.world, mode.hazards)) this.chunks?.reload();
     // The map grows with the levels: only the open districts have roads, traffic, people and jobs.
     this.world.setOpenDistricts(L.districts);
     this.barriers.update();
@@ -677,7 +699,7 @@ export class RideScene extends Phaser.Scene {
     this.parkEdge = this.parkStop ? this.#edgeThrough(this.parkStop) : null;
     this.busTimer = 4;
     const counts = {};
-    for (const kind of ['car', 'bus', 'truck']) counts[kind] = Math.round(TRAFFIC.perDistrict[kind] * L.districts.length * L.traffic);
+    for (const kind of ['car', 'bus', 'truck']) counts[kind] = Math.round(TRAFFIC.perDistrict[kind] * L.districts.length * L.traffic * mode.traffic);
     counts.moto = L.rivals;
     counts.cyclist = (L.cyclists ?? 0) * L.districts.length; // slow bicycles from level 3
     const riders = fleetRiders(this.wallet);
@@ -800,6 +822,7 @@ export class RideScene extends Phaser.Scene {
     if (choice === 'newGame') {
       clearSave();
       this.wallet = createWallet();
+      this.wallet.mode = this.newMode ?? this.wallet.mode;
       if (this.testLevel > 1) startAtLevel(this.wallet, this.testLevel); // test mode (Settings)
     }
     const type = levelSettings(this.wallet).bikeType;
@@ -1230,7 +1253,10 @@ export class RideScene extends Phaser.Scene {
       if (nearTarget || nearStation) illegal = null;
     }
     const where = { pavement: 'on the pavement', offRoad: 'off the road' };
-    for (const e of this.police.update(this.time.now, dt, b, { speedKmh: kmh, limitKmh: this.speedLimit.limitKmh, illegal })) {
+    // Kigali 2010 (easy): the officers only stand on the corners (no whistle, no chase, no fines).
+    if (!this.mode.police) illegal = null;
+    const seen = this.mode.police ? kmh : 0;
+    for (const e of this.police.update(this.time.now, dt, b, { speedKmh: seen, limitKmh: this.speedLimit.limitKmh, illegal })) {
       const o = e.officer;
       if (e.type === 'whistle') {
         this.engineSound.whistle();

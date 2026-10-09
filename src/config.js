@@ -608,6 +608,31 @@ export const FLEET = {
   jobSeconds: [25, 70], // on the map, a rider carries a passenger for this long, then looks for the next one
 };
 
+// Difficulty modes (spec "Difficulty modes"): you choose one at a new game. Each mode is a year of the city:
+// fewer rules and less traffic in 2010, all the cameras, lights and police in 2020.
+// fuelUse and wear multiply the fuel use and the service meter (wear 0: no wear and no breakdowns);
+// hazards: the share of the potholes and loose rocks on the map; traffic multiplies the cars, buses and trucks;
+// crashRepair multiplies crash repairs; lights: 'none', 'lights' (no red light cameras) or 'cameras'.
+// All values are guesses, to tune in play.
+export const MODES = {
+  easy: {
+    name: 'Kigali 2010', short: 'EASY', gears: 'auto', fuelUse: 0.8, wear: 0, cameras: false, police: false,
+    hazards: 0.5, traffic: 0.7, crashRepair: 0.5, lights: 'none', riderEnergy: false, helmetChecks: false,
+    text: 'Automatic gears, low fuel use, no wear, no cameras and no police fines, light traffic.',
+  },
+  medium: {
+    name: 'Kigali 2015', short: 'MEDIUM', gears: 'choice', fuelUse: 1, wear: 1, cameras: true, police: true,
+    hazards: 1, traffic: 1, crashRepair: 1, lights: 'lights', riderEnergy: false, helmetChecks: false,
+    text: 'The normal game: gears of your choice, wear, speed cameras, police, traffic lights.',
+  },
+  hard: {
+    name: 'Kigali 2020', short: 'HARD', gears: 'manual', fuelUse: 1.15, wear: 1.3, cameras: true, police: true,
+    hazards: 1, traffic: 1.25, crashRepair: 1, lights: 'cameras', riderEnergy: true, helmetChecks: true,
+    text: 'Manual gears, more fuel and wear, heavy traffic, red light cameras, helmet checks, and you must eat to keep your energy.',
+  },
+};
+export const DEFAULT_MODE = 'medium'; // a saved game from before the modes plays as medium
+
 // Parts and upgrades at the garages (Alp: parts that bring better tips and a longer service life).
 // From the moto shop brainstorm in the spec. level: the level where the part comes to the shop.
 // only: 'petrol' or 'electric' (petrol engine parts do not move to the electric moto).
