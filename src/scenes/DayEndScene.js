@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
 import { INCOME, COSTS } from '../sim/economy.js';
 import { GAME_OVER } from '../config.js';
-import { dayEndStory, gameOverStory } from '../sim/family.js';
+import { dayEndStory, gameOverStory, endingStory } from '../sim/family.js';
 import { eventSummary } from '../sim/events.js';
 import { drawBicycleTaxi, drawGameOverBackdrop, drawJailCell, BICYCLE_CANVAS, BACKDROP_ROAD } from '../world/bicycle-sprites.js';
+import { drawEndingPicture } from '../world/story-sprites.js';
 import { addCanvasTexture } from './textures.js';
 import { wrapRetro, RETRO_CELL } from '../world/retro-font.js';
 import { UI, pixelScale, ensureRetroFont, ensureIcons, retroLabel, retroWidth, drawWindow } from './retro-ui.js';
@@ -20,7 +21,7 @@ export class DayEndScene extends Phaser.Scene {
     super('dayEnd');
   }
 
-  create({ summary, onContinue, levelUp }) {
+  create({ summary, onContinue, levelUp, ending }) {
     ensureRetroFont(this);
     ensureIcons(this);
     const { width, height } = this.scale.gameSize;
@@ -31,6 +32,7 @@ export class DayEndScene extends Phaser.Scene {
     this.ui = this.add.container(0, 0).setScale(k);
     this.g = this.add.graphics();
     this.ui.add(this.g);
+    if (ending) return this.#ending(ending, onContinue);
     if (levelUp) return this.#levelUp(levelUp, onContinue);
     if (summary.gameOver) return this.#gameOver(summary, onContinue);
     this.#summary(summary, onContinue);
@@ -312,5 +314,61 @@ export class DayEndScene extends Phaser.Scene {
     this.#buttons(H + 6, [[this.sys.game.device.input.touch ? 'TAP TO START' : 'ENTER · START', go]]);
     this.input.keyboard.once('keydown-ENTER', go);
     this.input.once('pointerdown', go);
+  }
+
+  /**
+   * The ending (after the last milestone): THE END, the new house in clear air, the story, your career
+   * numbers and the credits. Then free play. On a small screen (a phone), the short text.
+   */
+  #ending(stats, onContinue) {
+    const W = Math.min(this.vw - 8, 300);
+    const x = Math.floor((this.vw - W) / 2);
+    const n = Math.floor((W - 20) / RETRO_CELL.width);
+    const story = endingStory(stats);
+    const layout = (compact) => {
+      const draw = [];
+      const T = (dx, dy, text, tint, scale) => draw.push(() => this.#text(x + dx, dy, text, tint, scale));
+      T(Math.floor((W - retroWidth(story.title, 2)) / 2), 6, story.title, UI.gold, 2);
+      let y = 26;
+      const pic = { x: x + 10, y, w: W - 20, h: compact ? 44 : 64 };
+      draw.push(() => {
+        const key = `ending-${pic.w}x${pic.h}`;
+        if (!this.textures.exists(key)) addCanvasTexture(this, key, drawEndingPicture(pic.w, pic.h));
+        this.ui.add(this.add.image(pic.x, pic.y, key).setOrigin(0));
+      });
+      y += pic.h + 5;
+      for (const line of compact ? story.lines.slice(-2) : story.lines) {
+        for (const l of wrapRetro(line, n)) { T(10, y, l, UI.white); y += LINE; }
+        y += 2;
+      }
+      y += 2;
+      for (const s of compact ? [story.short] : story.stats) for (const l of wrapRetro(s, n)) { T(10, y, l, UI.dim); y += LINE; }
+      y += 4;
+      for (const c of compact ? story.credits.slice(0, 2) : story.credits) {
+        T(Math.floor((W - retroWidth(c)) / 2), y, c, UI.gold);
+        y += LINE;
+      }
+      return { draw, H: y + 6 };
+    };
+    let { draw, H } = layout(false);
+    if (H + LINE + 16 > this.vh) ({ draw, H } = layout(true));
+    const top = Math.max(2, Math.floor((this.vh - H - LINE - 14) / 2));
+    drawWindow(this.g, x, 0, W, H);
+    this.ui.setY(top * this.k);
+    for (const d of draw) d();
+    // A short wait, so that a key from the milestone choice does not skip the screen. (The scene clock
+    // events are cleared when this scene starts again from the day end, so compare times instead.)
+    const ready = this.time.now + 1200;
+    let done = false;
+    const go = () => {
+      if (done || this.time.now < ready) return;
+      done = true;
+      this.scene.stop();
+      onContinue();
+    };
+    const touch = this.sys.game.device.input.touch;
+    this.#buttons(H + 4, [[touch ? 'TAP: FREE PLAY' : 'ENTER · FREE PLAY', go]]);
+    this.input.keyboard.on('keydown-ENTER', go);
+    this.input.on('pointerdown', go);
   }
 }

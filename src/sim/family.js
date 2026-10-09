@@ -79,3 +79,32 @@ export function gameOverStory(summary) {
 }
 
 const pick = (seed, list) => list[Math.abs(seed) % list.length];
+
+/**
+ * The ending (after the level 10 milestone): the story from the first rented moto to the new house,
+ * and the career numbers. stats: { days, totalIncome, milestones, network, secrets, secretsTotal, modeName }.
+ * Returns { title, lines, stats, credits }.
+ */
+export function endingStory(stats) {
+  const { partner, children } = FAMILY;
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  return {
+    title: 'THE END',
+    lines: [
+      'You started on a rented petrol moto, in the smoke and the noise of Nyabugogo.',
+      `Fare by fare, you paid the school fees, then your own Ampersand electric moto, then a plot of land and a house. ${partner}, ${children.join(' and ')} move in today.`,
+      'Three electric motos stand at the gate. The swap stations are full of yellow batteries, and the air over the hills of Kigali is clear again.',
+      `${partner} says: you did it. Now ride for fun.`,
+    ],
+    stats: [
+      `Mode: ${stats.modeName}`,
+      `Days on the moto: ${stats.days}`,
+      `Money earned: ${money(stats.totalIncome)}`,
+      `Milestones: ${stats.milestones}`,
+      `Battery deliveries to the swap network: ${stats.network}`,
+      `Secret places found: ${stats.secrets} of ${stats.secretsTotal}`,
+    ],
+    short: `${plural(stats.days, 'day', 'days')} · ${money(stats.totalIncome)} earned · ${stats.secrets}/${stats.secretsTotal} secrets`,
+    credits: ['Idea and design: Alp', 'Code and pixel art: Claude (Anthropic)', 'Murakoze! Thank you for playing.'],
+  };
+}

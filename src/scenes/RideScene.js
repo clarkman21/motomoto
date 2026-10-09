@@ -994,13 +994,31 @@ export class RideScene extends Phaser.Scene {
    * choice: 'next' (next day), 'buy' (buy the milestone, then show the new level),
    * 'newGame' (start again at level 1: after a game over, or from the day end screen).
    */
+  /** The career numbers for the ending screen. */
+  #endingStats() {
+    const w = this.wallet;
+    return {
+      days: w.day, totalIncome: w.totalIncome, milestones: w.milestones.length, network: w.network ?? 0,
+      secrets: (w.secrets ?? []).length, secretsTotal: this.world.secrets?.length ?? 0, modeName: modeOf(w).name,
+    };
+  }
+
   #startDay(choice = 'next') {
     if (choice === 'buy') {
       const bought = buyMilestone(this.wallet);
       if (bought) {
         this.engineSound.jingle('levelUp');
         this.#save();
-        this.scene.launch('dayEnd', { levelUp: { bought, next: levelSettings(this.wallet) }, onContinue: () => this.#startDay('next') });
+        const next = levelSettings(this.wallet);
+        const levelUp = () => this.scene.launch('dayEnd', { levelUp: { bought, next }, onContinue: () => this.#startDay('next') });
+        // The last milestone (the house): the ending first, then free play.
+        if (next.freePlay && !this.wallet.endingSeen) {
+          this.wallet.endingSeen = true;
+          this.#save();
+          this.scene.launch('dayEnd', { ending: this.#endingStats(), onContinue: levelUp });
+          return;
+        }
+        levelUp();
         return;
       }
     }
