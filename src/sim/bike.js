@@ -1,4 +1,4 @@
-import { BIKES, PHYSICS, HAZARDS, WORLD, GEARBOX, BRAKES, LOAD, FUEL, COLLISION } from '../config.js';
+import { BIKES, PHYSICS, HAZARDS, WORLD, GEARBOX, BRAKES, LOAD, FUEL, COLLISION, SURFACES } from '../config.js';
 import { wrapAngle } from '../world/iso.js';
 import { addWear, rideWearKm, hitWearKm, powerFactor, energyFactor, brakeFactor } from './maintenance.js';
 import { collideBike } from './collide.js';
@@ -227,7 +227,9 @@ export function stepBike(bike, input, world, dt) {
   }
 
   // Grip removes sideways speed. Low grip lets the bike slide.
-  lateral *= Math.exp(-PHYSICS.lateralGripRate * surface.grip * dt);
+  const mods = bike.mods; // parts and upgrades from the garage (sim/shop.js), or undefined
+  const grip = surface.grip + (mods && surface === SURFACES.murramWet ? mods.wetGrip : 0);
+  lateral *= Math.exp(-PHYSICS.lateralGripRate * grip * dt);
 
   bike.vx = fwdX * v + rightX * lateral;
   bike.vy = fwdY * v + rightY * lateral;
@@ -290,14 +292,18 @@ export function stepBike(bike, input, world, dt) {
   }
 
   // Maintenance: the service meter fills with distance (more on bad roads and in the red zone) and with hits.
-  let wearKm = rideWearKm(bike, spec, surface, moved) + brakeWearKm;
-  for (const e of events) wearKm += hitWearKm(e);
+  // Parts: wear (the whole meter) and rough (murram, potholes and off road: better tyres).
+  const rough = mods && (surface.wearFactor ?? 1) > 1 ? mods.rough : 1;
+  let wearKm = rideWearKm(bike, spec, surface, moved) * rough + brakeWearKm;
+  for (const e of events) wearKm += hitWearKm(e) * (mods && ['pothole', 'puddle', 'rocksHard'].includes(e.type) ? mods.rough : 1);
+  if (mods) wearKm *= mods.wear;
   events.push(...addWear(bike, wearKm));
 
   // Energy. Regen braking puts a part of the braking energy back into the battery.
   const fuelRevs = spec.gears ? revsFuelFactor(bike.revs, bike.gear) : 1;
-  let use = energyUse(spec, surface, grade, throttle, v, topSpeed) * (throttle > 0 ? fuelRevs * massFactor * energyFactor(bike) : 1);
-  if (regenBrake > 0) use -= (spec.regenBrakeFraction * regenBrake * Math.abs(v)) / barInKinetic(spec);
+  let use = energyUse(spec, surface, grade, throttle, v, topSpeed) * (throttle > 0 ? fuelRevs * massFactor * energyFactor(bike) * (mods?.fuel ?? 1) : 1);
+  if (use < 0 && mods) use *= mods.regen; // regen on a downhill
+  if (regenBrake > 0) use -= ((spec.regenBrakeFraction * regenBrake * Math.abs(v)) / barInKinetic(spec)) * (mods?.regen ?? 1);
   // A petrol engine uses fuel at idle too: when you coast, wait for a customer or stand in a queue.
   if (spec.gears && throttle === 0 && engineRuns) use += FUEL.idleUse / spec.energySeconds;
   bike.energyRate = use; // fraction of a full bar per second (negative = charging)

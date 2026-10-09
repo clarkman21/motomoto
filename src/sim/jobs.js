@@ -167,8 +167,9 @@ export function updateJob(board, bike, bikeEvents, dt) {
   if (job.stage === 'toDropoff') {
     for (const e of bikeEvents) {
       if (e.type === 'wall' && e.speed < 4) continue;
-      if (job.type === 'passenger') job.comfort -= JOBS.comfortLoss[e.type] ?? 0;
-      else if (job.fragile) job.damage += JOBS.cargoDamage[e.type] ?? 0;
+      // Parts from the garage: a seat cushion (comfortHit), a cargo net (fragile).
+      if (job.type === 'passenger') job.comfort -= (JOBS.comfortLoss[e.type] ?? 0) * (bike.mods?.comfortHit ?? 1);
+      else if (job.fragile) job.damage += (JOBS.cargoDamage[e.type] ?? 0) * (bike.mods?.fragile ?? 1);
     }
     if (job.type === 'passenger' && (bike.netAccel ?? 0) < -JOBS.hardBrakeMs2) job.comfort -= JOBS.comfortLoss.hardBrakePerSecond * dt;
     // Stuck: you walk the bike backwards with the passenger on it. The passenger is not happy.

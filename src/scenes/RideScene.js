@@ -41,6 +41,7 @@ import { SignView } from './SignView.js';
 import { daylight } from '../sim/daylight.js';
 import { pickDayEvent, eventStage, eventBark, rainTint, parkTraffic, wakeTraffic } from '../sim/events.js';
 import { RainView } from './RainView.js';
+import { buyPart as shopBuy, partEffects, partsTip } from '../sim/shop.js';
 import { fleetRiders, planFleetDay, attachFleet, stepFleet, waitingRider, fleetDayMoney } from '../sim/fleet.js';
 import { dayStats, pickQuests, recordDelivery, recordFine, checkQuests, maybeMission, stepMission, missionResult, findSecret } from '../sim/missions.js';
 
@@ -390,15 +391,9 @@ export class RideScene extends Phaser.Scene {
     if (!kind || this.refuel) return null;
     const type = this.bike.type;
     if (kind === 'garage') {
-      const q = garageQuote(this.bike);
+      // F opens the garage screen: the service, and parts and upgrades (GarageScene).
       const meter = Math.round(serviceDue(this.bike) * 100);
-      if (q.nothing) return { ok: false, text: `Garage. The bike is fine (service meter ${meter}%).` };
-      const list = q.items.map((i) => `${i.name} ${i.cost.toLocaleString('en')}`).join(' + ');
-      if (this.wallet.cash < q.cost && this.bike.brokenDown) {
-        return { ok: true, text: `F: Emergency repair on credit: ${list} = ${q.cost.toLocaleString('en')} RWF. Cash goes below zero` };
-      }
-      if (this.wallet.cash < q.cost) return { ok: false, text: `${list} = ${q.cost.toLocaleString('en')} RWF. Not enough cash.` };
-      return { ok: true, text: `F: Service (meter ${meter}%): ${list} = ${q.cost.toLocaleString('en')} RWF, ${MAINTENANCE.serviceSeconds} s` };
+      return { ok: true, text: `F: ${this.stationPlace?.name ?? 'Garage'} · service (meter ${meter}%) · parts and upgrades` };
     }
     if (kind === 'office') return this.#officeOffer();
     if (kind === 'fuel' && type !== 'petrol') return { ok: false, text: 'Fuel station. Your electric moto needs a swap station.' };
@@ -458,6 +453,10 @@ export class RideScene extends Phaser.Scene {
       this.#buyElectric();
       return;
     }
+    if (this.station === 'garage') {
+      this.#openGarage();
+      return;
+    }
     // At a fuel station you choose how much to buy (see chooseFuel).
     if (this.station === 'fuel') {
       this.fuelChoice = this.fuelChoice ? null : fuelChoices(this.bike, this.fuelPrice);
@@ -468,6 +467,45 @@ export class RideScene extends Phaser.Scene {
       this.station === 'garage' ? MAINTENANCE.serviceSeconds : MONEY.swapSeconds;
     this.refuel = { kind: this.station, timeLeft: total, total };
     this.#passengerAtStop();
+  }
+
+  /** The garage screen: the ride waits behind it. */
+  #openGarage() {
+    if (this.scene.isActive('garage')) return;
+    this.scene.pause();
+    if (this.scene.isActive('hud')) this.scene.pause('hud');
+    this.engineSound.silence();
+    this.scene.launch('garage', { place: this.stationPlace });
+  }
+
+  /** From the garage screen: back to the road. */
+  closeGarage() {
+    this.scene.stop('garage');
+    if (this.scene.isPaused('hud')) this.scene.resume('hud');
+    this.scene.resume();
+  }
+
+  /** From the garage screen: start the service (it takes MAINTENANCE.serviceSeconds). Returns { ok, text }. */
+  startService() {
+    const q = garageQuote(this.bike);
+    const meter = Math.round(serviceDue(this.bike) * 100);
+    if (q.nothing) return { ok: false, text: `The moto is fine (service meter ${meter}%).` };
+    if (this.wallet.cash < q.cost && !this.bike.brokenDown) return { ok: false, text: 'Not enough cash for the service.' };
+    const total = MAINTENANCE.serviceSeconds;
+    this.refuel = { kind: 'garage', timeLeft: total, total };
+    this.#passengerAtStop();
+    return { ok: true };
+  }
+
+  /** From the garage screen: buy a part. Returns the result of sim/shop.js buyPart. */
+  buyPart(id) {
+    const res = shopBuy(this.wallet, id, this.bike.type);
+    if (res.ok) {
+      this.bike.mods = partEffects(this.wallet, this.bike.type);
+      this.events.emit('money', -res.item.price, res.item.name);
+      this.#save();
+    }
+    return res;
   }
 
   /** Buy fuel choice i (0: 25% of a tank, 1: 50%, 2: a full tank). */
@@ -545,7 +583,7 @@ export class RideScene extends Phaser.Scene {
   #economyStep(bikeEvents) {
     const b = this.bike;
     for (const e of bikeEvents) {
-      const cost = repairCost(e);
+      const cost = Math.round((repairCost(e) * (b.mods?.crash ?? 1)) / 10) * 10; // crash bars: cheaper repairs
       if (cost) this.#pay('repairs', cost, REPAIR_LABELS[e.type]);
     }
     stepMission(this.board.active, FIXED_DT); // the clock of a rush delivery or a hotel guest
@@ -586,6 +624,12 @@ export class RideScene extends Phaser.Scene {
           earn(this.wallet, 'tips', e.tip);
           this.time.delayedCall(700, () => this.events.emit('money', e.tip, `Tip (comfort ${Math.round(e.job.comfort)}%)`));
         }
+        // Parts from the garage: the speaker and the phone charger bring extra tips.
+        const extra = partsTip(e.job, b.mods ?? partEffects(this.wallet, b.type));
+        if (extra > 0) {
+          earn(this.wallet, 'tips', extra);
+          this.time.delayedCall(1000, () => this.events.emit('money', extra, 'Extra tip (music and charger)'));
+        }
       }
     }
     const kmh = Math.abs(forwardSpeed(b)) * 3.6;
@@ -623,6 +667,7 @@ export class RideScene extends Phaser.Scene {
   /** The level's settings, traffic, people and job board. Called at the start and at each new day. */
   #applyLevel() {
     const L = (this.level = levelSettings(this.wallet));
+    this.bike.mods = partEffects(this.wallet, this.bike.type); // parts and upgrades from the garage
     // The map grows with the levels: only the open districts have roads, traffic, people and jobs.
     this.world.setOpenDistricts(L.districts);
     this.barriers.update();

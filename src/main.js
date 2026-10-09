@@ -3,6 +3,7 @@ import { MenuScene } from './scenes/MenuScene.js';
 import { RideScene } from './scenes/RideScene.js';
 import { HudScene } from './scenes/HudScene.js';
 import { DayEndScene } from './scenes/DayEndScene.js';
+import { GarageScene } from './scenes/GarageScene.js';
 
 async function boot() {
   // Wait for the brand fonts, so the HUD text does not draw with a fallback font first.
@@ -35,7 +36,7 @@ async function boot() {
     },
     input: { activePointers: 3 },
     // The welcome menu starts first; it starts the ride scene behind it.
-    scene: [MenuScene, RideScene, HudScene, DayEndScene],
+    scene: [MenuScene, RideScene, HudScene, DayEndScene, GarageScene],
   });
   window.motoGame = game; // for debugging in the browser console
 }

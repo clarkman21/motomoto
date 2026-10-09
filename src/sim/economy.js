@@ -12,6 +12,7 @@ export const COSTS = {
   fines: 'Speed camera fines',
   repairs: 'Crash repairs',
   garage: 'Garage (service, brake pads)',
+  parts: 'Parts and upgrades',
   rent: 'Daily bike rent',
   fleet: 'Fleet costs (service, repairs)',
 };
@@ -25,7 +26,7 @@ const emptyLedger = () => ({
 export const round10 = (x) => Math.round(x / 10) * 10;
 
 export function createWallet(cash = MONEY.startCash) {
-  return { cash, day: 1, ledger: emptyLedger(), totalIncome: 0, level: 1, perks: {}, milestones: [], streak: 0 };
+  return { cash, day: 1, ledger: emptyLedger(), totalIncome: 0, level: 1, perks: {}, milestones: [], streak: 0, parts: [] };
 }
 
 export function earn(wallet, category, amount) {
