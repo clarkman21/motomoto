@@ -5,6 +5,9 @@
 // ---------------------------------------------------------------------------
 // World scale and projection
 // ---------------------------------------------------------------------------
+// The game version (the menu shows it).
+export const VERSION = '1.0 RC1';
+
 export const WORLD = {
   tileMetres: 4, // one map tile is a 4 m × 4 m square (about one road lane plus margin) — guess
   levelMetres: 1.5, // one height level lifts the ground by 1.5 m — guess

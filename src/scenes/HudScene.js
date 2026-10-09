@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { BIKES, COLOURS, GEARBOX, LAW, JOBS, SAVINGS_FLOAT, DISTRICTS, RIDER } from '../config.js';
 import { forwardSpeed } from '../sim/bike.js';
 import { serviceDue } from '../sim/maintenance.js';
-import { wrapRetro, RETRO_CELL } from '../world/retro-font.js';
+import { wrapRetro, retroText, RETRO_CELL } from '../world/retro-font.js';
 import { MinimapView } from './MinimapView.js';
 import { questLabel, missionRule } from '../sim/missions.js';
 import { eventLine } from '../sim/events.js';
@@ -193,13 +193,20 @@ export class HudScene extends Phaser.Scene {
     // The help line: at the bottom, right of the minimap (if there is room).
     this.helpText.setPosition(vw - this.helpText.width - 4, vh - LINE - 1);
     this.helpText.setVisible(vw >= this.helpText.width + 146 || this.isTouch);
-    if (this.helpText.visible) g.fillStyle(0x0a0c18, 0.8).fillRect(this.helpText.x - 3, this.helpText.y - 2, this.helpText.width + 6, LINE + 2);
     this.minimap.layout(4, vh - 4);
     this.flash.setSize(width, height);
+    this.jobLimit = vh - 6; // the lowest line of the jobs window (touch: above the buttons)
     if (this.isTouch) this.#layoutTouch(width, height);
+    if (this.helpText.visible) g.fillStyle(0x0a0c18, 0.8).fillRect(this.helpText.x - 3, this.helpText.y - 2, this.helpText.width + 6, LINE + 2);
   }
 
   update(_time, deltaMs) {
+    // A phone held upright: the HUD has no room, so pause (the pause menu asks you to turn the phone).
+    const { width, height } = this.scale.gameSize;
+    if (this.isTouch && height > width && this.ride.started && !this.scene.isActive('dayEnd') && !this.scene.isActive('garage')) {
+      this.ride.openPause();
+      return;
+    }
     const ride = this.ride, bike = ride.bike, spec = BIKES[bike.type];
     const g = this.fg.clear();
     const L = this.left;
@@ -379,19 +386,19 @@ export class HudScene extends Phaser.Scene {
         // On a short screen (a phone): one line for the route, and only the cards that fit.
         const route = wrapSmall(`${o.from.name} → ${o.to.name}`, textW).slice(0, this.vh < 240 ? 1 : 2);
         const lines = [`${i + 1} ${what(o)} · ${money(o.pay)}`, ...route, `${o.gameKm.toFixed(1)} KM${fuel(o)}${short(o) ? ' LOW!' : ''}`];
-        if (y + lines.length * SMALL_LINE > this.vh - 6) return hide(card);
+        if (y + lines.length * SMALL_LINE > this.jobLimit) return hide(card);
         fill(card, i, lines, lines.map((_, li) => (li === 0 ? (o.mission ? UI.gold : UI.white) : li === lines.length - 1 && short(o) ? UI.red : UI.dim)), true);
       });
     }
     // The daily app quests (from level 3): progress and reward, ticked when done.
     const quests = ride.quests ?? [];
     this.questLines.forEach((l, i) => {
-      if (i === 0 && quests.length && y + (quests.length + 1) * SMALL_LINE < this.vh - 4) {
+      if (i === 0 && quests.length && y + (quests.length + 1) * SMALL_LINE < this.jobLimit + 2) {
         l.setText('APP QUESTS TODAY').setTint(UI.dim).setPosition(box.x + 6, y + 1).setVisible(true);
         return;
       }
       const qq = quests[i - 1];
-      if (!qq || i === 0 || y + (i + 1) * SMALL_LINE >= this.vh - 4) return l.setVisible(false);
+      if (!qq || i === 0 || y + (i + 1) * SMALL_LINE >= this.jobLimit + 2) return l.setVisible(false);
       l.setText(`${questLabel(qq, ride.dayStats)} · +${money(qq.reward)}`)
         .setTint(qq.done ? UI.green : UI.white).setPosition(box.x + 6, y + 1 + i * SMALL_LINE).setVisible(true);
     });
@@ -559,7 +566,7 @@ export class HudScene extends Phaser.Scene {
   /** A round touch button with a pixel font label. */
   #button(label, onDown, onUp, size = 34) {
     const circle = this.add.circle(0, 0, size, 0x102060, 0.7).setStrokeStyle(3, 0xe8e8f8, 0.9).setInteractive();
-    const text = this.add.bitmapText(0, 0, 'retro', label).setOrigin(0.5).setScale(Math.max(2, Math.round(size / 12)));
+    const text = this.add.bitmapText(0, 0, 'retro', retroText(label)).setOrigin(0.5).setScale(Math.max(2, Math.round(size / 12)));
     circle.on('pointerdown', (p) => { p.hitButton = true; onDown(); circle.setFillStyle(0x3050c0, 0.9); });
     const up = () => { onUp?.(); circle.setFillStyle(0x102060, 0.7); };
     circle.on('pointerup', up);
@@ -570,9 +577,25 @@ export class HudScene extends Phaser.Scene {
   #layoutTouch(width, height) {
     this.goBtn.setPosition(width - 60, height - 80);
     this.stopBtn.setPosition(width - 140, height - 60);
-    // Small buttons in a row under the left window (the right side has the money and the jobs).
+    // The small buttons and the gear buttons: in one row at the bottom, between the minimap and STOP,
+    // so that they cover neither the minimap nor the jobs window. If the row has no room, the old
+    // places: under the left window, and above GO and STOP.
+    const small = [this.hornBtn, this.autoBtn, this.modeBtn, this.bikeBtn, this.resetBtn];
+    const mapRight = this.ride.showMap !== false ? (this.minimap.box.x + this.minimap.box.w) * this.k : 0;
+    const x0 = mapRight + 28, x1 = width - 140 - 34 - 32;
+    const step = (x1 - x0) / (small.length + 1.5);
+    if (step >= 48) {
+      const y = height - 44;
+      small.forEach((b, i) => b.setPosition(x0 + i * step, y));
+      this.downBtn.setPosition(x0 + (small.length + 0.25) * step, y - 6);
+      this.upBtn.setPosition(x0 + (small.length + 1.5) * step, y - 6);
+      this.jobLimit = Math.floor((height - 80 - 34 - 4) / this.k); // above GO
+      this.helpText.setVisible(false); // the buttons have their labels; the row covers the help line
+      return;
+    }
+    this.jobLimit = Math.floor((height - 165 - 26 - 4) / this.k); // above +
     const by = (this.left.y + this.left.h) * this.k + 34;
-    [this.hornBtn, this.autoBtn, this.modeBtn, this.bikeBtn, this.resetBtn].forEach((b, i) => b.setPosition(40 + i * 54, by));
+    small.forEach((b, i) => b.setPosition(40 + i * 54, by));
     this.upBtn.setPosition(width - 60, height - 165);
     this.downBtn.setPosition(width - 140, height - 140);
   }

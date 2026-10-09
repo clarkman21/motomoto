@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { loadGame } from './save.js';
 import { levelDef } from '../sim/levels.js';
-import { MODES } from '../config.js';
+import { MODES, VERSION } from '../config.js';
 import { modeOf } from '../sim/modes.js';
 import { STEERING_LABELS } from '../sim/controls.js';
 import { drawRetroFontSheet, RETRO_CHARS, RETRO_CELL, RETRO_PER_ROW, retroText, wrapRetro } from '../world/retro-font.js';
@@ -58,6 +58,16 @@ const HELP = [
       'At a new game you choose your Kigali. 2010 (easy): automatic gears, no wear, no cameras and no police fines. 2015 (medium): the normal game, with traffic lights. 2020 (hard): manual gears, heavy traffic, red light cameras and helmet checks.',
       'Hard mode: watch the FOOD bar. Eat a buffet lunch (11:00 to 16:00), ikivuguto at an Inyange Milk Zone, bananas from a market seller, or an energy drink at an MTN MoMo kiosk. A hungry rider has less power.',
       'Traffic lights: stop on red. A red light camera or a police officer near the junction gives a 10,000 RWF fine.',
+    ],
+  },
+  {
+    title: 'The city and the story',
+    lines: [
+      'At the start, smoke from old petrol motos hangs over Kigali. At each level the air gets a little cleaner. At the end it is clear.',
+      'Levels 3 and 4: an Ampersand rider in a yellow vest drops yellow batteries on the road. Ride over one: your moto gets a short boost.',
+      'From level 3 the phone gives two quests each day, with a bonus. Side missions (a VIP, a rush delivery, ikivuguto, a hotel guest) pay more. From level 5, AMPERSAND BATTERIES jobs take batteries to the swap stations: each delivery makes the swap network bigger.',
+      'Rush hours (07:00 to 09:00 and 17:00 to 19:00): more cars and buses, and jams at the junctions. Umuganda days (from level 6): the roads are empty and there are no jobs until 11:00. Rainy days (from level 7): the murram is wet and slippery.',
+      'Six secret places are hidden on the map. Finish the house at level 10 to see the end of the story. Then free play.',
     ],
   },
   {
@@ -146,16 +156,20 @@ export class MenuScene extends Phaser.Scene {
     const cx = Math.floor(this.vw / 2);
     let y = Math.max(10, Math.floor(this.vh * 0.1));
     // The title: big letters with a red shadow and a gold underline.
-    this.#label(cx + 3, y + 3, 'MOTO INZIZA', RED, 3).setOrigin(0.5, 0);
-    this.#label(cx, y, 'MOTO INZIZA', WHITE, 3).setOrigin(0.5, 0);
-    y += 31;
+    // On a narrow screen (a phone held upright), smaller title letters and wrapped lines.
+    const big = retroText('MOTO INZIZA').length * RETRO_CELL.width * 3 + 6 <= this.vw ? 3 : 2;
+    this.#label(cx + big, y + big, 'MOTO INZIZA', RED, big).setOrigin(0.5, 0);
+    this.#label(cx, y, 'MOTO INZIZA', WHITE, big).setOrigin(0.5, 0);
+    y += big * 10 + 1;
     const g = this.#gfx();
-    g.fillStyle(GOLD, 1).fillRect(cx - 66, y, 132, 2);
+    g.fillStyle(GOLD, 1).fillRect(cx - big * 22, y, big * 44, 2);
     y += 7;
-    this.#label(cx, y, 'A MOTO TAXI GAME IN KIGALI', DIM).setOrigin(0.5, 0);
-    y += 11;
-    this.#label(cx, y, 'START ON PETROL. SAVE FOR ELECTRIC.', DIM).setOrigin(0.5, 0);
-    y += 16;
+    const chars = Math.floor((this.vw - 8) / RETRO_CELL.width);
+    for (const line of ['A MOTO TAXI GAME IN KIGALI', 'START ON PETROL. SAVE FOR ELECTRIC.'].flatMap((t) => wrapRetro(t, chars))) {
+      this.#label(cx, y, line, DIM).setOrigin(0.5, 0);
+      y += 11;
+    }
+    y += 5;
     const summary = session ? this.#sessionSummary() : save ? this.#saveSummary(save) : null;
     if (summary) {
       this.#label(cx, y, summary, GREEN).setOrigin(0.5, 0);
@@ -169,7 +183,7 @@ export class MenuScene extends Phaser.Scene {
     this.#menuWindow(lines, y + 4, 120);
     const hint = this.sys.game.device.input.touch ? 'TAP A LINE' : '↑↓ CHOOSE   ENTER SELECT';
     this.blink = this.#label(cx, this.vh - 22, hint, WHITE).setOrigin(0.5, 0);
-    this.#label(cx, this.vh - 11, 'PROTOTYPE V0.1', DIM).setOrigin(0.5, 0);
+    this.#label(cx, this.vh - 11, `V${VERSION}`, DIM).setOrigin(0.5, 0);
   }
 
   #pause() {
@@ -178,8 +192,19 @@ export class MenuScene extends Phaser.Scene {
     this.#label(cx + 2, y + 2, 'PAUSED', RED, 2).setOrigin(0.5, 0);
     this.#label(cx, y, 'PAUSED', WHITE, 2).setOrigin(0.5, 0);
     y += 24;
-    this.#label(cx, y, this.#sessionSummary(), GREEN).setOrigin(0.5, 0);
-    y += 16;
+    for (const line of wrapRetro(this.#sessionSummary(), Math.floor((this.vw - 8) / RETRO_CELL.width))) {
+      this.#label(cx, y, line, GREEN).setOrigin(0.5, 0);
+      y += 11;
+    }
+    y += 5;
+    // A phone held upright: the ride needs the phone on its side.
+    if (this.sys.game.device.input.touch && this.vh > this.vw) {
+      for (const line of wrapRetro('TURN YOUR PHONE ON ITS SIDE TO RIDE', Math.floor((this.vw - 8) / RETRO_CELL.width))) {
+        this.#label(cx, y, line, GOLD).setOrigin(0.5, 0);
+        y += 11;
+      }
+      y += 5;
+    }
     this.#menuWindow([
       ['RESUME', () => this.#resume()],
       ['RESTART SHIFT', () => this.#ask('RESTART THIS SHIFT? YOU LOSE THE MONEY AND THE JOBS OF THIS SHIFT.', 'YES, RESTART', () => this.#restartShift())],
@@ -189,27 +214,60 @@ export class MenuScene extends Phaser.Scene {
     ], y, 132);
   }
 
+  /**
+   * The help pages for this screen size: a topic that is too long for the screen goes on two or more
+   * pages (split between paragraphs where possible), so that no line is lost on a phone.
+   */
+  #helpPages(chars, maxLines) {
+    const pages = [];
+    for (const topic of HELP) {
+      const paras = topic.lines.map((l) => wrapRetro(l, chars));
+      let cur = [];
+      const flush = () => {
+        while (cur.length && cur[cur.length - 1] === '') cur.pop();
+        if (cur.length) pages.push({ title: topic.title, body: cur });
+        cur = [];
+      };
+      for (const para of paras) {
+        const need = (cur.length ? cur.length + 1 : 0) + para.length;
+        if (need > maxLines && cur.length) flush();
+        for (const line of para) {
+          if (cur.length >= maxLines) flush();
+          if (!cur.length && line === '') continue;
+          cur.push(line);
+        }
+        cur.push('');
+      }
+      flush();
+    }
+    // The topics with more than one page get (1/2), (2/2) after the title.
+    for (const p of pages) {
+      const same = pages.filter((q) => q.title === p.title);
+      if (same.length > 1) p.label = `${p.title} (${same.indexOf(p) + 1}/${same.length})`;
+    }
+    return pages;
+  }
+
   #help() {
     this.page = this.page ?? 0;
-    const page = HELP[this.page];
     const w = Math.min(this.vw - 12, 380);
     const x = Math.floor((this.vw - w) / 2);
     const chars = Math.floor((w - 16) / RETRO_CELL.width);
-    const body = [];
-    for (const line of page.lines) body.push(...wrapRetro(line, chars), '');
-    body.pop();
     const lineH = 10;
     const maxLines = Math.max(4, Math.floor((this.vh - 64) / lineH));
-    const shown = body.slice(0, maxLines);
+    const pages = (this.helpPages = this.#helpPages(chars, maxLines));
+    this.page = Math.min(this.page, pages.length - 1);
+    const page = pages[this.page];
+    const shown = page.body;
     const h = 30 + shown.length * lineH + 8;
     const y = Math.max(4, Math.floor((this.vh - h - 20) / 2));
     this.#window(x, y, w, h);
-    this.#label(x + 8, y + 7, `${retroText(page.title)}`, GOLD);
-    this.#label(x + w - 8, y + 7, `${this.page + 1}/${HELP.length}`, DIM).setOrigin(1, 0);
+    this.#label(x + 8, y + 7, `${retroText(page.label ?? page.title)}`, GOLD);
+    this.#label(x + w - 8, y + 7, `${this.page + 1}/${pages.length}`, DIM).setOrigin(1, 0);
     shown.forEach((line, i) => this.#label(x + 8, y + 22 + i * lineH, line, WHITE));
     const row = [];
     if (this.page > 0) row.push(['◀ BACK', () => this.#turn(-1)]);
-    if (this.page < HELP.length - 1) row.push(['NEXT ▶', () => this.#turn(1)]);
+    if (this.page < pages.length - 1) row.push(['NEXT ▶', () => this.#turn(1)]);
     row.push(['CLOSE', () => this.#back()]);
     this.#rowWindow(row, y + h + 4);
   }
@@ -300,7 +358,7 @@ export class MenuScene extends Phaser.Scene {
   }
 
   #turn(dir) {
-    const page = Phaser.Math.Clamp(this.page + dir, 0, HELP.length - 1);
+    const page = Phaser.Math.Clamp(this.page + dir, 0, (this.helpPages?.length ?? HELP.length) - 1);
     if (page === this.page) return;
     this.page = page;
     this.#sound('move');

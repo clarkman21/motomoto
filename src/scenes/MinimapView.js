@@ -88,7 +88,7 @@ export class MinimapView {
     // Legend under the map: a small mark and a word for each.
     const ly = this.view.y + this.view.h + 2;
     const lg = this.legendIcons.clear();
-    const items = [[electric ? 'swap' : 'fuel', electric ? 'SWAP' : 'SP'], ['garage', 'GARAGE'], ['job', 'JOB']];
+    const items = [[electric ? 'swap' : 'fuel', electric ? 'SWAP' : 'FUEL'], ['garage', 'GARAGE'], ['job', 'JOB']];
     let x = this.view.x + 5;
     items.forEach(([kind, word], i) => {
       if (kind === 'fuel') drawSpBadge(lg, x, ly + 4);

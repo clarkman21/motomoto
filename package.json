@@ -1,6 +1,6 @@
 {
   "name": "moto-inziza",
-  "version": "0.1.0",
+  "version": "1.0.0-rc.1",
   "private": true,
   "description": "Moto Inziza: isometric moto taxi game in Kigali (web)",
   "type": "module",
