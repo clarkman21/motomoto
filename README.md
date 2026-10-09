@@ -66,6 +66,8 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Traffic lights at up to 2 big junctions in each district (medium and hard): traffic stops on red; through a red light, a 10,000 RWF fine from a red light camera (hard) or a police officer near the junction | Done |
 | Hard mode: police helmet checks (4 each day). With a passenger, stop beside the officer; no spare passenger helmet (the level 2 milestone), or ride on: a 10,000 RWF fine | Done |
 | Shops and street life: 78 shop buildings have a painted sign with a picture (barbershops, saloons, bars with funny names, butchers, shoe and phone repair, boutiques with strange mannequins, buffets); a third of them are job places; buffets are food stops in hard mode. Garage parts are cheaper (a speaker is 3,000 RWF) | Done |
+| People on the zebra crossings (44 crossings): traffic stops for them; they wait for a gap (on hard mode half of them step out anyway); ride fast past a person on a crossing near a police officer: a 10,000 RWF fine | Done |
+| Brown kites circle over the markets and the bus park, with wing beats and a shadow; none at night, fewer in the rain | Done |
 | No star rating for the rider: a design decision (it is more realistic without one) | Decided |
 | Moving city details: the flags wave in the wind; the MTN fountain sprays now and then (9 s in every 40 s), and the drops fall back into the basin (`CITY_ANIM` in config) | Done |
 | From Alp's terrain map: Mount Kigali (a high, steep ridge with dark green forest on the west side of town), a stream in the valley between town and Kimihurura (roads cross it on bridges), the Kigali Marriott Hotel in town | Done |
@@ -111,7 +113,7 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Market life: mamas in kitenge who sell goods on mats, umbrellas, goats and sheep; kitenge walkers | Done |
 | Trees: acacia, jacaranda, avocado and fig, mixed by district | Done |
 | Day and night: fast clock, night colour, sunset, street lamps, lit windows, headlights and tail lights | Done |
-| Walkers on zebra crossings, rush hours and jams, road works, VIP convoys, the moto shop look (a container shop) | Later milestones |
+| Rush hours and jams, road works, VIP convoys, the moto shop look (a container shop) | Later milestones |
 
 ## Run the game
 
@@ -245,6 +247,8 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `RIDER` | Rider energy (hard mode): how fast it goes down, the power when hungry or weak, and each food (price, energy, time, lunch hours) |
 | `TRAFFIC_LIGHTS` | How many lights in each district, the green, amber and all red times, the stop line, the fine |
 | `HELMET_CHECKS` | How many checks each day, how near, the time to stop and to check, the fine |
+| `CROSSINGS` | People on the zebra crossings: how often, how near, when they wait for traffic, the fine |
+| `KITES` | Brown kites: how many, how high, how wide they circle, how fast, wing beats, rain and night |
 | `SHOPS` | Shops and street life: the share of shop buildings with a sign, how common each kind is, how many are job places, mannequins in front of a boutique |
 | `EVENTS` | Day events: the Umuganda hours, traffic share, rush fares and hails; rain fares, hails, the grey tint and the rain streaks. A level's `events` gives the chance of each event on a day |
 | `JOBS.maxOffersShown` | The HUD shows 4 job cards: the board never has more offers than this |
@@ -279,6 +283,7 @@ src/
     market-sprites.js    Market vendors, kitenge, goats and sheep, MTN MoMo agents
     market.js            Where the market vendors, animals and MoMo agents stand
     minimap.js           Draws the minimap (the whole map as a small diamond)
+    kite-sprites.js      The brown kite (three wing frames) and its shadow
     shops.js             Shops and street life: shop kinds and names, painted signs, mannequins, shop fronts and job places
     bicycle-sprites.js   The game over pictures: a bicycle taxi (side view) and the evening hills; the jail cell
   sim/
@@ -309,6 +314,8 @@ src/
     rider.js             Rider energy (hard mode): hunger, power, food
     lights.js            Traffic lights: which junctions, the colours, stopping, red light checks
     checks.js            Police helmet checks (hard mode)
+    crossers.js          People on the zebra crossings
+    kites.js             Brown kites that circle in the sky
   audio/engine-sound.js  Engine, horn, crash, yells, jingles and menu sounds (Web Audio)
   scenes/
     MenuScene.js         Welcome menu, pause menu, How to play, Settings
@@ -330,6 +337,7 @@ src/
     RainView.js          Rain streaks on a rainy day (whole pixels)
     GarageScene.js       The garage screen: service, parts and upgrades (retro)
     TrafficLightView.js  The traffic light poles and their lamps
+    KiteView.js          The brown kites and their shadows
     save.js              Saves the game in the browser (localStorage)
 test/                    Unit tests (Vitest)
 ```
