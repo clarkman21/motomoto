@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS, FLEET, RIDER, TRAFFIC_LIGHTS } from '../config.js';
+import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS, FLEET, RIDER, TRAFFIC_LIGHTS, HELMET_CHECKS } from '../config.js';
 import { World } from '../world/world.js';
 import { buildKigaliMap } from '../world/maps/kigali.js';
 import { ChunkStreamer, groupKey } from './chunks.js';
@@ -46,6 +46,7 @@ import { modeOf, forcedAutoShift, setHazardShare } from '../sim/modes.js';
 import { createRider, stepRider, riderPower, canEat, eat } from '../sim/rider.js';
 import { pickLightJunctions, attachLights, redLightCheck } from '../sim/lights.js';
 import { TrafficLightView } from './TrafficLightView.js';
+import { pickCheckpoints, stepHelmetCheck } from '../sim/checks.js';
 import { fleetRiders, planFleetDay, attachFleet, stepFleet, waitingRider, fleetDayMoney } from '../sim/fleet.js';
 import { dayStats, pickQuests, recordDelivery, recordFine, checkQuests, maybeMission, stepMission, missionResult, findSecret } from '../sim/missions.js';
 
@@ -530,6 +531,41 @@ export class RideScene extends Phaser.Scene {
     }
   }
 
+  /** Hard mode: police helmet checks. A passenger needs a helmet (the spare helmet from level 2). */
+  #updateHelmetChecks(dt) {
+    const hc = this.helmetChecks;
+    if (!hc) return;
+    const b = this.bike, job = this.board.active;
+    // The checkpoint officers show a sign now and then, so you can see the check from far away.
+    this.checkSignTimer = (this.checkSignTimer ?? 0) - dt;
+    if (this.checkSignTimer <= 0) {
+      this.checkSignTimer = 2.5;
+      for (const o of hc.checkpoints) if (!hc.done.has(o) && Math.hypot(o.x - b.x, o.y - b.y) < 70) this.#bubble(o.x, o.y, 38, 'HELMET CHECK', 0xffd060);
+    }
+    const ctx = {
+      bike: { x: b.x, y: b.y, speed: Math.abs(forwardSpeed(b)) },
+      passenger: job?.stage === 'toDropoff' && job.type === 'passenger',
+      hasHelmet: !!this.wallet.perks.phone, // the level 2 milestone: a smartphone and a spare passenger helmet
+    };
+    const fine = HELMET_CHECKS.fine.toLocaleString('en');
+    for (const e of stepHelmetCheck(hc, ctx, dt)) {
+      const o = e.officer;
+      if (e.type === 'called') {
+        this.engineSound.whistle();
+        this.#bubble(o.x, o.y, 30, 'HAGARARA!', 0xffffff);
+        this.events.emit('bark', `Police helmet check! Stop beside the officer within ${HELMET_CHECKS.stopSeconds} s`);
+      } else if (e.type === 'checking') this.events.emit('bark', 'The officer checks the helmets...');
+      else if (e.type === 'passed') this.events.emit('bark', 'Helmets OK. "Murakoze, safe ride!"');
+      else if (e.reason === 'noHelmet') {
+        this.#pay('fines', HELMET_CHECKS.fine, 'Police: passenger with no helmet');
+        this.events.emit('bark', `Your passenger has no helmet: ${fine} RWF fine. A spare helmet comes with the level 2 milestone`);
+      } else {
+        this.#pay('fines', HELMET_CHECKS.fine, 'Police: did not stop at a helmet check');
+        this.events.emit('bark', `You did not stop at the helmet check: ${fine} RWF fine`);
+      }
+    }
+  }
+
   /** Hard mode: where the rider can eat. Positions in metres. */
   #foodStops() {
     const T = WORLD.tileMetres, stops = [];
@@ -786,6 +822,11 @@ export class RideScene extends Phaser.Scene {
     attachLights(this.roadGraph, this.signals);
     this.signalView.setActive(this.signals);
     this.inBox = new Set();
+    // Hard mode: today's police helmet checks (sim/checks.js).
+    const T = WORLD.tileMetres;
+    this.helmetChecks = mode.helmetChecks
+      ? pickCheckpoints(this.police.police.officers, (o) => this.world.districtAt(Math.floor(o.x / T), Math.floor(o.y / T)), L.districts, this.wallet.day)
+      : null;
     const stop = this.world.busStops.find((s) => s.park);
     this.parkStop = stop && L.districts.includes(this.world.districtAt(stop.x, stop.y)) ? stop : null;
     this.parkEdge = this.parkStop ? this.#edgeThrough(this.parkStop) : null;
@@ -1067,6 +1108,7 @@ export class RideScene extends Phaser.Scene {
     this.#updateRider(dt);
     this.signalView.update(this.traffic.time);
     this.#checkRedLights();
+    this.#updateHelmetChecks(dt);
     updateBoard(this.board, this.world, dt);
     this.#updateJobFuel(dt);
     this.speedLimit = speedLimitAt(this.world, this.bike.x, this.bike.y);

@@ -664,6 +664,13 @@ export const TRAFFIC_LIGHTS = {
   fine: 10000, officerRangeMetres: 30,
 };
 
+// Police helmet checks (hard mode). Each day a few officers in the open districts run a check. With a
+// passenger on board you must stop beside the officer (within stopSeconds). The passenger needs a helmet:
+// the spare helmet from the level 2 milestone. Ride on, or no passenger helmet: a fine. Guesses.
+export const HELMET_CHECKS = {
+  perDay: 4, rangeMetres: 10, stopMetres: 7, stopSeconds: 5, checkSeconds: 4, fine: 10000,
+};
+
 // Parts and upgrades at the garages (Alp: parts that bring better tips and a longer service life).
 // From the moto shop brainstorm in the spec. level: the level where the part comes to the shop.
 // only: 'petrol' or 'electric' (petrol engine parts do not move to the electric moto).
