@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS, FLEET, RIDER, TRAFFIC_LIGHTS, HELMET_CHECKS } from '../config.js';
+import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS, FLEET, RIDER, TRAFFIC_LIGHTS, HELMET_CHECKS, CROSSINGS } from '../config.js';
 import { World } from '../world/world.js';
 import { buildKigaliMap } from '../world/maps/kigali.js';
 import { ChunkStreamer, groupKey } from './chunks.js';
@@ -47,6 +47,8 @@ import { createRider, stepRider, riderPower, canEat, eat } from '../sim/rider.js
 import { pickLightJunctions, attachLights, redLightCheck } from '../sim/lights.js';
 import { TrafficLightView } from './TrafficLightView.js';
 import { shopFronts, shopPlaces } from '../world/shops.js';
+import { crossingPaths, stepCrossers } from '../sim/crossers.js';
+import { KiteView } from './KiteView.js';
 import { pickCheckpoints, stepHelmetCheck } from '../sim/checks.js';
 import { fleetRiders, planFleetDay, attachFleet, stepFleet, waitingRider, fleetDayMoney } from '../sim/fleet.js';
 import { dayStats, pickQuests, recordDelivery, recordFine, checkQuests, maybeMission, stepMission, missionResult, findSecret } from '../sim/missions.js';
@@ -125,6 +127,8 @@ export class RideScene extends Phaser.Scene {
     this.shops = shopFronts(this.world);
     this.signs.addShopSigns(this, this.world, this.shops);
     this.world.places.push(...shopPlaces(this.shops));
+    this.crossPaths = crossingPaths(this.world); // zebra crossings where people cross the road (sim/crossers.js)
+    this.kitesView = new KiteView(this, this.world); // brown kites in the sky
     // Night lights and the colour of the day (see LightsView.js).
     this.lights = new LightsView(this, this.world);
     this.rainView = new RainView(this); // rain streaks on a rainy day
@@ -860,6 +864,7 @@ export class RideScene extends Phaser.Scene {
     this.lights.setTraffic(this.traffic);
     this.people = createPeople(this.world, this.rng, { hailEvery: L.hailEvery, districts: L.districts, walkers: PEOPLE.walkersPerDistrict * L.districts.length });
     this.peopleView = new PeopleView(this, this.people);
+    this.crossState = { timers: new Map(), seen: new Set() };
     // Side missions: some new offers become special jobs (sim/missions.js).
     const decorate = (offer, board) => maybeMission(offer, board, this.world, L.n, board.rng);
     this.board = createJobBoard(this.world, Date.now() & 0xffff, { fareMultiplier: L.fare, offerLife: L.offerLife, districts: L.districts, maxOffers: L.maxOffers, decorate });
@@ -1136,6 +1141,7 @@ export class RideScene extends Phaser.Scene {
     this.chunks.night = this.daylight.night;
     this.lights.update(this.daylight, this.cameras.main.worldView, this.bike, this.controls.brake > 0.1);
     this.rainView.update(this.cameras.main.worldView, dt);
+    this.kitesView.update(this.time.now, dt, this.cameras.main.worldView, this.daylight.light, this.world.rain);
     this.#updateRivalPin();
     this.#updateHonks(dt);
     // Level 4: when you saved enough, the showroom waits for you (once a day is enough).
@@ -1472,6 +1478,18 @@ export class RideScene extends Phaser.Scene {
       if (e.type === 'nearMiss') this.#yell(e.person, e.word);
     }
     for (const e of stepRivals(this.traffic, dt)) this.#rivalArrived(e);
+    // People cross the road on the zebra crossings; you must stop for them.
+    const movers = [b, ...this.traffic.vehicles.filter((v) => Math.abs(v.x - b.x) < 110 && Math.abs(v.y - b.y) < 110)];
+    for (const e of stepCrossers(this.crossState, this.people, this.crossPaths ?? [], { bike: b, movers, mode: this.mode, districts: this.level.districts }, dt)) {
+      const p = e.person;
+      const officer = this.mode.police && this.police.police.officers.some((o) => Math.hypot(o.x - p.x, o.y - p.y) < CROSSINGS.officerRangeMetres);
+      this.#yell(p, 'HEY!');
+      if (officer) {
+        this.engineSound.whistle();
+        this.#pay('fines', CROSSINGS.fine, 'Police: did not stop at a zebra crossing');
+        this.events.emit('bark', `PRRRT! You did not stop for a person on the zebra crossing: ${CROSSINGS.fine.toLocaleString('en')} RWF fine`);
+      } else this.events.emit('bark', 'Stop for people on the zebra crossing!');
+    }
     const near = (p) => Math.abs(p.x - b.x) < 12 && Math.abs(p.y - b.y) < 12;
     this.nearPeople = this.people.walkers.filter(near).concat(this.people.hails.filter(near));
     this.world.dynamicAgents = [...this.nearAgents, ...this.nearPeople, ...this.world.poles.filter((p) => !p.off && near(p))]; // p.off: a traffic light pole not in use

@@ -26,7 +26,8 @@ export function createPeople(world, rng, opts = {}) {
   return people;
 }
 
-function newPerson(people, x, y) {
+/** A new walker at (x, y) metres (not yet in people.walkers). */
+export function newPerson(people, x, y) {
   const rng = people.rng;
   return {
     id: people.nextId++, kind: 'person', x, y, tx: x, ty: y,

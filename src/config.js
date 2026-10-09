@@ -617,17 +617,17 @@ export const FLEET = {
 export const MODES = {
   easy: {
     name: 'Kigali 2010', short: 'EASY', gears: 'auto', fuelUse: 0.8, wear: 0, cameras: false, police: false,
-    hazards: 0.5, traffic: 0.7, crashRepair: 0.5, lights: 'none', riderEnergy: false, helmetChecks: false,
+    hazards: 0.5, traffic: 0.7, crashRepair: 0.5, lights: 'none', riderEnergy: false, helmetChecks: false, crossers: 0.5, crossStepOut: 0,
     text: 'Automatic gears, low fuel use, no wear, no cameras and no police fines, light traffic.',
   },
   medium: {
     name: 'Kigali 2015', short: 'MEDIUM', gears: 'choice', fuelUse: 1, wear: 1, cameras: true, police: true,
-    hazards: 1, traffic: 1, crashRepair: 1, lights: 'lights', riderEnergy: false, helmetChecks: false,
+    hazards: 1, traffic: 1, crashRepair: 1, lights: 'lights', riderEnergy: false, helmetChecks: false, crossers: 1, crossStepOut: 0.1,
     text: 'The normal game: gears of your choice, wear, speed cameras, police, traffic lights.',
   },
   hard: {
     name: 'Kigali 2020', short: 'HARD', gears: 'manual', fuelUse: 1.15, wear: 1.3, cameras: true, police: true,
-    hazards: 1, traffic: 1.25, crashRepair: 1, lights: 'cameras', riderEnergy: true, helmetChecks: true,
+    hazards: 1, traffic: 1.25, crashRepair: 1, lights: 'cameras', riderEnergy: true, helmetChecks: true, crossers: 1.8, crossStepOut: 0.5,
     text: 'Manual gears, more fuel and wear, heavy traffic, red light cameras, helmet checks, and you must eat to keep your energy.',
   },
 };
@@ -669,6 +669,28 @@ export const TRAFFIC_LIGHTS = {
 // the spare helmet from the level 2 milestone. Ride on, or no passenger helmet: a fine. Guesses.
 export const HELMET_CHECKS = {
   perDay: 4, rangeMetres: 10, stopMetres: 7, stopSeconds: 5, checkSeconds: 4, fine: 10000,
+};
+
+// People on the zebra crossings. Near you, a person now and then crosses the road on a crossing; traffic
+// stops for them. They wait at the kerb when a vehicle comes (in hard mode some step out anyway: the
+// mode's crossStepOut). Ride through a crossing fast while a person is on it: a fine when a police officer
+// near the crossing sees you, else a warning. All values are guesses.
+export const CROSSINGS = {
+  everySeconds: 6, // at each crossing near you, a new person about this often (times the mode's crossers)
+  nearMetres: 90, clearMetres: 14, maxCrossers: 8,
+  passKmh: 10, passMetres: 3, fine: 10000, officerRangeMetres: 30,
+};
+
+// Brown kites (black kites, Milvus migrans) circle high over Kigali, most over the markets and the bus
+// park (Alp). Each kite circles a centre that drifts slowly. None at night; fewer in the rain.
+// The view draws height large (about 10.7 px for each metre), so the altitude is lower than real kites
+// fly: higher kites would be off the screen above you.
+export const KITES = {
+  count: 10,
+  altitudeMetres: [12, 22], radiusMetres: [16, 42], speedMs: [6, 10],
+  driftMs: 0.6, // how fast the centre of a circle drifts
+  flapEverySeconds: [5, 12], flapSeconds: 1.2,
+  minLight: 0.35, rainShare: 0.3,
 };
 
 // Shops and street life (Alp): a share of the shop buildings get a painted sign with a picture and a

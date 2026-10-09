@@ -43,8 +43,10 @@ export class PeopleView {
   update(world, view, time) {
     const m = 40;
     const inView = (s) => s.x > view.x - m && s.x < view.right + m && s.y > view.y - m && s.y < view.bottom + m;
+    // Walkers come and go (people who cross the road): make sprites as needed, hide the extra ones.
+    for (let i = this.people.walkers.length; i < this.walkerSprites.length; i++) this.walkerSprites[i].setVisible(false);
     this.people.walkers.forEach((p, i) => {
-      const img = this.walkerSprites[i];
+      const img = (this.walkerSprites[i] ??= this.scene.add.image(0, 0, 'people', 'p-0-0-0-R').setOrigin(this.origin.ox, this.origin.oy));
       const s = toScreen(p.x, p.y, world.heightAt(p.x, p.y));
       if (!inView(s)) return img.setVisible(false);
       const moving = Math.abs(p.vx) + Math.abs(p.vy) > 0.1;
