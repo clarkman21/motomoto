@@ -585,6 +585,9 @@ export const MISSIONS = {
   vip: { payFactor: 2.2, bonusFactor: 0.8, minComfort: 85 }, // a VIP passenger: no fine, no crash, comfort ≥ 85%
   rush: { payFactor: 1.6, bonusFactor: 0.6, metresPerSecond: 7, extraSeconds: 25, latePayFactor: 0.5 }, // against the clock
   ikivuguto: { payFactor: 1.8, bonusFactor: 0.6, maxDamage: 0.1, kg: 20 }, // fermented milk in cans: do not spill it
+  // The network (story arc, from level 5): carry charged Ampersand batteries from the showroom or a swap station
+  // to another swap station. Do not drop them (damage under maxDamage). Each delivery grows the network.
+  batteries: { fromLevel: 5, payFactor: 2.0, bonusFactor: 0.8, maxDamage: 0.15, kg: 40 },
   hotel: { payFactor: 2.5, bonusFactor: 0.7, metresPerSecond: 6.5, extraSeconds: 30 }, // a hotel guest in a hurry
   secretBonus: 2500, // a secret place, found once in a game
 };

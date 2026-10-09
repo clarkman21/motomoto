@@ -757,6 +757,11 @@ export class RideScene extends Phaser.Scene {
         if (result?.farePenalty) e.fare = Math.max(0, e.fare - result.farePenalty);
         if (result) {
           if (result.bonus) earn(this.wallet, 'bonus', result.bonus);
+          // The network (story arc): each battery delivery helps more riders go electric.
+          if (result.ok && e.job.mission.kind === 'batteries') {
+            this.wallet.network = (this.wallet.network ?? 0) + 1;
+            this.time.delayedCall(2600, () => this.events.emit('bark', `The swap network grows: ${this.wallet.network} battery ${this.wallet.network === 1 ? 'delivery' : 'deliveries'}. More riders go electric, and the air gets cleaner!`));
+          }
           this.time.delayedCall(1000, () => {
             if (result.bonus) this.events.emit('money', result.bonus, `${e.job.mission.title.toLowerCase()} bonus`);
             this.events.emit('bark', result.text);
@@ -952,6 +957,7 @@ export class RideScene extends Phaser.Scene {
     summary.fleetLines = fleet.lines;
     summary.level = this.level;
     summary.event = this.dayEvent;
+    summary.network = this.wallet.network ?? 0; // battery deliveries to the swap stations (story arc)
     // Game over: stranded (an empty tank and no cash), or below zero cash after the rent. There is no loan.
     summary.gameOver = reason ?? (summary.outOfCash ? 'cash' : null);
     if (reason === 'jail') summary.hitKmh = this.jailKmh;

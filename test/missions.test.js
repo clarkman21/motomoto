@@ -56,7 +56,15 @@ describe('side missions', () => {
     expect(offers(2)).toHaveLength(0);
     const m = offers(5);
     expect(m.length).toBeGreaterThan(20);
-    expect(new Set(m.map((o) => o.mission.kind))).toEqual(new Set(['vip', 'rush', 'ikivuguto', 'hotel']));
+    expect(new Set(m.map((o) => o.mission.kind))).toEqual(new Set(['vip', 'rush', 'ikivuguto', 'hotel', 'batteries']));
+    expect(new Set(offers(4).map((o) => o.mission.kind)).has('batteries')).toBe(false); // the network starts at level 5
+    // The network: batteries from the showroom or a swap station to another swap station.
+    const bat = m.find((o) => o.mission.kind === 'batteries');
+    expect(bat).toMatchObject({ type: 'cargo', goods: 'batteries', fragile: true });
+    expect(bat.to.tags).toContain('swap');
+    expect(bat.from.tags.some((t) => t === 'swap' || t === 'office')).toBe(true);
+    expect(missionResult({ ...job(), mission: bat.mission, damage: 0.5 }).ok).toBe(false);
+    expect(missionResult({ ...job(), mission: bat.mission, damage: 0 }).ok).toBe(true);
     for (const o of m) expect(o.mission.bonus).toBeGreaterThan(0);
     const milk = m.find((o) => o.mission.kind === 'ikivuguto');
     expect(milk.from.tags).toContain('milk');

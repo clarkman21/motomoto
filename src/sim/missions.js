@@ -96,7 +96,7 @@ export function checkQuests(quests, stats) {
 // Side missions
 // ---------------------------------------------------------------------------
 
-export const MISSION_TITLES = { vip: 'VIP PASSENGER', rush: 'RUSH DELIVERY', ikivuguto: 'IKIVUGUTO', hotel: 'HOTEL GUEST' };
+export const MISSION_TITLES = { vip: 'VIP PASSENGER', rush: 'RUSH DELIVERY', ikivuguto: 'IKIVUGUTO', hotel: 'HOTEL GUEST', batteries: 'AMPERSAND BATTERIES' };
 
 /**
  * Maybe turn a new offer into a side mission (at most one on the board). Returns the offer (changed
@@ -111,6 +111,11 @@ export function maybeMission(offer, board, world, level, rng) {
   const kinds = ['vip', 'rush'];
   if (milkBars.length) kinds.push('ikivuguto');
   if (hotels.length) kinds.push('hotel');
+  // The network (story arc): batteries to a swap station. Swap stations and the showroom are not job places.
+  const open = (p) => !board.opts.districts || !p.district || board.opts.districts.includes(p.district);
+  const swaps = world.placesWithTag('swap').filter(open);
+  const depots = [...world.placesWithTag('office').filter(open), ...swaps];
+  if (level >= MISSIONS.batteries.fromLevel && swaps.length >= 2) kinds.push('batteries');
   const kind = kinds[Math.floor(rng() * kinds.length)];
   const far = (from, list) => list.filter((p) => p !== from && tripMetres(from, p) >= JOBS.minTripMetres * 1.5);
   const o = { ...offer };
@@ -119,6 +124,11 @@ export function maybeMission(offer, board, world, level, rng) {
     const ends = far(from, places.filter((p) => !p.tags.includes('milk')));
     if (!ends.length) return offer;
     Object.assign(o, { type: 'cargo', goods: 'ikivuguto', from, to: ends[Math.floor(rng() * ends.length)], kg: MISSIONS.ikivuguto.kg, fragile: true });
+  } else if (kind === 'batteries') {
+    const from = depots[Math.floor(rng() * depots.length)];
+    const ends = far(from, swaps);
+    if (!ends.length) return offer;
+    Object.assign(o, { type: 'cargo', goods: 'batteries', from, to: ends[Math.floor(rng() * ends.length)], kg: MISSIONS.batteries.kg, fragile: true });
   } else if (kind === 'hotel') {
     const from = hotels[Math.floor(rng() * hotels.length)];
     const ends = far(from, places);
@@ -142,6 +152,7 @@ export function missionRule(m) {
     case 'rush': return 'ARRIVE BEFORE THE TIME RUNS OUT';
     case 'ikivuguto': return `DO NOT SPILL IT (UNDER ${Math.round(MISSIONS.ikivuguto.maxDamage * 100)}%)`;
     case 'hotel': return 'THE GUEST IS IN A HURRY';
+    case 'batteries': return `DO NOT DROP THEM (UNDER ${Math.round(MISSIONS.batteries.maxDamage * 100)}%)`;
     default: return '';
   }
 }
@@ -173,6 +184,9 @@ export function missionResult(job) {
   } else if (m.kind === 'hotel') {
     ok = !late;
     why = 'the guest missed the meeting';
+  } else if (m.kind === 'batteries') {
+    ok = job.damage <= MISSIONS.batteries.maxDamage;
+    why = 'the batteries got knocked about';
   }
   const farePenalty = m.kind === 'rush' && late ? round10(job.pay * (1 - MISSIONS.rush.latePayFactor)) : 0;
   return ok

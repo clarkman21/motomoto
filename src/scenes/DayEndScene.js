@@ -101,6 +101,7 @@ export class DayEndScene extends Phaser.Scene {
     y += 24;
     // Notes: cash, regen, the savings goal.
     const notes = [`Cash now: ${money(summary.cash)}`];
+    if (summary.network > 0) notes.push(`The swap network: you delivered Ampersand batteries ${summary.network} ${summary.network === 1 ? 'time' : 'times'}. More riders ride electric.`);
     if (summary.regenSaved > 0) notes.push(`Regen put back ${Math.round(summary.regenFraction * 100)}% of a battery (about ${money(summary.regenSaved)} saved)`);
     const atOffice = summary.level.buyAt === 'office';
     const ready = summary.milestoneReady && !atOffice; // the electric moto: you buy it at the showroom

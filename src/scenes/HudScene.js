@@ -300,8 +300,8 @@ export class HudScene extends Phaser.Scene {
   #updateJobs(g) {
     const ride = this.ride, bike = ride.bike, job = ride.board.active, box = this.jobBox;
     const textW = box.w - 22; // virtual pixels on a line
-    const iconOf = (j) => (j.type === 'passenger' ? 'person' : j.goods === 'bananas' ? 'bananas' : 'sack');
-    const goods = (j) => (j.goods === 'bananas' ? 'BANANAS' : j.goods === 'ikivuguto' ? 'IKIVUGUTO' : 'RICE');
+    const iconOf = (j) => (j.type === 'passenger' ? 'person' : j.goods === 'bananas' ? 'bananas' : j.goods === 'batteries' ? 'battery' : 'sack');
+    const goods = (j) => (j.goods === 'bananas' ? 'BANANAS' : j.goods === 'ikivuguto' ? 'IKIVUGUTO' : j.goods === 'batteries' ? 'BATTERIES' : 'RICE');
     const what = (j) => (j.mission ? `${j.mission.title}${j.type === 'cargo' && j.goods !== 'ikivuguto' ? ` ${j.kg}KG` : ''}` : j.type === 'passenger' ? 'PASSENGER' : `${goods(j)} ${j.kg}KG`);
     const clock = (t) => `${Math.floor(Math.max(0, t) / 60)}:${String(Math.floor(Math.max(0, t) % 60)).padStart(2, '0')}`;
     const fuel = (j) => (j.fuel === undefined ? '' : ` · FUEL ${Math.max(1, Math.round(j.fuel * 100))}%`);
