@@ -1,12 +1,12 @@
-# Moto Inziza — prototype
+# Moto Inziza — v1.0 release candidate
 
 Moto Inziza is an isometric open city driving game (until 8 October 2026 its working name was Moto Kigali). You are a moto taxi rider on the hills of Kigali. The story moves you from a petrol moto to an Ampersand electric moto.
 
-This repository holds the web prototype. The game spec is the doc "Moto Inziza: Game Spec v0.1". The game will be published on the web with Vercel.
+This repository holds the web game (version 1.0 RC1: the full story, from level 1 to the ending and free play). The game spec is the doc "Moto Inziza: Game Spec v0.1". The game will be published on the web with Vercel.
 
-## Status: milestones 1 and 2 done, milestone 3 (district slice) playable
+## Status: v1.0 RC1 — the full game is playable
 
-Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you test the two steering models.
+All 10 levels, the three modes, the story arc (smog, the yellow battery, the swap network) and the ending are in the game. The list below shows each part.
 
 | Item | Status |
 | --- | --- |
@@ -113,7 +113,13 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Market life: mamas in kitenge who sell goods on mats, umbrellas, goats and sheep; kitenge walkers | Done |
 | Trees: acacia, jacaranda, avocado and fig, mixed by district | Done |
 | Day and night: fast clock, night colour, sunset, street lamps, lit windows, headlights and tail lights | Done |
-| Rush hours and jams, road works, VIP convoys, the moto shop look (a container shop) | Later milestones |
+| The story arc, smog: a brown haze from old petrol motos over the city. It is thick at level 1, thinner at each level, and gone in free play | Done |
+| The story arc, the yellow battery (levels 3 and 4): an Ampersand rider in a yellow vest rides in the traffic, and 5 yellow batteries lie on the roads each day. Ride over one: a 25 s power boost (a yellow bar on the HUD) | Done |
+| The story arc, the network (from level 5): AMPERSAND BATTERIES side missions take 40 kg of batteries to a swap station (do not drop them). The day end counts your deliveries: the swap network grows | Done |
+| Rush hours (07:00–09:00 and 17:00–19:00): extra cars and buses wake up near you, jams at the junctions and the traffic lights | Done |
+| The ending: after the level 10 milestone (the house), a THE END screen with the new house in clear air, three Ampersand motos, the family, your career numbers and the credits; then free play | Done |
+| Final pass: the help pages split onto more pages when a topic is long (no line is lost); a help page for the city and the story; phone layout (one row of touch buttons at the bottom; a phone held upright pauses the ride and asks you to turn it); version label V1.0 RC1 | Done |
+| Road works, VIP convoys, the moto shop look (a container shop) | Later (after v1.0) |
 
 ## Run the game
 
@@ -285,6 +291,7 @@ src/
     minimap.js           Draws the minimap (the whole map as a small diamond)
     kite-sprites.js      The brown kite (three wing frames) and its shadow
     shops.js             Shops and street life: shop kinds and names, painted signs, mannequins, shop fronts and job places
+    story-sprites.js     The yellow battery pickup and the ending picture (the house, the motos, the family)
     bicycle-sprites.js   The game over pictures: a bicycle taxi (side view) and the evening hills; the jail cell
   sim/
     bike.js              Arcade bike physics and energy (no Phaser)
@@ -316,12 +323,14 @@ src/
     checks.js            Police helmet checks (hard mode)
     crossers.js          People on the zebra crossings
     kites.js             Brown kites that circle in the sky
+    rush.js              Rush hours: which hours, the extra traffic, waking it near the bike
+    story.js             The story arc: the smog at each level, the yellow battery spots and pickups
   audio/engine-sound.js  Engine, horn, crash, yells, jingles and menu sounds (Web Audio)
   scenes/
     MenuScene.js         Welcome menu, pause menu, How to play, Settings
     RideScene.js         World, bike, camera, smoke, occlusion
     HudScene.js          Retro HUD: speed, energy, service, money, jobs, prompts, touch controls
-    DayEndScene.js       Day end summary, level up and game over screens (retro)
+    DayEndScene.js       Day end summary, level up, game over and ending screens (retro)
     chunks.js            Streams ground and buildings in chunks; texture atlas packing
     TrafficView.js       Draws traffic
     PeopleView.js        Draws people and waving customers
@@ -338,6 +347,8 @@ src/
     GarageScene.js       The garage screen: service, parts and upgrades (retro)
     TrafficLightView.js  The traffic light poles and their lamps
     KiteView.js          The brown kites and their shadows
+    SmogView.js          The smog layer over the city (thinner at each level)
+    BatteryView.js       The yellow batteries on the road (levels 3 and 4)
     save.js              Saves the game in the browser (localStorage)
 test/                    Unit tests (Vitest)
 ```
@@ -348,6 +359,7 @@ All art is made in code at 1× scale. The camera zoom is a whole number (×4 at 
 
 ## Known limits
 
-- No traffic lights yet. Vehicles can overlap for a moment in a junction.
+- Vehicles can overlap for a moment in a junction.
+- On a phone, play with the phone on its side. When you hold it upright, the ride pauses.
 - All prices, energy values and the scale (4 m per tile, 1.5 m per level) are first guesses.
 - In a browser without a GPU, the game runs slower than real time. Phaser slows the game clock when the frame rate is low.
