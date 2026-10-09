@@ -1,6 +1,7 @@
 import { TRAFFIC, WORLD, BUS_PARK, HAZARDS } from '../config.js';
 import { lanePoint, LANE_OFFSET, roadLane, shortestPath } from './roads.js';
 import { speedLimitAt } from './law.js';
+import { lightLimit } from './lights.js';
 
 // Traffic: cars, minibuses, trucks and other motos that drive on the road network.
 // No Phaser here. Each vehicle drives along an edge (s = metres from its start) in the right
@@ -225,6 +226,15 @@ export function stepTraffic(traffic, world, obstacles, dt) {
         v.ringWait = (v.ringWait ?? 0) + dt;
       }
     } else v.ringWait = 0;
+    // Traffic lights (sim/lights.js): stop at the stop line on red, and on amber when there is room.
+    const signal = v.edge.to.light;
+    if (signal) {
+      const lim = lightLimit(signal, now, v.edge, toEnd, v.speed, spec.brake);
+      if (lim < target) {
+        target = lim;
+        v.why = 'light';
+      }
+    }
     // Give way at a junction: one vehicle at a time in the middle of a node.
     // A claim expires, and a vehicle that has waited too long goes anyway, so junctions never lock up.
     const node = v.edge.to;

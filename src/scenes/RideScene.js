@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS, FLEET, RIDER } from '../config.js';
+import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS, FLEET, RIDER, TRAFFIC_LIGHTS } from '../config.js';
 import { World } from '../world/world.js';
 import { buildKigaliMap } from '../world/maps/kigali.js';
 import { ChunkStreamer, groupKey } from './chunks.js';
@@ -44,6 +44,8 @@ import { RainView } from './RainView.js';
 import { buyPart as shopBuy, partEffects, partsTip } from '../sim/shop.js';
 import { modeOf, forcedAutoShift, setHazardShare } from '../sim/modes.js';
 import { createRider, stepRider, riderPower, canEat, eat } from '../sim/rider.js';
+import { pickLightJunctions, attachLights, redLightCheck } from '../sim/lights.js';
+import { TrafficLightView } from './TrafficLightView.js';
 import { fleetRiders, planFleetDay, attachFleet, stepFleet, waitingRider, fleetDayMoney } from '../sim/fleet.js';
 import { dayStats, pickQuests, recordDelivery, recordFine, checkQuests, maybeMission, stepMission, missionResult, findSecret } from '../sim/missions.js';
 
@@ -113,6 +115,9 @@ export class RideScene extends Phaser.Scene {
     this.attendant = new AttendantView(this, this.world);
     // Police on the junction corners of the whole map (the full road network, not only the open roads).
     this.police = new PoliceView(this, this.world, buildRoadGraph(this.world.roads));
+    // Traffic lights at the big junctions of the whole map (sim/lights.js); each level shows the open ones.
+    this.allSignals = pickLightJunctions(this.world, buildRoadGraph(this.world.roads));
+    this.signalView = new TrafficLightView(this, this.world, this.allSignals);
     this.signs = new SignView(this, this.world); // names on landmark buildings
     // Night lights and the colour of the day (see LightsView.js).
     this.lights = new LightsView(this, this.world);
@@ -500,6 +505,31 @@ export class RideScene extends Phaser.Scene {
     return m;
   }
 
+  /**
+   * Through a red light: a fine only when a red light camera (hard mode) or a police officer near the
+   * junction sees you (Alp). Otherwise only a warning.
+   */
+  #checkRedLights() {
+    const b = this.bike;
+    for (const l of this.signals ?? []) {
+      if (Math.abs(b.x - l.x) > 20 || Math.abs(b.y - l.y) > 20) {
+        this.inBox.delete(l.id);
+        continue;
+      }
+      const { inside, red } = redLightCheck(l, this.traffic.time, b, this.inBox.has(l.id));
+      if (inside) this.inBox.add(l.id);
+      else this.inBox.delete(l.id);
+      if (!red) continue;
+      const camera = this.mode.lights === 'cameras';
+      const officer = this.police.police.officers.some((o) => Math.hypot(o.x - l.x, o.y - l.y) < TRAFFIC_LIGHTS.officerRangeMetres);
+      if (camera || officer) {
+        this.#pay('fines', TRAFFIC_LIGHTS.fine, camera ? 'Red light camera' : 'Police: a red light');
+        this.events.emit('bark', `${camera ? 'FLASH! A red light camera' : 'PRRRT! A police officer'} saw you go through a red light: ${TRAFFIC_LIGHTS.fine.toLocaleString('en')} RWF fine`);
+        if (!camera) this.engineSound.whistle();
+      } else this.events.emit('bark', 'You went through a red light! Lucky: no camera and no police here');
+    }
+  }
+
   /** Hard mode: where the rider can eat. Positions in metres. */
   #foodStops() {
     const T = WORLD.tileMetres, stops = [];
@@ -751,6 +781,11 @@ export class RideScene extends Phaser.Scene {
     this.world.setOpenDistricts(L.districts);
     this.barriers.update();
     this.roadGraph = buildRoadGraph(openRoads(this.world.roads, this.world.districts, L.districts));
+    // Traffic lights in the open districts (not in Kigali 2010).
+    this.signals = mode.lights === 'none' ? [] : this.allSignals.filter((l) => L.districts.includes(l.district));
+    attachLights(this.roadGraph, this.signals);
+    this.signalView.setActive(this.signals);
+    this.inBox = new Set();
     const stop = this.world.busStops.find((s) => s.park);
     this.parkStop = stop && L.districts.includes(this.world.districtAt(stop.x, stop.y)) ? stop : null;
     this.parkEdge = this.parkStop ? this.#edgeThrough(this.parkStop) : null;
@@ -1030,6 +1065,8 @@ export class RideScene extends Phaser.Scene {
     this.#updateEvent(dt);
     this.#updateFleet(dt);
     this.#updateRider(dt);
+    this.signalView.update(this.traffic.time);
+    this.#checkRedLights();
     updateBoard(this.board, this.world, dt);
     this.#updateJobFuel(dt);
     this.speedLimit = speedLimitAt(this.world, this.bike.x, this.bike.y);
@@ -1390,7 +1427,7 @@ export class RideScene extends Phaser.Scene {
     for (const e of stepRivals(this.traffic, dt)) this.#rivalArrived(e);
     const near = (p) => Math.abs(p.x - b.x) < 12 && Math.abs(p.y - b.y) < 12;
     this.nearPeople = this.people.walkers.filter(near).concat(this.people.hails.filter(near));
-    this.world.dynamicAgents = [...this.nearAgents, ...this.nearPeople, ...this.world.poles.filter(near)];
+    this.world.dynamicAgents = [...this.nearAgents, ...this.nearPeople, ...this.world.poles.filter((p) => !p.off && near(p))]; // p.off: a traffic light pole not in use
     // A customer within reach of a stopped bike (only when you have no job).
     this.hailOffer = this.board.active ? null : hailInReach(this.people, b, Math.abs(forwardSpeed(b)));
     // People on the road are obstacles for traffic.

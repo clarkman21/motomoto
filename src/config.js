@@ -652,6 +652,18 @@ export const RIDER = {
   },
 };
 
+// Traffic lights at the big junctions (medium and hard modes). Each light has two phases: the roads
+// along x, then the roads along y (green, amber, then all red for a moment). Cars, buses and trucks stop
+// at the stop line on red. Riding through a red light: a fine, only when a red light camera (hard mode)
+// or a police officer near the junction sees you (decision by Alp). All values are guesses.
+export const TRAFFIC_LIGHTS = {
+  perDistrict: 2, minSpacingTiles: 22,
+  greenSeconds: 12, amberSeconds: 3, allRedSeconds: 1.5,
+  stopMetres: 6, // the stop line: this far before the centre of the junction
+  boxMetres: 4.5, // the junction box (half its width)
+  fine: 10000, officerRangeMetres: 30,
+};
+
 // Parts and upgrades at the garages (Alp: parts that bring better tips and a longer service life).
 // From the moto shop brainstorm in the spec. level: the level where the part comes to the shop.
 // only: 'petrol' or 'electric' (petrol engine parts do not move to the electric moto).

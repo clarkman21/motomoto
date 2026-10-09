@@ -139,3 +139,29 @@ export function policeSpots(world, graph) {
   for (const p of world.extraPolice ?? []) spots.push({ x: p.x * T, y: p.y * T, phase: 0, post: p.post ? { x: (p.x + 0.4) * T, y: (p.y - 0.4) * T } : null });
   return spots;
 }
+
+// ---------------------------------------------------------------------------
+// Traffic lights (sim/lights.js): a grey pole with a black head and three lamps. One frame for each
+// lit lamp ('red', 'amber', 'green'). The lit lamp is bright; the others are dark.
+// ---------------------------------------------------------------------------
+export const TRAFFIC_LIGHT_CANVAS = { width: 9, height: 32, groundX: 4, groundY: 31 };
+const LAMPS = { red: [0xff3a2a, 0x4a1410], amber: [0xffb020, 0x4a3410], green: [0x40e070, 0x10402a] };
+
+export function drawTrafficLight(lit) {
+  const C = TRAFFIC_LIGHT_CANVAS;
+  const c = new PixelCanvas(C.width, C.height);
+  // The pole: 2 pixels wide, lit on the left (the light rule).
+  for (let y = 12; y < C.height; y++) {
+    c.setPixel(4, y, 0x9a9ea6);
+    c.setPixel(5, y, 0x62666e);
+  }
+  // The head: a black box with an outline, and a sun visor line on top.
+  for (let y = 0; y < 13; y++) for (let x = 1; x < 8; x++) c.setPixel(x, y, x === 1 || x === 7 || y === 0 || y === 12 ? 0x0a0a0e : 0x24262c);
+  ['red', 'amber', 'green'].forEach((name, i) => {
+    const [on, off] = LAMPS[name];
+    const cy = 2 + i * 4;
+    for (let y = cy; y < cy + 3; y++) for (let x = 3; x < 6; x++) c.setPixel(x, y, name === lit ? on : off);
+    if (name === lit) c.setPixel(3, cy, 0xffffff); // a bright spot
+  });
+  return c;
+}

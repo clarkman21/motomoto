@@ -1,54 +1,65 @@
 import { describe, it, expect } from 'vitest';
-import { drawLightPool, drawHeadlightCone, drawLightDot, drawLampPost, lampHeadOffset } from '../src/world/light-sprites.js';
-import { drawBlock } from '../src/world/sprites.js';
-import { buildKigaliMap } from '../src/world/maps/kigali.js';
+import { TRAFFIC_LIGHTS as TL } from '../src/config.js';
+import { pickLightJunctions, lightState, lightLimit, redLightCheck, attachLights, axisOf } from '../src/sim/lights.js';
 import { World } from '../src/world/world.js';
-import { LIGHTS } from '../src/config.js';
+import { buildKigaliMap } from '../src/world/maps/kigali.js';
+import { buildRoadGraph } from '../src/sim/roads.js';
+import { createTraffic, stepTraffic } from '../src/sim/traffic.js';
+import { mulberry32 } from '../src/sim/jobs.js';
 
-const alpha = (c, x, y) => c.alphaAt(x, y);
+const world = new World(buildKigaliMap());
+const graph = buildRoadGraph(world.roads);
+const lights = pickLightJunctions(world, graph);
 
-describe('night lights', () => {
-  it('a light pool is brightest at the centre and empty at the corners', () => {
-    const c = drawLightPool(LIGHTS.poolRadiusMetres, LIGHTS.poolColour, LIGHTS.poolAlpha);
-    const cx = c.width >> 1, cy = c.height >> 1;
-    expect(alpha(c, cx, cy)).toBe(LIGHTS.poolAlpha);
-    expect(alpha(c, 0, 0)).toBe(0);
-    expect(alpha(c, cx + (c.width >> 2), cy)).toBeLessThan(alpha(c, cx, cy));
+describe('traffic lights', () => {
+  it('puts lights at big junctions: at most 2 in a district, not too near each other', () => {
+    expect(lights.length).toBeGreaterThanOrEqual(6);
+    const per = {};
+    for (const l of lights) per[l.district] = (per[l.district] ?? 0) + 1;
+    expect(Math.max(...Object.values(per))).toBeLessThanOrEqual(TL.perDistrict);
+    for (const a of lights) for (const b of lights) if (a !== b) expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThanOrEqual(TL.minSpacingTiles * 4);
   });
 
-  it('a headlight cone points in the direction of its frame', () => {
-    const c = drawHeadlightCone(0); // heading +x: screen right and down
-    const cx = c.width >> 1, cy = c.height >> 1;
-    expect(alpha(c, cx + 24, cy + 12)).toBeGreaterThan(0);
-    expect(alpha(c, cx - 24, cy - 12)).toBe(0); // nothing behind the vehicle
-  });
-
-  it('light dots and lamp posts have pixels', () => {
-    const d = drawLightDot(2, 0xffffff);
-    expect(alpha(d, 2, 2)).toBe(255);
-    for (const side of ['north', 'south', 'west', 'east']) {
-      expect(drawLampPost(side).data.some((v) => v > 0)).toBe(true);
-      expect(lampHeadOffset(side).y).toBeLessThan(-40); // the head is high above the ground
+  it('never shows green both ways, and each way gets green in a cycle', () => {
+    const l = { offset: 0 };
+    const seen = { x: new Set(), y: new Set() };
+    for (let t = 0; t < 60; t += 0.25) {
+      const s = lightState(l, t);
+      expect(s.x === 'red' || s.y === 'red').toBe(true);
+      seen.x.add(s.x);
+      seen.y.add(s.y);
     }
+    expect([...seen.x].sort()).toEqual(['amber', 'green', 'red']);
+    expect([...seen.y].sort()).toEqual(['amber', 'green', 'red']);
   });
 
-  it('the map has street lamps beside tarmac roads, not on buildings', () => {
-    const map = buildKigaliMap();
-    const world = new World(map);
-    expect(map.lamps.length).toBeGreaterThan(60);
-    for (const l of map.lamps) {
-      const c = map.rows[Math.floor(l.y)][Math.floor(l.x)];
-      expect(['.', 'p', '#', 'o', '=', 'm', 'f']).toContain(c);
+  it('a car stops at the stop line on red, and goes on green', () => {
+    const red = { offset: TL.greenSeconds + TL.amberSeconds + TL.allRedSeconds + 1 }; // y is green, x is red
+    const edge = { dx: 1, dy: 0 };
+    expect(lightLimit(red, 0, edge, 30, 10, 6)).toBeCloseTo((30 - TL.stopMetres) * 1.2);
+    expect(lightLimit(red, 0, edge, TL.stopMetres, 0, 6)).toBe(0);
+    expect(lightLimit(red, 0, { dx: 0, dy: 1 }, 30, 10, 6)).toBe(Infinity); // green for y
+    expect(lightLimit(red, 0, edge, TL.stopMetres - 2, 10, 6)).toBe(Infinity); // already over the line
+  });
+
+  it('cars queue at a red light in the game traffic', () => {
+    attachLights(graph, lights);
+    const traffic = createTraffic(world, graph, mulberry32(9), { car: 120 });
+    let waited = 0;
+    for (let i = 0; i < 300 && !waited; i++) {
+      stepTraffic(traffic, world, [], 1 / 10);
+      waited += traffic.vehicles.filter((v) => v.why === 'light').length;
     }
-    expect(world.lamps).toBe(map.lamps);
-  });
+    expect(waited).toBeGreaterThan(0);
+    attachLights(graph, []);
+  }, 20000);
 
-  it('buildings have lit windows at night, trees do not', () => {
-    const world = new World(buildKigaliMap());
-    const buildings = world.blocks.filter((b) => b.kind === 'building').slice(0, 40);
-    const lit = buildings.filter((b) => drawBlock(b, world).glow);
-    expect(lit.length).toBeGreaterThan(10);
-    const tree = world.blocks.find((b) => b.kind === 'tree');
-    expect(drawBlock(tree, world).glow).toBe(null);
+  it('the bike through a red light is seen once as it goes into the junction box', () => {
+    const l = { x: 100, y: 100, offset: 0 }; // x green at t = 0, so y is red
+    const bike = { x: 100, y: 100 - TL.boxMetres + 0.2, vx: 0, vy: 8 };
+    expect(redLightCheck(l, 0, bike, false)).toEqual({ inside: true, red: true });
+    expect(redLightCheck(l, 0, bike, true).red).toBe(false);
+    expect(redLightCheck(l, 0, { ...bike, vx: 8, vy: 0 }, false).red).toBe(false); // along x: green
+    expect(axisOf(0.2, -3)).toBe('y');
   });
 });
