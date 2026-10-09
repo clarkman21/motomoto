@@ -59,6 +59,12 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Hired riders on the map (levels 6 and 8): Jean-Paul and Claudine ride your electric motos in the traffic (a blue helmet) and carry passengers. They pay rent each evening; you pay the service of their motos; on a bad day there is a repair or no rent. Some days a rider calls for help: ride to the blue pin within 1:30 and stop beside the rider, or you lose the rent of that day | Done |
 | No bike rent from level 5: the Ampersand electric moto is yours. The level 5 to 10 goals went up (120,000 to 450,000 RWF), so an average player still passes them in about 7, 9, 8, 10, 11 and 13 days. A game over with your own moto: you sell it to pay what you owe | Done |
 | Rough murram: wheel ruts, patches of loose rocks (−18% speed above 22 km/h), potholes, and small bumps at speed for the bike and the traffic. On a rainy day the murram is dark and wet, with puddles, and the potholes are full of water (SPLASH!) | Done |
+| A garage in every district (6 in all); the nearest garage always shows on the minimap (an orange mark at the edge when it is out of the window) | Done |
+| Garage shop: F at a garage opens a retro garage screen with the service and 11 parts and upgrades (speaker and phone charger: extra tips; chain kit, ceramic pads, wheel bearings: a slower service meter; better tyres, cargo net, crash bars, air filter, seat cushion, Ampersand regen tune). Parts come level by level; petrol engine parts do not move to the electric moto | Done |
+| Difficulty modes at a new game: Kigali 2010 (easy), 2015 (medium), 2020 (hard). The mode sets the gears, fuel use, wear, cameras, police, potholes, traffic, crash repairs and traffic lights | Done |
+| Hard mode: rider energy (a FOOD bar). Eat a buffet lunch (11:00–16:00), ikivuguto at an Inyange Milk Zone, bananas from a market seller or an energy drink at an MTN MoMo kiosk; a hungry rider has less power | Done |
+| Traffic lights at up to 2 big junctions in each district (medium and hard): traffic stops on red; through a red light, a 10,000 RWF fine from a red light camera (hard) or a police officer near the junction | Done |
+| Hard mode: police helmet checks (4 each day). With a passenger, stop beside the officer; no spare passenger helmet (the level 2 milestone), or ride on: a 10,000 RWF fine | Done |
 | No star rating for the rider: a design decision (it is more realistic without one) | Decided |
 | Moving city details: the flags wave in the wind; the MTN fountain sprays now and then (9 s in every 40 s), and the drops fall back into the basin (`CITY_ANIM` in config) | Done |
 | From Alp's terrain map: Mount Kigali (a high, steep ridge with dark green forest on the west side of town), a stream in the valley between town and Kimihurura (roads cross it on bridges), the Kigali Marriott Hotel in town | Done |
@@ -104,7 +110,7 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Market life: mamas in kitenge who sell goods on mats, umbrellas, goats and sheep; kitenge walkers | Done |
 | Trees: acacia, jacaranda, avocado and fig, mixed by district | Done |
 | Day and night: fast clock, night colour, sunset, street lamps, lit windows, headlights and tail lights | Done |
-| Police helmet checks, traffic lights | Later milestones |
+| Walkers on zebra crossings, rush hours and jams, road works, VIP convoys, the moto shop look (a container shop) | Later milestones |
 
 ## Run the game
 
@@ -233,6 +239,11 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `TRAFFIC.ringGiveWayMetres`, `ringPatienceSeconds` | How near a car on a roundabout must be for a new car to wait, and how long it waits at most |
 | `MISSIONS` | Quests from which level, how many each day, rewards, how often an offer is a side mission, the rules and rewards of each mission kind, the secret place bonus |
 | `FLEET` | Hired riders: rent, costs, bad days, calls for help (how often, how long you have, how near you must stop), their names, how long they carry a passenger |
+| `MODES` | The difficulty modes: gears, fuel use, wear, cameras, police, potholes, traffic, crash repairs, traffic lights, rider energy, helmet checks |
+| `SHOP` | The parts and upgrades at the garages: price, level, effect, petrol or electric only; the mechanic's lines |
+| `RIDER` | Rider energy (hard mode): how fast it goes down, the power when hungry or weak, and each food (price, energy, time, lunch hours) |
+| `TRAFFIC_LIGHTS` | How many lights in each district, the green, amber and all red times, the stop line, the fine |
+| `HELMET_CHECKS` | How many checks each day, how near, the time to stop and to check, the fine |
 | `EVENTS` | Day events: the Umuganda hours, traffic share, rush fares and hails; rain fares, hails, the grey tint and the rain streaks. A level's `events` gives the chance of each event on a day |
 | `JOBS.maxOffersShown` | The HUD shows 4 job cards: the board never has more offers than this |
 | `CITY_ANIM` | The moving city details: flag frames and speed, how often and how long the MTN fountain sprays |
@@ -290,6 +301,11 @@ src/
     missions.js          Daily app quests, side missions, secret places
     events.js            Day events: Umuganda and rain (which day, the stage at each hour, fares, hails, barks)
     fleet.js             Hired riders: the plan of the day, their work on the map, calls for help, rent and costs
+    shop.js              Parts and upgrades at the garages: the shop list, buying, the effects
+    modes.js             Difficulty modes: the mode of a game, forced gears, fewer potholes on easy
+    rider.js             Rider energy (hard mode): hunger, power, food
+    lights.js            Traffic lights: which junctions, the colours, stopping, red light checks
+    checks.js            Police helmet checks (hard mode)
   audio/engine-sound.js  Engine, horn, crash, yells, jingles and menu sounds (Web Audio)
   scenes/
     MenuScene.js         Welcome menu, pause menu, How to play, Settings
@@ -309,6 +325,8 @@ src/
     MarketView.js        Market vendors, goats and sheep (animated)
     MinimapView.js       The minimap in the HUD
     RainView.js          Rain streaks on a rainy day (whole pixels)
+    GarageScene.js       The garage screen: service, parts and upgrades (retro)
+    TrafficLightView.js  The traffic light poles and their lamps
     save.js              Saves the game in the browser (localStorage)
 test/                    Unit tests (Vitest)
 ```
