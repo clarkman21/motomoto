@@ -49,6 +49,8 @@ import { TrafficLightView } from './TrafficLightView.js';
 import { shopFronts, shopPlaces } from '../world/shops.js';
 import { crossingPaths, stepCrossers } from '../sim/crossers.js';
 import { KiteView } from './KiteView.js';
+import { SmogView } from './SmogView.js';
+import { smogAt } from '../sim/story.js';
 import { pickCheckpoints, stepHelmetCheck } from '../sim/checks.js';
 import { fleetRiders, planFleetDay, attachFleet, stepFleet, waitingRider, fleetDayMoney } from '../sim/fleet.js';
 import { dayStats, pickQuests, recordDelivery, recordFine, checkQuests, maybeMission, stepMission, missionResult, findSecret } from '../sim/missions.js';
@@ -132,6 +134,7 @@ export class RideScene extends Phaser.Scene {
     // Night lights and the colour of the day (see LightsView.js).
     this.lights = new LightsView(this, this.world);
     this.rainView = new RainView(this); // rain streaks on a rainy day
+    this.smogView = new SmogView(this); // the petrol smog over the city: thinner at each level (story arc)
     // These stay bright at night: they are not tinted.
     for (const obj of [this.ghost, this.glow, this.markerRing, this.markerPin, this.arrow]) obj.noAmbient = true;
 
@@ -1142,6 +1145,7 @@ export class RideScene extends Phaser.Scene {
     this.lights.update(this.daylight, this.cameras.main.worldView, this.bike, this.controls.brake > 0.1);
     this.rainView.update(this.cameras.main.worldView, dt);
     this.kitesView.update(this.time.now, dt, this.cameras.main.worldView, this.daylight.light, this.world.rain);
+    this.smogView.update(this.cameras.main.worldView, dt, smogAt(this.wallet.level));
     this.#updateRivalPin();
     this.#updateHonks(dt);
     // Level 4: when you saved enough, the showroom waits for you (once a day is enough).

@@ -693,6 +693,13 @@ export const KITES = {
   minLight: 0.35, rainShare: 0.3,
 };
 
+// The story arc (spec "Story arc: petrol to electric"). Smog: a brown haze covers the city at level 1, and
+// each level makes it thinner (the alpha of the haze for each level); at the end, the air is clear.
+export const SMOG = {
+  byLevel: [0.34, 0.31, 0.28, 0.25, 0.19, 0.15, 0.11, 0.08, 0.05, 0.03, 0],
+  colour: 0x8a7458, cellPx: 4, driftPxPerSecond: 3,
+};
+
 // Shops and street life (Alp): a share of the shop buildings get a painted sign with a picture and a
 // name (world/shops.js). kinds: how often each kind of shop comes (barbershops are the most common).
 // placeEvery: every n-th shop is also a job place (all buffets are job places and food stops).
