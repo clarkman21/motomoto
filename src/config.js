@@ -677,21 +677,21 @@ export const HELMET_CHECKS = {
 // The effects multiply: wear (service meter), rough (wear on murram, potholes, off road), comfortHit
 // (comfort lost on bumps), fragile (cargo damage), crash (crash repairs), fuel, regen; tipExtra: an extra
 // tip as a share of the fare (times the comfort); longTripTip: the same, for trips longer than longTripKm.
-// All prices and effects are guesses, to tune in play.
+// Prices (Alp: a bit cheaper, for example 3,000 RWF for a speaker) and effects are guesses, to tune in play.
 export const SHOP = {
   longTripKm: 5,
   items: [
-    { id: 'speaker', name: 'Bluetooth speaker', price: 8000, level: 2, effect: { tipExtra: 0.1 }, text: 'Passengers like music: an extra tip of up to 10% of the fare.' },
-    { id: 'cushion', name: 'Seat cushion', price: 4000, level: 2, effect: { comfortHit: 0.7 }, text: 'Potholes and speed bumps cost 30% less comfort.' },
-    { id: 'chain', name: 'O-ring chain kit', price: 9000, level: 2, only: 'petrol', effect: { wear: 0.8 }, text: 'The service meter fills 20% slower. Petrol moto only.' },
-    { id: 'filter', name: 'Air filter and tune up', price: 5000, level: 2, only: 'petrol', effect: { fuel: 0.92 }, text: 'Fuel use 8% lower. Petrol moto only.' },
-    { id: 'tyres', name: 'Better tyres', price: 12000, level: 3, effect: { rough: 0.7, wetGrip: 0.1 }, text: '30% less wear on murram, potholes and off road, and more grip on wet murram.' },
-    { id: 'net', name: 'Cargo net and straps', price: 3000, level: 3, effect: { fragile: 0.5 }, text: 'Bananas and ikivuguto get 50% less damage.' },
-    { id: 'crashbars', name: 'Crash bars', price: 7000, level: 3, effect: { crash: 0.6 }, text: 'Crash repairs cost 40% less.' },
-    { id: 'charger', name: 'Phone charger for passengers', price: 3500, level: 3, effect: { longTripTip: 0.05 }, text: 'An extra tip of up to 5% on trips longer than 5 km.' },
-    { id: 'pads', name: 'Ceramic brake pads', price: 6000, level: 4, effect: { wear: 0.9 }, text: 'The brake pads last longer: the service meter fills 10% slower.' },
-    { id: 'bearings', name: 'Sealed wheel bearings', price: 10000, level: 5, effect: { wear: 0.85 }, text: 'The service meter fills 15% slower.' },
-    { id: 'regen', name: 'Ampersand regen tune', price: 8000, level: 5, only: 'electric', effect: { regen: 1.2 }, text: 'Regen braking gives back 20% more. Electric moto only.' },
+    { id: 'speaker', name: 'Bluetooth speaker', price: 3000, level: 2, effect: { tipExtra: 0.1 }, text: 'Passengers like music: an extra tip of up to 10% of the fare.' },
+    { id: 'cushion', name: 'Seat cushion', price: 1500, level: 2, effect: { comfortHit: 0.7 }, text: 'Potholes and speed bumps cost 30% less comfort.' },
+    { id: 'chain', name: 'O-ring chain kit', price: 3500, level: 2, only: 'petrol', effect: { wear: 0.8 }, text: 'The service meter fills 20% slower. Petrol moto only.' },
+    { id: 'filter', name: 'Air filter and tune up', price: 2000, level: 2, only: 'petrol', effect: { fuel: 0.92 }, text: 'Fuel use 8% lower. Petrol moto only.' },
+    { id: 'tyres', name: 'Better tyres', price: 4500, level: 3, effect: { rough: 0.7, wetGrip: 0.1 }, text: '30% less wear on murram, potholes and off road, and more grip on wet murram.' },
+    { id: 'net', name: 'Cargo net and straps', price: 1000, level: 3, effect: { fragile: 0.5 }, text: 'Bananas and ikivuguto get 50% less damage.' },
+    { id: 'crashbars', name: 'Crash bars', price: 2500, level: 3, effect: { crash: 0.6 }, text: 'Crash repairs cost 40% less.' },
+    { id: 'charger', name: 'Phone charger for passengers', price: 1500, level: 3, effect: { longTripTip: 0.05 }, text: 'An extra tip of up to 5% on trips longer than 5 km.' },
+    { id: 'pads', name: 'Ceramic brake pads', price: 2500, level: 4, effect: { wear: 0.9 }, text: 'The brake pads last longer: the service meter fills 10% slower.' },
+    { id: 'bearings', name: 'Sealed wheel bearings', price: 4000, level: 5, effect: { wear: 0.85 }, text: 'The service meter fills 15% slower.' },
+    { id: 'regen', name: 'Ampersand regen tune', price: 3000, level: 5, only: 'electric', effect: { regen: 1.2 }, text: 'Regen braking gives back 20% more. Electric moto only.' },
   ],
   // What the mechanic says when you come in (one line, chosen by the garage).
   talk: ['Muraho! A good speaker brings good tips.', 'Good tyres love murram.', 'Service on time, and the moto lives long.', 'Ceramic pads, smooth stops.', 'Bite the road, not the dust!'],
