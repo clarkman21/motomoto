@@ -5,6 +5,8 @@ import { drawBuildingSign, drawFuelSign } from '../world/garage-sprites.js';
 import { FUEL_BRAND, drawBike, BIKE_CANVAS, flagSpots, drawFlagCloth, fountainSpots, drawFountainSpray, SPRAY } from '../world/sprites.js';
 import { addCanvasTexture, placeOnPixels } from './textures.js';
 import { groupKey } from './chunks.js';
+import { drawShopSign, drawMannequin, MANNEQUIN_CANVAS } from '../world/shops.js';
+import { SHOPS } from '../config.js';
 
 // The names on landmark buildings: big letters on the roof of a tower (lit at night), and a
 // blue board on the front wall of a government office, a school or a market.
@@ -107,6 +109,37 @@ export class SignView {
       const img = placeOnPixels(scene.add.image(0, 0, 'spray-0'), p, SPRAY.groundX, SPRAY.groundY)
         .setDepth(spot.block.tx + spot.block.ty + 1.2).setVisible(false);
       this.sprays.push(img);
+    }
+  }
+
+  /**
+   * Shops and street life (world/shops.js): a painted sign with a picture over each shop front, and
+   * mannequins in front of each boutique. The signs fade with their building.
+   */
+  addShopSigns(scene, world, shops) {
+    const T = WORLD.tileMetres, L = WORLD.levelMetres;
+    const dresses = [0x8a3a8a, 0xc0392b, 0x2f6fb0, 0x3f8f4a];
+    for (const s of shops) {
+      const key = `shopsign-${s.id}`;
+      const sign = drawShopSign(s.kind, s.name);
+      if (!scene.textures.exists(key)) addCanvasTexture(scene, key, sign.canvas);
+      const p = toScreen(s.sign.x, s.sign.y, (s.floor + 1.55) * L);
+      const depth = s.sign.face === 'south' ? (s.x0 + s.x1 + 1) / 2 + s.y1 + 1.6 : s.x1 + 1 + (s.y0 + s.y1 + 1) / 2 + 0.6;
+      const img = placeOnPixels(scene.add.image(0, 0, key), p, sign.groundX, sign.groundY).setDepth(depth);
+      const keys = new Set(world.blocks.filter((b) => b.groupId === s.groupId).map(groupKey));
+      this.items.push({ img, keys });
+      if (s.kind !== 'boutique') continue;
+      // Mannequins out in front, with strange proportions (Alp).
+      for (let i = 0; i < SHOPS.mannequins; i++) {
+        const v = i % 2, mk = `mannequin-${v}-${i}`;
+        if (!scene.textures.exists(mk)) addCanvasTexture(scene, mk, drawMannequin(v, dresses[i % dresses.length]));
+        const side = (i - (SHOPS.mannequins - 1) / 2) * 1.2;
+        const x = s.sign.face === 'south' ? s.front.x * T + side : (s.front.x - 0.3) * T;
+        const y = s.sign.face === 'south' ? (s.front.y - 0.3) * T : s.front.y * T + side;
+        const q = toScreen(x, y, world.heightAt(x, y));
+        placeOnPixels(scene.add.image(0, 0, mk), q, MANNEQUIN_CANVAS.groundX, MANNEQUIN_CANVAS.groundY).setDepth((x + y) / T);
+        world.poles.push({ kind: 'pole', x, y, radius: COLLISION.poleRadius });
+      }
     }
   }
 

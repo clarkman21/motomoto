@@ -46,6 +46,7 @@ import { modeOf, forcedAutoShift, setHazardShare } from '../sim/modes.js';
 import { createRider, stepRider, riderPower, canEat, eat } from '../sim/rider.js';
 import { pickLightJunctions, attachLights, redLightCheck } from '../sim/lights.js';
 import { TrafficLightView } from './TrafficLightView.js';
+import { shopFronts, shopPlaces } from '../world/shops.js';
 import { pickCheckpoints, stepHelmetCheck } from '../sim/checks.js';
 import { fleetRiders, planFleetDay, attachFleet, stepFleet, waitingRider, fleetDayMoney } from '../sim/fleet.js';
 import { dayStats, pickQuests, recordDelivery, recordFine, checkQuests, maybeMission, stepMission, missionResult, findSecret } from '../sim/missions.js';
@@ -120,6 +121,10 @@ export class RideScene extends Phaser.Scene {
     this.allSignals = pickLightJunctions(this.world, buildRoadGraph(this.world.roads));
     this.signalView = new TrafficLightView(this, this.world, this.allSignals);
     this.signs = new SignView(this, this.world); // names on landmark buildings
+    // Shops and street life (world/shops.js): painted shop signs, boutique mannequins, and shops as job places.
+    this.shops = shopFronts(this.world);
+    this.signs.addShopSigns(this, this.world, this.shops);
+    this.world.places.push(...shopPlaces(this.shops));
     // Night lights and the colour of the day (see LightsView.js).
     this.lights = new LightsView(this, this.world);
     this.rainView = new RainView(this); // rain streaks on a rainy day

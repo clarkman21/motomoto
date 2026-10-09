@@ -671,6 +671,16 @@ export const HELMET_CHECKS = {
   perDay: 4, rangeMetres: 10, stopMetres: 7, stopSeconds: 5, checkSeconds: 4, fine: 10000,
 };
 
+// Shops and street life (Alp): a share of the shop buildings get a painted sign with a picture and a
+// name (world/shops.js). kinds: how often each kind of shop comes (barbershops are the most common).
+// placeEvery: every n-th shop is also a job place (all buffets are job places and food stops).
+export const SHOPS = {
+  share: 0.4,
+  kinds: { barber: 5, saloon: 3, bar: 3, butcher: 2, shoes: 1.2, phones: 1.5, boutique: 2.5, buffet: 1.5 },
+  placeEvery: 3,
+  mannequins: 2, // in front of each boutique
+};
+
 // Parts and upgrades at the garages (Alp: parts that bring better tips and a longer service life).
 // From the moto shop brainstorm in the spec. level: the level where the part comes to the shop.
 // only: 'petrol' or 'electric' (petrol engine parts do not move to the electric moto).
