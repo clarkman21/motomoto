@@ -17,6 +17,7 @@ import { UI, drawWindow, retroLabel } from './retro-ui.js';
 
 const FUEL = COLOURS.spBlue; // SP: a blue badge with yellow letters
 const GARAGE = 0xe07a2a; // orange, so it is not like the blue SP badge
+const FOOD = 0xc080ff; // purple: a place to eat (hard mode)
 const JOB_PICKUP = 0x44bc9d;
 const PAD = 4;
 const LEGEND_H = 11;
@@ -147,6 +148,16 @@ export class MinimapView {
       const at = minimapPoint(world, f, near.x * WORLD.tileMetres, near.y * WORLD.tileMetres);
       const inside = at.x >= ox + 3 && at.x <= ox + v.w - 3 && at.y >= oy + 3 && at.y <= oy + v.h - 3;
       if (!inside) marks.push({ at, colour: GARAGE });
+    }
+    // Hard mode: when the rider gets hungry, the nearest buffet or Inyange Milk Zone shows (purple).
+    if (ride.rider && ride.rider.energy < 0.5) {
+      let food = null, fd = Infinity;
+      for (const fs of ride.foodStops ?? []) {
+        if (fs.food !== 'buffet' && fs.food !== 'ikivuguto') continue;
+        const d = Math.hypot(fs.x - b.x, fs.y - b.y);
+        if (d < fd) { fd = d; food = fs; }
+      }
+      if (food) marks.push({ at: minimapPoint(world, f, food.x, food.y), colour: FOOD });
     }
     if (help) marks.push({ at: minimapPoint(world, f, help.x, help.y), colour: 0x3a7fd0 });
     if (target) marks.push({ at: target, colour });

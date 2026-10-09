@@ -633,6 +633,25 @@ export const MODES = {
 };
 export const DEFAULT_MODE = 'medium'; // a saved game from before the modes plays as medium
 
+// Rider energy (hard mode, Kigali 2020): the rider gets hungry. Energy goes down with the game clock
+// (faster when you push the bike), and food brings it back. Below hungryAt the moto has less power; at 0
+// the rider is weak. Food stops: a buffet lunch (from 11:00), ikivuguto at an Inyange Milk Zone (fills
+// you the most), bananas from a market seller, an energy drink at an MTN MoMo kiosk (quick, but it
+// fills you less and wears off: energy goes down faster for an hour). All values are guesses.
+export const RIDER = {
+  startEnergy: 0.9, // breakfast at home
+  drainPerHour: 0.075, // energy (0..1) for each game hour
+  pushDrainFactor: 3, // pushing the bike is hard work
+  hungryAt: 0.3, hungryPower: 0.85,
+  weakPower: 0.55, // at 0 energy
+  foods: {
+    buffet: { name: 'Buffet lunch', price: 1200, energy: 0.6, seconds: 25, fromHour: 11, toHour: 16 },
+    ikivuguto: { name: 'Ikivuguto', price: 800, energy: 0.75, seconds: 8, slowHours: 3, slowFactor: 0.6 },
+    bananas: { name: 'Bananas', price: 200, energy: 0.2, seconds: 3 },
+    drink: { name: 'Energy drink', price: 700, energy: 0.35, seconds: 2, crashHours: 1, crashFactor: 1.8 },
+  },
+};
+
 // Parts and upgrades at the garages (Alp: parts that bring better tips and a longer service life).
 // From the moto shop brainstorm in the spec. level: the level where the part comes to the shop.
 // only: 'petrol' or 'electric' (petrol engine parts do not move to the electric moto).

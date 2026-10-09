@@ -146,7 +146,8 @@ export function stepBike(bike, input, world, dt) {
   // Engine. A load makes the bike heavier, so the same engine force gives less acceleration.
   const massFactor = 1 + bike.loadKg / LOAD.baseMassKg;
   let accel = slopeAccel;
-  if (throttle > 0) accel += (throttle * enginePull(spec, bike, v) * powerFactor(bike)) / massFactor;
+  // bike.riderPower: a hungry rider (hard mode) rides with less power (sim/rider.js).
+  if (throttle > 0) accel += (throttle * enginePull(spec, bike, v) * powerFactor(bike) * (bike.riderPower ?? 1)) / massFactor;
   // No energy left, or a breakdown: you can only push the bike at walking speed.
   bike.pushing = !engineRuns && input.throttle > 0;
   // Pushing: you walk the bike at walking speed on any ground (grass and sand too) and up moderate

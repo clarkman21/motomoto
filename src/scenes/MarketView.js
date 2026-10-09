@@ -16,7 +16,7 @@ export class MarketView {
     this.world = world;
     this.anims = [];
     this.#makeTextures();
-    const spots = marketSpots(world);
+    const spots = (this.spots = marketSpots(world)); // the vendors (banana sellers are food stops in hard mode)
     for (const spot of spots) this.#add(spot);
     // MTN MoMo agents across the city (decoration for now; later levels sell airtime there).
     this.momo = momoSpots(world, spots);

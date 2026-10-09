@@ -13,6 +13,7 @@ export const COSTS = {
   repairs: 'Crash repairs',
   garage: 'Garage (service, brake pads)',
   parts: 'Parts and upgrades',
+  food: 'Food and drinks',
   rent: 'Daily bike rent',
   fleet: 'Fleet costs (service, repairs)',
 };

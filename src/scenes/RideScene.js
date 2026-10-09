@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS, FLEET } from '../config.js';
+import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS, FLEET, RIDER } from '../config.js';
 import { World } from '../world/world.js';
 import { buildKigaliMap } from '../world/maps/kigali.js';
 import { ChunkStreamer, groupKey } from './chunks.js';
@@ -43,6 +43,7 @@ import { pickDayEvent, eventStage, eventBark, rainTint, parkTraffic, wakeTraffic
 import { RainView } from './RainView.js';
 import { buyPart as shopBuy, partEffects, partsTip } from '../sim/shop.js';
 import { modeOf, forcedAutoShift, setHazardShare } from '../sim/modes.js';
+import { createRider, stepRider, riderPower, canEat, eat } from '../sim/rider.js';
 import { fleetRiders, planFleetDay, attachFleet, stepFleet, waitingRider, fleetDayMoney } from '../sim/fleet.js';
 import { dayStats, pickQuests, recordDelivery, recordFine, checkQuests, maybeMission, stepMission, missionResult, findSecret } from '../sim/missions.js';
 
@@ -405,6 +406,13 @@ export class RideScene extends Phaser.Scene {
       return { ok: true, text: `F: ${this.stationPlace?.name ?? 'Garage'} · service (meter ${meter}%) · parts and upgrades` };
     }
     if (kind === 'office') return this.#officeOffer();
+    if (kind === 'food') {
+      const f = RIDER.foods[this.foodStop.food];
+      const can = canEat(this.rider, this.foodStop.food, this.clockHours);
+      if (!can.ok) return { ok: false, text: can.reason === 'hours' ? `${this.foodStop.name}: lunch from ${f.fromHour}:00 to ${f.toHour}:00` : 'You are not hungry.' };
+      if (this.wallet.cash < f.price) return { ok: false, text: `${f.name}: ${f.price.toLocaleString('en')} RWF. Not enough cash.` };
+      return { ok: true, text: `F: ${f.name} at ${this.foodStop.name}: ${f.price.toLocaleString('en')} RWF, +${Math.round(f.energy * 100)}% energy, ${f.seconds} s` };
+    }
     if (kind === 'fuel' && type !== 'petrol') return { ok: false, text: 'Fuel station. Your electric moto needs a swap station.' };
     if (kind === 'swap' && type !== 'electric') return { ok: false, text: 'Swap station. Your petrol moto needs a fuel station.' };
     if (kind === 'fuel') {
@@ -466,6 +474,12 @@ export class RideScene extends Phaser.Scene {
       this.#openGarage();
       return;
     }
+    if (this.station === 'food') {
+      const f = RIDER.foods[this.foodStop.food];
+      this.refuel = { kind: 'food', food: this.foodStop.food, timeLeft: f.seconds, total: f.seconds };
+      this.#passengerAtStop();
+      return;
+    }
     // At a fuel station you choose how much to buy (see chooseFuel).
     if (this.station === 'fuel') {
       this.fuelChoice = this.fuelChoice ? null : fuelChoices(this.bike, this.fuelPrice);
@@ -484,6 +498,30 @@ export class RideScene extends Phaser.Scene {
     m.wear *= this.mode.wear;
     m.fuel *= this.mode.fuelUse;
     return m;
+  }
+
+  /** Hard mode: where the rider can eat. Positions in metres. */
+  #foodStops() {
+    const T = WORLD.tileMetres, stops = [];
+    for (const p of this.world.placesWithTag('buffet')) stops.push({ food: 'buffet', name: `Buffet, ${p.name}`, x: p.x * T, y: p.y * T });
+    for (const p of this.world.placesWithTag('milk')) stops.push({ food: 'ikivuguto', name: p.name, x: p.x * T, y: p.y * T });
+    for (const s of this.markets.spots ?? []) if (s.kind === 'vendor' && s.goods === 'bananas') stops.push({ food: 'bananas', name: 'a banana seller', x: s.x, y: s.y });
+    for (const s of this.markets.momo ?? []) stops.push({ food: 'drink', name: 'an MTN MoMo kiosk', x: s.x, y: s.y });
+    return stops;
+  }
+
+  /** Hard mode: the rider's energy goes down with the clock; a hungry rider has less power. */
+  #updateRider(dt) {
+    if (!this.rider) return;
+    const { start, end, realSeconds } = this.level.shift;
+    const dHours = ((end - start) * dt) / realSeconds;
+    for (const e of stepRider(this.rider, this.clockHours, dHours, this.bike.engineDead)) {
+      this.events.emit('bark', e.type === 'hungry'
+        ? 'You are hungry: the moto feels slow. Eat at a buffet, an Inyange Milk Zone, a banana seller or a MoMo kiosk'
+        : 'You are weak with hunger! Eat something now');
+      if (e.type === 'weak') this.engineSound.jingle('gameOver');
+    }
+    this.bike.riderPower = riderPower(this.rider);
   }
 
   /** The garage screen: the ride waits behind it. */
@@ -553,8 +591,15 @@ export class RideScene extends Phaser.Scene {
   }
 
   #finishRefuel() {
-    const { kind, upTo = 1 } = this.refuel;
+    const { kind, upTo = 1, food } = this.refuel;
     this.refuel = null;
+    if (kind === 'food') {
+      const f = RIDER.foods[food];
+      this.#pay('food', f.price, f.name);
+      eat(this.rider, food, this.clockHours);
+      this.events.emit('bark', food === 'ikivuguto' ? 'Ikivuguto! Cold, thick and filling. Energy for hours' : food === 'buffet' ? 'A full plate from the buffet: rice, beans, matoke. Back to work!' : food === 'drink' ? 'An energy drink: a quick boost, but it wears off soon' : 'Sweet bananas: a small snack');
+      return;
+    }
     const r =
       kind === 'fuel' ? buyFuel(this.wallet, this.bike, this.fuelPrice, upTo) :
       kind === 'swap' ? swapBattery(this.wallet, this.bike) : payGarage(this.wallet, this.bike);
@@ -670,6 +715,14 @@ export class RideScene extends Phaser.Scene {
       this.fuelChoice = null;
       return;
     }
+    // Hard mode: food stops (a station of kind 'food'). A fuel or swap station near them comes first.
+    this.foodStop = null;
+    for (const f of this.foodStops ?? []) {
+      if (Math.hypot(b.x - f.x, b.y - f.y) < STATION_RANGE_METRES) {
+        this.station = 'food';
+        this.foodStop = f;
+      }
+    }
     for (const kind of ['fuel', 'swap', 'garage', 'office']) {
       for (const p of this.world.placesWithTag(kind)) {
         if (Math.hypot(b.x - p.x * WORLD.tileMetres, b.y - p.y * WORLD.tileMetres) < STATION_RANGE_METRES) {
@@ -690,6 +743,10 @@ export class RideScene extends Phaser.Scene {
     // Parts and upgrades from the garage, and the fuel use and wear of the mode.
     this.bike.mods = this.#bikeMods();
     if (setHazardShare(this.world, mode.hazards)) this.chunks?.reload();
+    // Hard mode: the rider must eat (sim/rider.js). Breakfast at home: each day starts with RIDER.startEnergy.
+    this.rider = mode.riderEnergy ? createRider() : null;
+    this.bike.riderPower = 1;
+    this.foodStops = mode.riderEnergy ? this.#foodStops() : [];
     // The map grows with the levels: only the open districts have roads, traffic, people and jobs.
     this.world.setOpenDistricts(L.districts);
     this.barriers.update();
@@ -972,6 +1029,7 @@ export class RideScene extends Phaser.Scene {
     this.#updateStation();
     this.#updateEvent(dt);
     this.#updateFleet(dt);
+    this.#updateRider(dt);
     updateBoard(this.board, this.world, dt);
     this.#updateJobFuel(dt);
     this.speedLimit = speedLimitAt(this.world, this.bike.x, this.bike.y);
