@@ -52,6 +52,7 @@ import { KiteView } from './KiteView.js';
 import { SmogView } from './SmogView.js';
 import { smogAt, batterySpots, takeBattery } from '../sim/story.js';
 import { BatteryView } from './BatteryView.js';
+import { isRushHour, rushCounts, markRush, stepRush } from '../sim/rush.js';
 import { pickCheckpoints, stepHelmetCheck } from '../sim/checks.js';
 import { fleetRiders, planFleetDay, attachFleet, stepFleet, waitingRider, fleetDayMoney } from '../sim/fleet.js';
 import { dayStats, pickQuests, recordDelivery, recordFine, checkQuests, maybeMission, stepMission, missionResult, findSecret } from '../sim/missions.js';
@@ -869,6 +870,10 @@ export class RideScene extends Phaser.Scene {
     for (const kind of ['car', 'bus', 'truck']) counts[kind] = Math.round(TRAFFIC.perDistrict[kind] * L.districts.length * L.traffic * mode.traffic);
     counts.moto = L.rivals;
     counts.cyclist = (L.cyclists ?? 0) * L.districts.length; // slow bicycles from level 3
+    // Rush hours: extra cars and minibuses (they wait off the road outside the rush hours, see sim/rush.js).
+    const rush = rushCounts(counts, mode.rushExtra);
+    counts.car += rush.car;
+    counts.bus += rush.bus;
     const riders = fleetRiders(this.wallet);
     counts.fleet = riders.length; // your hired riders (levels 6 and 8)
     // The story arc: in the petrol levels 3 and 4 an Ampersand rider rides in the traffic (a fleet moto with no
@@ -892,6 +897,7 @@ export class RideScene extends Phaser.Scene {
     // The plan of the day for the hired riders: bad days and calls for help (none on the Umuganda morning).
     this.fleetPlan = planFleetDay(riders, this.wallet.day, L.shift, this.dayEvent === 'umuganda' ? EVENTS.umuganda.endHour : L.shift.start);
     attachFleet(this.traffic, this.fleetPlan, mulberry32(this.wallet.day * 53 + 1));
+    markRush(this.traffic, rush);
     if (this.dayEvent === 'umuganda') parkTraffic(this.traffic, EVENTS.umuganda.trafficShare, mulberry32(this.wallet.day * 31 + 5));
     this.trafficView = new TrafficView(this, this.traffic);
     this.lights.setTraffic(this.traffic);
@@ -923,6 +929,16 @@ export class RideScene extends Phaser.Scene {
   /** Each frame: the event effects, the traffic that comes back after the Umuganda morning, and the barks. */
   #updateEvent(dt) {
     const st = this.#eventEffects();
+    // Rush hours: the extra traffic comes and goes far from you (not on the Umuganda morning).
+    if ((this.rushTimer = (this.rushTimer ?? 0) - dt) <= 0) {
+      this.rushTimer = 1;
+      stepRush(this.traffic, this.clockHours, this.bike, st.trafficFull);
+    }
+    const rushNow = isRushHour(this.clockHours) && this.mode.rushExtra > 0 && st.trafficFull;
+    if (rushNow !== !!this.rushNow) {
+      this.rushNow = rushNow;
+      if (rushNow) this.events.emit('bark', 'Rush hour! Heavy traffic on the main roads. Filter with care, or take the side streets');
+    }
     if (st.trafficFull && this.traffic.dormant?.length && (this.wakeTimer = (this.wakeTimer ?? 0) - dt) <= 0) {
       this.wakeTimer = 1;
       wakeTraffic(this.traffic, this.bike.x, this.bike.y, EVENTS.umuganda.wakeMetres);

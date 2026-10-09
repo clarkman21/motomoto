@@ -620,17 +620,17 @@ export const FLEET = {
 export const MODES = {
   easy: {
     name: 'Kigali 2010', short: 'EASY', gears: 'auto', fuelUse: 0.8, wear: 0, cameras: false, police: false,
-    hazards: 0.5, traffic: 0.7, crashRepair: 0.5, lights: 'none', riderEnergy: false, helmetChecks: false, crossers: 0.5, crossStepOut: 0,
+    hazards: 0.5, traffic: 0.7, crashRepair: 0.5, lights: 'none', riderEnergy: false, helmetChecks: false, crossers: 0.5, crossStepOut: 0, rushExtra: 0,
     text: 'Automatic gears, low fuel use, no wear, no cameras and no police fines, light traffic.',
   },
   medium: {
     name: 'Kigali 2015', short: 'MEDIUM', gears: 'choice', fuelUse: 1, wear: 1, cameras: true, police: true,
-    hazards: 1, traffic: 1, crashRepair: 1, lights: 'lights', riderEnergy: false, helmetChecks: false, crossers: 1, crossStepOut: 0.1,
+    hazards: 1, traffic: 1, crashRepair: 1, lights: 'lights', riderEnergy: false, helmetChecks: false, crossers: 1, crossStepOut: 0.1, rushExtra: 0.5,
     text: 'The normal game: gears of your choice, wear, speed cameras, police, traffic lights.',
   },
   hard: {
     name: 'Kigali 2020', short: 'HARD', gears: 'manual', fuelUse: 1.15, wear: 1.3, cameras: true, police: true,
-    hazards: 1, traffic: 1.25, crashRepair: 1, lights: 'cameras', riderEnergy: true, helmetChecks: true, crossers: 1.8, crossStepOut: 0.5,
+    hazards: 1, traffic: 1.25, crashRepair: 1, lights: 'cameras', riderEnergy: true, helmetChecks: true, crossers: 1.8, crossStepOut: 0.5, rushExtra: 0.9,
     text: 'Manual gears, more fuel and wear, heavy traffic, red light cameras, helmet checks, and you must eat to keep your energy.',
   },
 };
@@ -673,6 +673,11 @@ export const TRAFFIC_LIGHTS = {
 export const HELMET_CHECKS = {
   perDay: 4, rangeMetres: 10, stopMetres: 7, stopSeconds: 5, checkSeconds: 4, fine: 10000,
 };
+
+// Rush hours (spec "More traffic in later levels"): more cars and minibuses on the roads at these hours.
+// The mode's rushExtra: the extra share of cars and minibuses (0: no rush hours). The extra vehicles come
+// on the road and go off it only far from you, so they never pop up in view. Guesses.
+export const RUSH = { hours: [[7, 9], [17, 19]], wakeMetres: 70, parkMetres: 80 };
 
 // People on the zebra crossings. Near you, a person now and then crosses the road on a crossing; traffic
 // stops for them. They wait at the kerb when a vehicle comes (in hard mode some step out anyway: the

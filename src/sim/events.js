@@ -89,13 +89,16 @@ export function parkTraffic(traffic, share, rng) {
   traffic.vehicles = keep;
 }
 
-/** Bring dormant vehicles back on the road, but only the ones far from (x, y), so they do not pop up in view. */
-export function wakeTraffic(traffic, x, y, minMetres) {
+/**
+ * Bring dormant vehicles back on the road, but only the ones far from (x, y), so they do not pop up in view.
+ * which: the vehicles to wake (default: all but the rush hour vehicles, see sim/rush.js).
+ */
+export function wakeTraffic(traffic, x, y, minMetres, which = (v) => !v.rush) {
   if (!traffic.dormant?.length) return 0;
   const stay = [];
   let woke = 0;
   for (const v of traffic.dormant) {
-    if (Math.hypot(v.x - x, v.y - y) >= minMetres) {
+    if (which(v) && Math.hypot(v.x - x, v.y - y) >= minMetres) {
       traffic.vehicles.push(v);
       woke++;
     } else stay.push(v);
