@@ -242,6 +242,11 @@ export function buildKigaliMap(seed = 7) {
   station(146, 86, 'F', 'north', 'Gikondo fuel');
   station(180, 98, 'S', 'north', 'Ampersand swap, Kicukiro');
   station(180, 108, 'G', 'north', 'Sonatubes moto garage', 'SONATUBES');
+  // A garage in every district, so a breakdown is never far from help (Alp). The names are inventions.
+  station(17, 98, 'G', 'north', 'Umurimo moto garage', 'UMURIMO'); // Kinyarwanda: "work"
+  station(86, 45, 'G', 'west', 'Kacyiru moto care', 'MOTO CARE');
+  station(92, 98, 'G', 'north', 'Mama Gloria parts and garage', 'MAMA GLORIA');
+  station(182, 22, 'G', 'north', 'Tuzamurane garage', 'TUZAMURANE'); // Kinyarwanda: "let us lift each other up"
 
   // Landmark buildings. levels: the height (it can be taller than 9); kind: the building style;
   // sign: the name on the building (towers: on the roof; offices and schools: on the front wall).

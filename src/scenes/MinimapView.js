@@ -136,6 +136,18 @@ export class MinimapView {
     // A hired rider who waits for help: a blue mark (drawn first, so the job target stays on top).
     const help = ride.helpWait?.vehicle;
     const marks = [];
+    // The nearest open garage is always on the map: out of the window, a mark at the edge in its direction (Alp).
+    let near = null, best = Infinity;
+    for (const gp of world.placesWithTag('garage')) {
+      if (world.isClosedTile(world.tile(Math.floor(gp.x), Math.floor(gp.y)))) continue;
+      const d = Math.hypot(gp.x * WORLD.tileMetres - b.x, gp.y * WORLD.tileMetres - b.y);
+      if (d < best) { best = d; near = gp; }
+    }
+    if (near) {
+      const at = minimapPoint(world, f, near.x * WORLD.tileMetres, near.y * WORLD.tileMetres);
+      const inside = at.x >= ox + 3 && at.x <= ox + v.w - 3 && at.y >= oy + 3 && at.y <= oy + v.h - 3;
+      if (!inside) marks.push({ at, colour: GARAGE });
+    }
     if (help) marks.push({ at: minimapPoint(world, f, help.x, help.y), colour: 0x3a7fd0 });
     if (target) marks.push({ at: target, colour });
     for (const m of marks) {

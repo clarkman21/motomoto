@@ -30,14 +30,19 @@ describe('Kigali map (6 districts)', () => {
     }
   });
 
-  it('has services in every district: fuel or swap in each, two garages', () => {
+  it('has services in every district: fuel or swap and a garage in each', () => {
     for (const d of world.districts) {
       const services = world.places.filter((p) => p.district === d.id && (p.tags.includes('fuel') || p.tags.includes('swap')));
       expect(services.length, d.id).toBeGreaterThan(0);
     }
     expect(world.placesWithTag('fuel').length).toBeGreaterThanOrEqual(6);
     expect(world.placesWithTag('swap').length).toBeGreaterThanOrEqual(4);
-    expect(world.placesWithTag('garage')).toHaveLength(2);
+    // A garage in every district (Alp), and each garage stands beside a road it faces.
+    for (const d of world.districts) expect(world.placesWithTag('garage').filter((p) => p.district === d.id).length, d.id).toBe(1);
+    for (const g of world.placesWithTag('garage')) {
+      const t = world.tile(Math.floor(g.x), Math.floor(g.y));
+      expect(t && !t.block && t.surface !== 'grass', g.name).toBe(true);
+    }
     for (const kind of ['fuel', 'swap', 'garage', 'dome', 'fountain']) expect(world.blocks.some((b) => b.kind === kind), kind).toBe(true);
   });
 
