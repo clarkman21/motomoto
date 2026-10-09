@@ -65,6 +65,7 @@ Milestone 1 has a bike on a test map with hills, ramps and surfaces. It lets you
 | Hard mode: rider energy (a FOOD bar). Eat a buffet lunch (11:00–16:00), ikivuguto at an Inyange Milk Zone, bananas from a market seller or an energy drink at an MTN MoMo kiosk; a hungry rider has less power | Done |
 | Traffic lights at up to 2 big junctions in each district (medium and hard): traffic stops on red; through a red light, a 10,000 RWF fine from a red light camera (hard) or a police officer near the junction | Done |
 | Hard mode: police helmet checks (4 each day). With a passenger, stop beside the officer; no spare passenger helmet (the level 2 milestone), or ride on: a 10,000 RWF fine | Done |
+| Shops and street life: 78 shop buildings have a painted sign with a picture (barbershops, saloons, bars with funny names, butchers, shoe and phone repair, boutiques with strange mannequins, buffets); a third of them are job places; buffets are food stops in hard mode. Garage parts are cheaper (a speaker is 3,000 RWF) | Done |
 | No star rating for the rider: a design decision (it is more realistic without one) | Decided |
 | Moving city details: the flags wave in the wind; the MTN fountain sprays now and then (9 s in every 40 s), and the drops fall back into the basin (`CITY_ANIM` in config) | Done |
 | From Alp's terrain map: Mount Kigali (a high, steep ridge with dark green forest on the west side of town), a stream in the valley between town and Kimihurura (roads cross it on bridges), the Kigali Marriott Hotel in town | Done |
@@ -244,6 +245,7 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `RIDER` | Rider energy (hard mode): how fast it goes down, the power when hungry or weak, and each food (price, energy, time, lunch hours) |
 | `TRAFFIC_LIGHTS` | How many lights in each district, the green, amber and all red times, the stop line, the fine |
 | `HELMET_CHECKS` | How many checks each day, how near, the time to stop and to check, the fine |
+| `SHOPS` | Shops and street life: the share of shop buildings with a sign, how common each kind is, how many are job places, mannequins in front of a boutique |
 | `EVENTS` | Day events: the Umuganda hours, traffic share, rush fares and hails; rain fares, hails, the grey tint and the rain streaks. A level's `events` gives the chance of each event on a day |
 | `JOBS.maxOffersShown` | The HUD shows 4 job cards: the board never has more offers than this |
 | `CITY_ANIM` | The moving city details: flag frames and speed, how often and how long the MTN fountain sprays |
@@ -277,6 +279,7 @@ src/
     market-sprites.js    Market vendors, kitenge, goats and sheep, MTN MoMo agents
     market.js            Where the market vendors, animals and MoMo agents stand
     minimap.js           Draws the minimap (the whole map as a small diamond)
+    shops.js             Shops and street life: shop kinds and names, painted signs, mannequins, shop fronts and job places
     bicycle-sprites.js   The game over pictures: a bicycle taxi (side view) and the evening hills; the jail cell
   sim/
     bike.js              Arcade bike physics and energy (no Phaser)
