@@ -218,7 +218,7 @@ export class HudScene extends Phaser.Scene {
     this.energyText.setText(`${Math.round(bike.energy * 100)}%`).setTint(low ? UI.red : UI.white);
     const eb = this.energyBar;
     const blinkLow = bike.energy < 0.1 && Math.floor(this.time.now / 300) % 2 === 0;
-    drawSegBar(g, eb.x, eb.y, eb.w, eb.h, bike.energy, blinkLow ? 0xffffff : electric ? COLOURS.ampersandYellow : low ? UI.red : PETROL_RED, 12);
+    drawSegBar(g, eb.x, eb.y, eb.w, eb.h, bike.energy, blinkLow ? 0xffffff : electric || bike.boost > 0 ? COLOURS.ampersandYellow : low ? UI.red : PETROL_RED, 12); // a yellow battery boost: the bar is yellow
     const ratio = (bike.energyRate ?? 0) * spec.energySeconds;
     this.useSmooth = (this.useSmooth ?? 0) + (ratio - (this.useSmooth ?? 0)) * Math.min(1, deltaMs / 250);
     this.useText.setText(this.useSmooth < -0.02 ? 'CHARGE' : `USE ${Math.max(0, this.useSmooth).toFixed(1)}×`).setTint(this.useSmooth < -0.02 ? UI.green : UI.dim);

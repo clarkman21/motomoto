@@ -695,6 +695,13 @@ export const KITES = {
 
 // The story arc (spec "Story arc: petrol to electric"). Smog: a brown haze covers the city at level 1, and
 // each level makes it thinner (the alpha of the haze for each level); at the end, the air is clear.
+// The yellow battery (levels 3 and 4, the petrol moto): an Ampersand rider rides in the traffic, and yellow
+// battery pickups lie on the roads. Ride over one: an electric boost for boostSeconds (more power, no fuel).
+export const STORY = {
+  batteryLevels: [3, 4], batteriesPerDay: 5, pickMetres: 2.4,
+  boostSeconds: 25, boostPower: 1.3,
+};
+
 export const SMOG = {
   byLevel: [0.34, 0.31, 0.28, 0.25, 0.19, 0.15, 0.11, 0.08, 0.05, 0.03, 0],
   colour: 0x8a7458, cellPx: 4, driftPxPerSecond: 3,

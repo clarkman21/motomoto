@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS, FLEET, RIDER, TRAFFIC_LIGHTS, HELMET_CHECKS, CROSSINGS } from '../config.js';
+import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS, FLEET, RIDER, TRAFFIC_LIGHTS, HELMET_CHECKS, CROSSINGS, STORY } from '../config.js';
 import { World } from '../world/world.js';
 import { buildKigaliMap } from '../world/maps/kigali.js';
 import { ChunkStreamer, groupKey } from './chunks.js';
@@ -50,7 +50,8 @@ import { shopFronts, shopPlaces } from '../world/shops.js';
 import { crossingPaths, stepCrossers } from '../sim/crossers.js';
 import { KiteView } from './KiteView.js';
 import { SmogView } from './SmogView.js';
-import { smogAt } from '../sim/story.js';
+import { smogAt, batterySpots, takeBattery } from '../sim/story.js';
+import { BatteryView } from './BatteryView.js';
 import { pickCheckpoints, stepHelmetCheck } from '../sim/checks.js';
 import { fleetRiders, planFleetDay, attachFleet, stepFleet, waitingRider, fleetDayMoney } from '../sim/fleet.js';
 import { dayStats, pickQuests, recordDelivery, recordFine, checkQuests, maybeMission, stepMission, missionResult, findSecret } from '../sim/missions.js';
@@ -135,6 +136,7 @@ export class RideScene extends Phaser.Scene {
     this.lights = new LightsView(this, this.world);
     this.rainView = new RainView(this); // rain streaks on a rainy day
     this.smogView = new SmogView(this); // the petrol smog over the city: thinner at each level (story arc)
+    this.batteryView = new BatteryView(this); // yellow battery pickups (story arc, levels 3 and 4)
     // These stay bright at night: they are not tinted.
     for (const obj of [this.ghost, this.glow, this.markerRing, this.markerPin, this.arrow]) obj.noAmbient = true;
 
@@ -578,6 +580,21 @@ export class RideScene extends Phaser.Scene {
     }
   }
 
+  /** The story arc: the first bark of the day, the yellow battery pickups. */
+  #updateStory() {
+    if (this.storyBark && this.started) {
+      this.events.emit('bark', this.storyBark);
+      this.storyBark = null;
+    }
+    this.batteryView.update(this.time.now);
+    const got = this.batteries?.length ? takeBattery(this.batteries, this.bike) : null;
+    if (got) {
+      this.bike.boost = STORY.boostSeconds;
+      this.engineSound.jingle('reward');
+      this.events.emit('bark', `Yellow battery! ${STORY.boostSeconds} s of electric power: strong on the hills, and no fuel. Imagine this every day...`);
+    }
+  }
+
   /** Hard mode: where the rider can eat. Positions in metres. */
   #foodStops() {
     const T = WORLD.tileMetres, stops = [];
@@ -849,6 +866,14 @@ export class RideScene extends Phaser.Scene {
     counts.cyclist = (L.cyclists ?? 0) * L.districts.length; // slow bicycles from level 3
     const riders = fleetRiders(this.wallet);
     counts.fleet = riders.length; // your hired riders (levels 6 and 8)
+    // The story arc: in the petrol levels 3 and 4 an Ampersand rider rides in the traffic (a fleet moto with no
+    // hired rider), and yellow battery pickups lie on the roads.
+    const yellow = STORY.batteryLevels.includes(L.n) && L.bikeType === 'petrol';
+    if (yellow) counts.fleet += 1;
+    this.batteries = yellow ? batterySpots(this.world, L.districts, this.wallet.day) : [];
+    this.batteryView.set(this.world, this.batteries);
+    this.bike.boost = 0;
+    this.storyBark = yellow ? `An Ampersand rider passes on a yellow electric moto. Ride over a yellow battery on the road: ${STORY.boostSeconds} s of electric power!` : null;
     this.trafficView?.destroy();
     this.peopleView?.destroy();
     this.traffic = createTraffic(this.world, this.roadGraph, mulberry32(Date.now() & 0xffff), counts);
@@ -1100,7 +1125,7 @@ export class RideScene extends Phaser.Scene {
           continue;
         }
         if (e.type === 'wall' && e.hit?.kind) {
-          this.events.emit('bark', `Crash! You hit a ${e.hit.kind === 'moto' ? 'moto' : e.hit.kind === 'fleet' ? 'moto of your fleet' : e.hit.kind === 'bus' ? 'minibus' : e.hit.kind === 'cyclist' ? 'cyclist' : e.hit.kind}`);
+          this.events.emit('bark', `Crash! You hit a ${e.hit.kind === 'moto' ? 'moto' : e.hit.kind === 'fleet' ? (e.hit.rider ? 'moto of your fleet' : 'Ampersand rider') : e.hit.kind === 'bus' ? 'minibus' : e.hit.kind === 'cyclist' ? 'cyclist' : e.hit.kind}`);
           e.hit.stopTimer = 2; // the other driver stops
           continue;
         }
@@ -1119,6 +1144,7 @@ export class RideScene extends Phaser.Scene {
     this.#updateEvent(dt);
     this.#updateFleet(dt);
     this.#updateRider(dt);
+    this.#updateStory();
     this.signalView.update(this.traffic.time);
     this.#checkRedLights();
     this.#updateHelmetChecks(dt);

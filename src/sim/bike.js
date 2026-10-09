@@ -1,4 +1,4 @@
-import { BIKES, PHYSICS, HAZARDS, WORLD, GEARBOX, BRAKES, LOAD, FUEL, COLLISION, SURFACES } from '../config.js';
+import { BIKES, PHYSICS, HAZARDS, WORLD, GEARBOX, BRAKES, LOAD, FUEL, COLLISION, SURFACES, STORY } from '../config.js';
 import { wrapAngle } from '../world/iso.js';
 import { addWear, rideWearKm, hitWearKm, powerFactor, energyFactor, brakeFactor } from './maintenance.js';
 import { collideBike } from './collide.js';
@@ -147,7 +147,9 @@ export function stepBike(bike, input, world, dt) {
   const massFactor = 1 + bike.loadKg / LOAD.baseMassKg;
   let accel = slopeAccel;
   // bike.riderPower: a hungry rider (hard mode) rides with less power (sim/rider.js).
-  if (throttle > 0) accel += (throttle * enginePull(spec, bike, v) * powerFactor(bike) * (bike.riderPower ?? 1)) / massFactor;
+  // bike.boost: seconds of a yellow battery boost left (the story arc): more power, and no fuel.
+  const boost = bike.boost > 0 ? STORY.boostPower : 1;
+  if (throttle > 0) accel += (throttle * enginePull(spec, bike, v) * powerFactor(bike) * (bike.riderPower ?? 1) * boost) / massFactor;
   // No energy left, or a breakdown: you can only push the bike at walking speed.
   bike.pushing = !engineRuns && input.throttle > 0;
   // Pushing: you walk the bike at walking speed on any ground (grass and sand too) and up moderate
@@ -307,6 +309,10 @@ export function stepBike(bike, input, world, dt) {
   if (regenBrake > 0) use -= ((spec.regenBrakeFraction * regenBrake * Math.abs(v)) / barInKinetic(spec)) * (mods?.regen ?? 1);
   // A petrol engine uses fuel at idle too: when you coast, wait for a customer or stand in a queue.
   if (spec.gears && throttle === 0 && engineRuns) use += FUEL.idleUse / spec.energySeconds;
+  if (bike.boost > 0) {
+    bike.boost -= dt;
+    if (use > 0) use = 0; // the yellow battery gives the energy (story arc)
+  }
   bike.energyRate = use; // fraction of a full bar per second (negative = charging)
   const before = bike.energy;
   bike.energy = clamp(bike.energy - use * dt, 0, 1);
