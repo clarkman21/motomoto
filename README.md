@@ -61,9 +61,9 @@ All 10 levels, the three modes, the story arc (smog, the yellow battery, the swa
 | Rough murram: wheel ruts, patches of loose rocks (−18% speed above 22 km/h), potholes, and small bumps at speed for the bike and the traffic. On a rainy day the murram is dark and wet, with puddles, and the potholes are full of water (SPLASH!) | Done |
 | A garage in every district (6 in all); the nearest garage always shows on the minimap (an orange mark at the edge when it is out of the window) | Done |
 | Garage shop: F at a garage opens a retro garage screen with the service and 11 parts and upgrades (speaker and phone charger: extra tips; chain kit, ceramic pads, wheel bearings: a slower service meter; better tyres, cargo net, crash bars, air filter, seat cushion, Ampersand regen tune). Parts come level by level; petrol engine parts do not move to the electric moto | Done |
-| Difficulty modes at a new game: Kigali 2010 (easy), 2015 (medium), 2020 (hard). The mode sets the gears, fuel use, wear, cameras, police, potholes, traffic, crash repairs and traffic lights | Done |
-| Hard mode: rider energy (a FOOD bar). Eat a buffet lunch (11:00–16:00), ikivuguto at an Inyange Milk Zone, bananas from a market seller or an energy drink at an MTN MoMo kiosk; a hungry rider has less power | Done |
-| Traffic lights at up to 2 big junctions in each district (medium and hard): traffic stops on red; through a red light, a 10,000 RWF fine from a red light camera (hard) or a police officer near the junction | Done |
+| Difficulty modes at a new game: Kigali 2010 (easy), 2015 (medium), 2020 (hard). The mode sets the gears, fuel use, wear, cameras, police, potholes, traffic, crash repairs and traffic lights. Since 13 October 2026 (Alp: medium was far too hard): all the fines (speed cameras, police chases, red lights, crossings, hitting a person, helmet checks) are only on hard; medium has the FOOD bar | Done |
+| Medium and hard modes: rider energy (a FOOD bar; on medium it goes down 30% slower). Eat a buffet lunch (11:00–16:00), ikivuguto at an Inyange Milk Zone, bananas from a market seller or an energy drink at an MTN MoMo kiosk; a hungry rider has less power | Done |
+| Traffic lights at up to 2 big junctions in each district (medium and hard): traffic stops on red; through a red light on hard mode, a 10,000 RWF fine from a red light camera or a police officer near the junction; on medium only a warning | Done |
 | Hard mode: police helmet checks (4 each day). With a passenger, stop beside the officer; no spare passenger helmet (the level 2 milestone), or ride on: a 10,000 RWF fine | Done |
 | Shops and street life: 78 shop buildings have a painted sign with a picture (barbershops, saloons, bars with funny names, butchers, shoe and phone repair, boutiques with strange mannequins, buffets); a third of them are job places; buffets are food stops in hard mode. Garage parts are cheaper (a speaker is 3,000 RWF) | Done |
 | People on the zebra crossings (44 crossings): traffic stops for them; they wait for a gap (on hard mode half of them step out anyway); ride fast past a person on a crossing near a police officer: a 10,000 RWF fine | Done |
@@ -81,7 +81,9 @@ All 10 levels, the three modes, the story arc (smog, the yellow battery, the swa
 | Garage, service meter, breakdowns, crash repairs, daily rent (levels 1 to 4, until the electric moto is yours) | Done |
 | Shift clock for each level (for example 19:00–23:00 in 4 min) and day end summary | Done |
 | Balance model: `npm run balance` estimates the days to pass each level for a good, an average and a beginner player; fares ×1.5 and level tuning so an average player passes levels 1–4 in about 4–6 days | Done |
-| Test mode (Settings): a new game starts at level 1 to 5, to check the later levels | Done |
+| Test mode (Settings): a new game starts at any level, to check the later levels | Done |
+| Cheat menu for tests (see Cheats below): change level, money, fuel, clock, mode, day event, rush hour; go to places; show the ending | Done |
+| Shop fronts (design review, 13 October 2026): a sign is painted on the wall when it fits, else it stands on a board with legs; each shop kind has its own inside (barber chair and pole, saloon hair dryer, beer crates, meat on white tiles, shoe shelves, phone counter, kitenge dresses, buffet pots) | Done |
 | Out of cash = game over (no loan): below zero at the end of the day, or an empty tank and no cash for fuel; a bicycle taxi game over screen, then a new game at level 1 | Done |
 | Kigali map: 6 districts (Nyabugogo, Kigali town, Kacyiru, Kimihurura, Nyarutarama, Kicukiro), 192 × 128 tiles, streamed in chunks | Done |
 | Topography: valley, ridges, hills and saddles; foundations on slopes, slope shading and contour lines | Done |
@@ -132,6 +134,26 @@ npm test         # runs the unit tests
 npm run build    # makes a static build in dist/
 npm run balance  # prints the balance table: money per day and days to pass each level
 ```
+
+## Cheats (for tests)
+
+Type `INZIZA` in any menu (or tap the version label on the main menu 5 times on a phone). The label shows CHEATS ON. Then the pause menu (Esc, or the pause button) has CHEATS:
+
+| Cheat | What it does |
+| --- | --- |
+| LEVEL n ▶ n+1 / n−1 (NOW) | Go to the next or the last level at once. The milestones before the level, the bike type and the districts follow |
+| SAVE THE GOAL, END THE SHIFT | Gives the savings goal (and a margin for the costs of the day) and ends the shift; on the day end screen press M to buy the milestone. At level 4 it goes to the Ampersand showroom (press F) |
+| +50,000 RWF | More cash |
+| FILL UP | Full tank or battery, a new service, a full FOOD bar |
+| CLOCK +1 HOUR, END THE SHIFT NOW | Move the clock |
+| MODE | Easy, medium, hard (the level is built again) |
+| DAY EVENT | Auto, none, rain, Umuganda |
+| RUSH HOUR | Rush hour traffic on, or by the clock |
+| YELLOW BATTERY BOOST | 25 s of boost |
+| GO TO | The Ampersand showroom, the nearest garage, the nearest station, the Nyabugogo bus park |
+| SHOW THE ENDING | The ending screen |
+
+Settings → CHEATS: ON turns the cheats off.
 
 ## Controls
 
