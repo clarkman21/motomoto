@@ -1,5 +1,6 @@
 import { WORLD, SURFACES, COLLISION } from '../config.js';
 import { roadSigns } from './road-signs.js';
+import { gardenWalls, hitsWall } from './compounds.js';
 
 // The world is a grid of 4 m tiles. Ground height is stored at the tile
 // corners (vertices) and is smooth inside a tile, so hills and ramps have no
@@ -80,6 +81,14 @@ export class World {
     for (const p of this.places) if (!p.district) p.district = this.districtAt(Math.floor(p.x), Math.floor(p.y));
     this.vertexLevels = this.#buildHeights(mapData.hills ?? []);
     this.blocks = this.#buildBlocks();
+    // Garden walls around the villas (compounds.js), by tile for the collisions.
+    this.walls = gardenWalls(this);
+    this.wallIndex = new Map();
+    for (const w of this.walls) {
+      const k = w.tx + ',' + w.ty;
+      if (!this.wallIndex.has(k)) this.wallIndex.set(k, []);
+      this.wallIndex.get(k).push(w);
+    }
     // The big map makes its road signs from its roads: speed limits, speed bump warnings, crossings.
     if (mapData.autoSigns) {
       const extra = roadSigns(this, this.signs);
@@ -309,6 +318,8 @@ export class World {
         return true;
       }
     }
+    const walls = this.wallIndex?.get(t.tx + ',' + t.ty);
+    if (walls && walls.some((w) => hitsWall(w, x, y))) return true;
     if (!t.block) return false;
     if (t.block === 'tree') {
       const cx = (t.tx + 0.5) * WORLD.tileMetres;

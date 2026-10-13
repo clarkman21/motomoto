@@ -1,6 +1,7 @@
 import { WORLD } from '../config.js';
 import { renderTerrain } from '../world/terrain-render.js';
 import { drawBlock } from '../world/sprites.js';
+import { drawWallSegment } from '../world/compounds.js';
 import { addCanvasTexture } from './textures.js';
 
 // Streams the map in chunks of tiles: the ground image and the block sprites (buildings,
@@ -79,6 +80,12 @@ export class ChunkStreamer {
       if (block.tx < area.tx0 || block.tx >= area.tx1 || block.ty < area.ty0 || block.ty >= area.ty1) continue;
       const { canvas, depth, glow } = drawBlock(block, this.world);
       items.push({ block, canvas, depth, glow });
+    }
+    // Garden walls (world/compounds.js): one sprite for each wall segment, sorted by its middle.
+    for (const seg of this.world.walls ?? []) {
+      if (seg.tx < area.tx0 || seg.tx >= area.tx1 || seg.ty < area.ty0 || seg.ty >= area.ty1) continue;
+      const { canvas, depth } = drawWallSegment(seg, this.world);
+      items.push({ block: { kind: 'wall', tx: seg.tx, ty: seg.ty, groupId: -1 }, canvas, depth, glow: null });
     }
     const atlasKey = `blocks-${key}`;
     const blocks = [];

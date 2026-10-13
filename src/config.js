@@ -766,6 +766,19 @@ export const SMOG = {
 // Shops and street life (Alp): a share of the shop buildings get a painted sign with a picture and a
 // name (world/shops.js). kinds: how often each kind of shop comes (barbershops are the most common).
 // placeEvery: every n-th shop is also a job place (all buffets are job places and food stops).
+// Garden walls (world/compounds.js): a painted wall around each villa compound, with a steel gate on
+// the road side. Kimihurura first (the spec); the other rich districts can follow (add their ids).
+export const GARDEN_WALLS = {
+  districts: ['kimihurura'],
+  heightMetres: 1.8, // a Kigali compound wall — guess
+  gateFactor: 0.95, // the gate is a little lower than the wall
+  pillarMetres: 0.4, // the gate pillars stand higher than the gate
+  pillarShare: 0.1, // the part of the gate width that is a pillar (each side)
+  insetTiles: 0.08, // the wall stands a little inside the tile edge
+  topShare: 0.14, footShare: 0.18, // the coping at the top and the darker band at the foot (parts of the height)
+  solidMetres: 0.5, // the thickness of the wall for collisions
+};
+
 export const SHOPS = {
   share: 0.4,
   kinds: { barber: 5, saloon: 3, bar: 3, butcher: 2, shoes: 1.2, phones: 1.5, boutique: 2.5, buffet: 1.5 },
