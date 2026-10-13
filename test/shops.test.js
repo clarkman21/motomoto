@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { World } from '../src/world/world.js';
 import { buildKigaliMap } from '../src/world/maps/kigali.js';
-import { shopFronts, shopPlaces, drawShopSign, drawMannequin, shopSignArt, SHOP_KINDS, MANNEQUIN_CANVAS } from '../src/world/shops.js';
+import { shopFronts, shopPlaces, drawShopSign, drawMannequin, shopSignArt, drawMural, drawPorch, SHOP_KINDS, MANNEQUIN_CANVAS, MURAL_CANVAS } from '../src/world/shops.js';
 import { COLOURS, SHOPS } from '../src/config.js';
 
 const world = new World(buildKigaliMap());
@@ -62,5 +62,37 @@ describe('shops and street life', () => {
     }
     expect(wall).toBeGreaterThan(10);
     expect(board).toBeGreaterThan(10);
+  });
+
+  it('each shop kind has a hand-painted wall picture, on a side wall that no building hides', () => {
+    for (const kind of Object.keys(SHOP_KINDS)) {
+      const c = drawMural(kind);
+      expect(c.width).toBe(MURAL_CANVAS.width);
+      let opaque = 0;
+      for (let i = 0; i < c.data.length; i += 4) {
+        if (!c.data[i + 3]) continue;
+        opaque++;
+        expect((c.data[i] << 16) | (c.data[i + 1] << 8) | c.data[i + 2]).not.toBe(COLOURS.ampersandYellow);
+      }
+      expect(opaque).toBeGreaterThan(60);
+    }
+    const withMural = shops.filter((s) => s.muralFace);
+    expect(withMural.length).toBeGreaterThan(shops.length / 3);
+    for (const s of withMural) expect(s.muralFace).not.toBe(s.sign.face);
+  });
+
+  it('the shop walls are bright paint, never Surge Yellow (Alp: only for Ampersand)', () => {
+    for (const w of [...SHOPS.walls, ...SHOPS.brandWalls]) {
+      expect(w.wall).not.toBe(COLOURS.ampersandYellow);
+      expect(w.band).not.toBe(COLOURS.ampersandYellow);
+    }
+  });
+
+  it('a porch has two poles that reach the ground', () => {
+    for (const face of ['south', 'east']) {
+      const p = drawPorch(face, 8, SHOPS.porchLevel);
+      expect(p.canvas.height).toBeGreaterThan(Math.round(SHOPS.porchLevel * 16));
+      expect(p.groundX).toBeGreaterThanOrEqual(0);
+    }
   });
 });

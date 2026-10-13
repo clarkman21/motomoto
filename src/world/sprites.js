@@ -1,4 +1,4 @@
-import { WORLD, COLOURS, LIGHTS, PALETTE, ROOFS } from '../config.js';
+import { WORLD, COLOURS, LIGHTS, PALETTE, ROOFS, SHOPS } from '../config.js';
 import { tone, faceTone } from './palette.js';
 import { drawText, textWidth, textBit } from './garage-sprites.js';
 import { toScreen } from './iso.js';
@@ -309,6 +309,13 @@ const SHOP_PAINT = [0xc0392b, 0x3f8f4a, 0x2f6fb0, 0xe07a2a, 0x8a4ab0];
  * at the boutique, pots and plates at the buffet. u: 0..1 across the opening; v: 0..1 up from the floor;
  * bay: the opening's number along the wall. Returns a colour, or null (the plain goods).
  */
+/** The paint of a shop building (Alp's design canvas): a bright wall, a darker band, steel doors. Seeded by the building. */
+function shopScheme(groupId) {
+  const list = hash2(groupId, 11, 907) < SHOPS.brandShare ? SHOPS.brandWalls : SHOPS.walls;
+  const scheme = list[Math.floor(hash2(groupId, 13, 909) * list.length)];
+  return { ...scheme, door: SHOPS.doors[Math.floor(hash2(groupId, 17, 911) * SHOPS.doors.length)] };
+}
+
 function shopInterior(kind, u, v, bay, groupId) {
   const h = (a, b) => hash2(a, b, groupId + 211);
   switch (kind) {
@@ -414,7 +421,8 @@ function drawBuilding(c, block, pt, world, glow) {
   const { style, roof: pitched } = buildingLook(block, world);
   const look = STYLE_LOOKS[style] ?? STYLE_LOOKS.house;
   const pick = pitched?.single ? Math.floor(hash2(tx, ty, groupId) * 97) : groupId; // small houses in a row differ
-  const wall = look.walls[pick % look.walls.length];
+  const scheme = style === 'shop' ? shopScheme(groupId) : null;
+  const wall = scheme ? scheme.wall : look.walls[pick % look.walls.length];
   const roof = look.roofs[(pick >> 1) % look.roofs.length];
   const paint = SHOP_PAINT[groupId % SHOP_PAINT.length];
   const floor = block.floorLevel ?? baseLevel;
@@ -423,7 +431,7 @@ function drawBuilding(c, block, pt, world, glow) {
       glow.setPixel(px, py, shadeColour(LIGHTS.windowColour, 0.7 + 0.3 * k));
     }
   };
-  const wallShade = (k) => (along, z, px, py) => {
+  const wallShade = (k, face) => (along, z, px, py) => {
     const zl = z - floor;
     let col = wall;
     if (zl < 0) {
@@ -447,18 +455,26 @@ function drawBuilding(c, block, pt, world, glow) {
     if (top < 0.2) return shadeColour(wall, 1.1 * k); // parapet
     const a3 = (along * 3) % 1;
     if (style === 'shop' && zl < 1.9) {
-      // The ground floor: open shop fronts with goods, and a painted band with the shop name above.
-      const kind = world.shopKinds?.get(groupId);
+      // The ground floor (Alp's design canvas): open shop fronts with steel doors folded back, the inside
+      // of the shop, and a darker band at the foot of the wall. The side wall with the wall picture
+      // (SignView) has no shop front.
+      const sl = world.shopLooks?.get(groupId);
       const b = (along * 2) % 1, bay = Math.floor(along * 2);
-      if (zl > 1.45) col = hash2(Math.floor(along * 12), Math.floor(zl * 8), groupId) > 0.82 ? 0xffffff : paint;
-      else if (b > 0.12 && b < 0.88) {
-        col = (kind && shopInterior(kind, (b - 0.12) / 0.76, zl / 1.45, bay, groupId))
-          ?? (zl < 1.1 && hash2(Math.floor(along * 16), Math.floor(zl * 10), groupId + 7) > 0.6 ? SHOP_PAINT[Math.floor(hash2(Math.floor(along * 16), 3, groupId) * 5)] : 0x2a2622);
-        if (glow && zl > 0.2) glow.setPixel(px, py, shadeColour(0xffd8a0, 0.6 + 0.2 * k), 170);
-      } else if (kind === 'barber' && (bay & 1) === 0 && b > 0.9 && zl > 0.3 && zl < 1.35) {
-        col = [0xc0302a, 0xf6f6f0, 0x2f6fb0][Math.floor(zl * 12 + b * 30) % 3]; // a barber pole beside the door
+      const solid = sl?.muralFace === face;
+      if (!solid && zl <= 1.45 && b > 0.12 && b < 0.88) {
+        const u = (b - 0.12) / 0.76;
+        if (u < 0.09 || u > 0.91) col = Math.floor(zl * 10) % 3 === 0 ? shadeColour(scheme.door, 0.75) : scheme.door; // a door leaf
+        else {
+          col = (sl?.kind && shopInterior(sl.kind, (u - 0.09) / 0.82, zl / 1.45, bay, groupId))
+            ?? (zl < 1.1 && hash2(Math.floor(along * 16), Math.floor(zl * 10), groupId + 7) > 0.6 ? SHOP_PAINT[Math.floor(hash2(Math.floor(along * 16), 3, groupId) * 5)] : 0x2a2622);
+          if (glow && zl > 0.2) glow.setPixel(px, py, shadeColour(0xffd8a0, 0.6 + 0.2 * k), 170);
+        }
+        return shadeColour(col, k);
       }
-      return shadeColour(col, k);
+      if (!solid && sl?.kind === 'barber' && (bay & 1) === 0 && b > 0.9 && zl > 0.3 && zl < 1.35) {
+        return shadeColour([0xc0302a, 0xf6f6f0, 0x2f6fb0][Math.floor(zl * 12 + b * 30) % 3], k); // a barber pole beside the door
+      }
+      return shadeColour(zl < SHOPS.bandLevels ? scheme.band : wall, k);
     }
     if (style === 'school') {
       col = zl < 0.8 ? 0x3a6fb0 : wall; // blue below, white above
@@ -541,11 +557,11 @@ function drawBuilding(c, block, pt, world, glow) {
   const faces = visibleFaces(block, world);
   if (pitched) {
     // The walls only; the pitched roof covers the top.
-    drawBox(c, tx, ty, tx + 1, ty + 1, baseLevel, topLevel, pt, () => -1, wallShade(0.68), wallShade(0.86), faces);
+    drawBox(c, tx, ty, tx + 1, ty + 1, baseLevel, topLevel, pt, () => -1, wallShade(0.68, 'east'), wallShade(0.86, 'south'), faces);
     drawPitchedRoof(c, block, pt, pitched, roof, wall, look, style);
     return; // no roof tank or air conditioner on a pitched roof
   }
-  drawBox(c, tx, ty, tx + 1, ty + 1, baseLevel, topLevel, pt, roofShade, wallShade(0.68), wallShade(0.86), faces);
+  drawBox(c, tx, ty, tx + 1, ty + 1, baseLevel, topLevel, pt, roofShade, wallShade(0.68, 'east'), wallShade(0.86, 'south'), faces);
   // Roof details: black water tanks, air conditioners, and the flag of Rwanda on government buildings.
   const h = hash2(tx, ty, groupId + 11);
   const flat = (col) => () => col;

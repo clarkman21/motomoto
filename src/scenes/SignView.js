@@ -1,11 +1,12 @@
 import { WORLD, COLLISION, CITY_ANIM } from '../config.js';
+import { hash2 } from '../world/pixel-canvas.js';
 import { BUILDING_STYLES } from '../world/world.js';
 import { toScreen } from '../world/iso.js';
 import { drawBuildingSign, drawFuelSign } from '../world/garage-sprites.js';
 import { FUEL_BRAND, drawBike, BIKE_CANVAS, flagSpots, drawFlagCloth, fountainSpots, drawFountainSpray, SPRAY } from '../world/sprites.js';
 import { addCanvasTexture, placeOnPixels } from './textures.js';
 import { groupKey } from './chunks.js';
-import { shopSignArt, drawMannequin, MANNEQUIN_CANVAS } from '../world/shops.js';
+import { shopSignArt, drawMannequin, drawMural, drawPorch, shearOnWall, MANNEQUIN_CANVAS } from '../world/shops.js';
 import { SHOPS } from '../config.js';
 
 // The names on landmark buildings: big letters on the roof of a tower (lit at night), and a
@@ -137,6 +138,24 @@ export class SignView {
       const img = placeOnPixels(scene.add.image(0, 0, key), p, art.groundX, art.groundY).setDepth(depth);
       const keys = new Set(world.blocks.filter((b) => b.groupId === s.groupId).map(groupKey));
       this.items.push({ img, keys });
+      // Alp's design canvas: a hand-painted picture of what the shop sells on the side wall, and a small
+      // iron-sheet porch on two poles over the shop front.
+      const wallDepth = (face) => (face === 'south' ? (s.x0 + s.x1 + 1) / 2 + s.y1 + 1.6 : s.x1 + 1 + (s.y0 + s.y1 + 1) / 2 + 0.6);
+      if (s.muralFace) {
+        const mk = `mural-${s.kind}-${s.muralFace}`;
+        const art = shearOnWall(drawMural(s.kind), s.muralFace);
+        if (!scene.textures.exists(mk)) addCanvasTexture(scene, mk, art.canvas);
+        const q = toScreen(s.muralMid.x, s.muralMid.y, (s.floor + SHOPS.muralLevel) * L);
+        this.items.push({ img: placeOnPixels(scene.add.image(0, 0, mk), q, art.groundX, art.groundY).setDepth(wallDepth(s.muralFace)), keys });
+      }
+      const face = s.sign.face, len = s.wallTiles * T;
+      const rust = hash2(s.x0, s.y0, 913) < 0.35;
+      const pk = `porch-${face}-${s.wallTiles}-${rust ? 1 : 0}`;
+      const porch = drawPorch(face, len, SHOPS.porchLevel, rust);
+      if (!scene.textures.exists(pk)) addCanvasTexture(scene, pk, porch.canvas);
+      const a = face === 'south' ? { x: s.x0 * T, y: (s.y1 + 1) * T } : { x: (s.x1 + 1) * T, y: s.y0 * T };
+      const porchDepth = face === 'south' ? (s.x0 + s.x1 + 1) / 2 + s.y1 + 1.3 : s.x1 + 1.3 + (s.y0 + s.y1 + 1) / 2;
+      this.items.push({ img: placeOnPixels(scene.add.image(0, 0, pk), toScreen(a.x, a.y, (s.floor + SHOPS.porchLevel) * L), porch.groundX, porch.groundY).setDepth(porchDepth), keys });
       if (s.kind !== 'boutique') continue;
       // Mannequins out in front, with strange proportions (Alp).
       for (let i = 0; i < SHOPS.mannequins; i++) {

@@ -733,7 +733,29 @@ export const SHOPS = {
   wallSignLevel: 1.12, // levels above the floor: the bottom of the sign (its top is at the roof edge of a 1-floor shop)
   wallMarginPx: 6, // the sign must be this much shorter than the wall (screen pixels)
   boardLevel: 1.1, // levels above the ground: the bottom of a board on legs
-  boardOutMetres: 0.35, // a board stands this far in front of the wall
+  boardOutMetres: 1.5, // a board stands this far in front of the wall (in front of the porch)
+  // Kigali shop fronts (Alp, design canvas "Rwandan shop fronts", 13 October 2026): one bright colour on
+  // the whole wall and a darker band at its foot. Brand style walls (phone companies, beer) have no logos.
+  // No wall is Surge Yellow: the telecom yellow is darker and more orange.
+  walls: [
+    { wall: 0x2fa8a0, band: 0x1f5f6a }, { wall: 0xe0709a, band: 0x8a2f55 }, { wall: 0x8cc63f, band: 0x3f6a2a },
+    { wall: 0xe8862a, band: 0x7a3a1a }, { wall: 0x5ab0e0, band: 0x2f5f9a }, { wall: 0x8a4ab0, band: 0x4a2a6a },
+    { wall: 0xc0392b, band: 0x6a1f18 }, { wall: 0xd08a2a, band: 0x6a4218 }, { wall: 0xf0e2c0, band: 0x8a6a4a },
+    { wall: 0xf0ece0, band: 0xa82a2a },
+  ],
+  brandWalls: [
+    { wall: 0xe0a81c, band: 0x1f2f5a }, // telecom yellow (not Surge Yellow)
+    { wall: 0xd42a2a, band: 0xf0ece0 }, // telecom red
+    { wall: 0xb8202a, band: 0x1a1a1a }, // beer red
+    { wall: 0x2f7a3a, band: 0xf0e2c0 }, // beer green
+  ],
+  brandShare: 0.2,
+  doors: [0x2f5f9a, 0x3f8f4a, 0xc0392b], // steel double doors
+  bandLevels: 0.6, // the darker band: up to this height above the floor (levels)
+  muralLevel: 0.62, // the bottom of a wall picture (levels above the floor)
+  porchLevel: 1.08, // the porch roof meets the wall here (levels above the floor)
+  porchDepthMetres: 0.8, // a narrow porch: a deeper one hides the shop front from the camera
+  porchDropMetres: 0.2, // the porch slopes down to the front
 };
 
 // Parts and upgrades at the garages (Alp: parts that bring better tips and a longer service life).

@@ -130,7 +130,7 @@ export class RideScene extends Phaser.Scene {
     // Shops and street life (world/shops.js): painted shop signs, boutique mannequins, and shops as job places.
     this.shops = shopFronts(this.world);
     // The building painter draws the inside of each shop by its kind (world/sprites.js); the chunks are drawn later.
-    this.world.shopKinds = new Map(this.shops.map((sh) => [sh.groupId, sh.kind]));
+    this.world.shopLooks = new Map(this.shops.map((sh) => [sh.groupId, { kind: sh.kind, muralFace: sh.muralFace }]));
     this.signs.addShopSigns(this, this.world, this.shops);
     this.world.places.push(...shopPlaces(this.shops));
     this.crossPaths = crossingPaths(this.world); // zebra crossings where people cross the road (sim/crossers.js)

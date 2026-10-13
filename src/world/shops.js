@@ -50,6 +50,76 @@ export function drawShopSign(kind, name) {
   return { canvas: c, groundX: (w + 2) / 2, groundY: h + 1 };
 }
 
+/** A canvas sheared 2:1 to lie on a wall: a south face goes down to the right, an east face down to the left. */
+export function shearOnWall(src, face) {
+  const w = src.width, h = src.height;
+  const shift = (x) => (face === 'south' ? Math.floor(x / 2) : Math.floor((w - 1 - x) / 2));
+  const c = new PixelCanvas(w, h + Math.ceil(w / 2));
+  for (let x = 0; x < w; x++) {
+    for (let y = 0; y < h; y++) {
+      const i = (y * w + x) * 4;
+      if (src.data[i + 3]) c.setPixel(x, y + shift(x), (src.data[i] << 16) | (src.data[i + 1] << 8) | src.data[i + 2], src.data[i + 3]);
+    }
+  }
+  const mid = Math.floor(w / 2);
+  return { canvas: c, groundX: mid, groundY: h - 1 + shift(mid) };
+}
+
+// The hand-painted wall pictures (Alp, design canvas "Rwandan shop fronts"): 20 × 14 pixels, flat
+// colours, a dark outline. Letters are colours; '.' is clear.
+const MURAL_PAL = {
+  k: 0x161616, h: 0x1a1210, s: 0x7a4a2a, d: 0x5a3420, w: 0xf6f6f0, g: 0xa8aeb6, G: 0x5a6068, r: 0xc0302a,
+  m: 0xa82a2a, n: 0x2f6fb0, o: 0xe07a2a, y: 0xd89a20, b: 0x6b4226, v: 0x8a3a8a, c: 0x7fd0ff, f: 0xf2e8c8,
+};
+const MURALS = {
+  barber: ['....................', '......hhhhhh........', '.....hhhhhhhh...gg..', '....hhhhhhhhhh..gGg.', '....dhhhhhhhss..gGg.', '....ddssssssksk..g..', '....dsssssssssss....', '....dssssssssss.....', '.....sssssssss......', '......ssssssss......', '.......ssss.........', '...wwwwwwwwwwwww....', '..wwwwwwwwwwwwwwww..', '.wwwwwwwwwwwwwwwwww.'],
+  saloon: ['......hhhhhhhh......', '....hhhhhhhhhhhh....', '...hhsssssssssshh...', '...hhsksssssksshh...', '...hhsssssssssshh...', '...hhsssrrrsssshh...', '...h.hssssssssh.h...', '...h.h.ssssss.h.h...', '...h.h..ssss..h.h...', '...h.hvvvvvvvvh.h...', '...hvvvvvvvvvvvvh...', '...vvvvvvvvvvvvvv...', '..vvvvvvvvvvvvvvvv..', '..vvvvvvvvvvvvvvvv..'],
+  butcher: ['....................', '...gggggggggggk.....', '..ggggggggggggbbbb..', '...gggggggggggbbbb..', '....................', '....mmmmmmmmmm......', '..mmmmmmmmmmmmmm....', '.mmmwwmmmmmmmmmmm...', '.mmwwwwmmmmmmmmmmm..', '.mmmwwmmmmmmwwmmmm..', '..mmmmmmmmmwwwwmmm..', '...mmmmmmmmmmmmmm...', '....mmmmmmmmmmm.....', '....................'],
+  buffet: ['....rr..............', '...rrrr.............', '..wwwwww............', '.wwkwwww............', 'oowwwwwww...........', '..rwwwwww......www..', '...wwwwwwwwwwwwwww..', '...wwwwwwwwwwwwwww..', '....wwwwwwwgwwwww...', '.....wwwwwwwwwww....', '......wwwwwwwww.....', '.........o..o.......', '.........o..o.......', '........oo.oo.......'],
+  bar: ['....bb..............', '....bb..............', '....bb..............', '...bbbb.............', '..bbbbbb.....ffffff.', '..bbbbbb....fffffff.', '..bwwwwb....yyyyyy..', '..bwrrwb....yyyyyy..', '..bwwwwb....yyyyyy..', '..bbbbbb....yyyyyy..', '..bbbbbb....yyyyyy..', '..bbbbbb....yyyyyy..', '..bbbbbb.....yyyy...', '....................'],
+  phones: ['...kkkkkkkkk........', '...kcccccccck..n.....', '...kcccccccck...n....', '...kcwwwwccck.n..n...', '...kcccccccck..n..n..', '...kcwwccccck...n..n.', '...kcccccccck..n..n..', '...kcccccccck.n..n...', '...kcccccccck...n....', '...kcccccccck..n.....', '...kkkkkkkkkk........', '...kkkkkwkkkk........', '...kkkkkkkkkk........', '....................'],
+  boutique: ['......k....k........', '......vv..vv........', '......vvvvvv........', '.....vvovvvov.......', '......vvvvvv........', '.......vvvv.........', '......vvovvv........', '.....vvvvvvov.......', '....vvovvvvvvv......', '...vvvvvvvovvvv.....', '..vvvvovvvvvvvvv....', '..vvvvvvvvovvvvv....', '..oooooooooooooo....', '....................'],
+  shoes: ['....................', '...........GGGG.....', '...........GGGG.....', '.............b......', '.............b......', '..bbb........b......', '..bbbb..............', '..bbbbb.............', '..bbbbbbbbb.........', '..bbbbbbbbbbbb......', '..bbbbbbbbbbbbbb....', '..kkkkkkkkkkkkkkk...', '....................', '....................'],
+};
+export const MURAL_CANVAS = { width: 22, height: 16 }; // with the outline
+
+/** The wall picture of a shop kind: 22 × 16 with a 1 px dark outline. */
+export function drawMural(kind) {
+  const c = new PixelCanvas(MURAL_CANVAS.width, MURAL_CANVAS.height);
+  (MURALS[kind] ?? []).forEach((row, y) => [...row].forEach((ch, x) => ch !== '.' && MURAL_PAL[ch] !== undefined && c.setPixel(1 + x, 1 + y, MURAL_PAL[ch])));
+  c.outline(0x161616);
+  return c;
+}
+
+/**
+ * A small iron-sheet porch roof on two poles (Alp's design canvas), along a wall of lenMetres. face:
+ * 'south' or 'east'. The canvas origin (groundX, groundY) is where the porch meets the wall at the start
+ * of the wall (x0 on a south face, y0 on an east face). poleLevels: the height of the porch.
+ */
+export function drawPorch(face, lenMetres, poleLevels, rust = false) {
+  const d = SHOPS.porchDepthMetres, dropPx = Math.round(SHOPS.porchDropMetres * 10.67);
+  const along = face === 'south' ? { x: 8, y: 4 } : { x: -8, y: 4 }; // screen pixels per metre
+  const out = face === 'south' ? { x: -8, y: 4 } : { x: 8, y: 4 };
+  const A = { x: 0, y: 0 }, B = { x: along.x * lenMetres, y: along.y * lenMetres };
+  const D = { x: out.x * d, y: out.y * d + dropPx }, C = { x: B.x + D.x, y: B.y + D.y };
+  const pole = Math.round(poleLevels * 16) - dropPx;
+  const xs = [A.x, B.x, C.x, D.x], ys = [A.y, B.y, C.y + pole, D.y + pole];
+  const minX = Math.floor(Math.min(...xs)) - 1, minY = Math.floor(Math.min(...ys)) - 1;
+  const c = new PixelCanvas(Math.ceil(Math.max(...xs)) - minX + 2, Math.ceil(Math.max(...ys)) - minY + 2, minX, minY);
+  const light = rust ? 0x9a5a3a : 0xa8aeb6, dark = rust ? 0x7a4a2a : 0x7a8088;
+  const P = (p, u, v) => ({ x: p.x, y: p.y, u, v });
+  c.fillQuad(P(A, 0, 0), P(B, lenMetres, 0), P(C, lenMetres, d), P(D, 0, d), (u, v) => (v > d - 0.15 ? 0x4a4f55 : Math.floor(u * 4) % 2 ? dark : light));
+  // The two poles at the front corners, down to the ground.
+  for (const p of [C, D]) {
+    const px = Math.round(p.x - minX) + (p === C ? (face === 'south' ? -2 : 1) : (face === 'south' ? 1 : -2));
+    for (let y = Math.round(p.y - minY); y < Math.round(p.y - minY) + pole; y++) {
+      c.setPixel(px, y, 0x5a6068);
+      c.setPixel(px + 1, y, 0x3a3e44);
+    }
+  }
+  return { canvas: c, groundX: -minX, groundY: -minY };
+}
+
 /**
  * The sign as it hangs on the shop (design review): 'wall' = painted on the band above the shop front,
  * sheared to follow the wall (2:1, like the iso faces); 'board' = a flat board on two legs in front of
@@ -61,20 +131,7 @@ export function shopSignArt(shop) {
   const sign = drawShopSign(shop.kind, shop.name);
   const src = sign.canvas, w = src.width, h = src.height;
   const wallPx = shop.wallTiles * (WORLD.tileMetres * 8); // a tile face is 32 screen pixels wide
-  if (w <= wallPx - SHOPS.wallMarginPx) {
-    // Shear: on a south face the wall goes down to the right (1 pixel down for 2 across); on an east
-    // face it goes down to the left.
-    const shift = (x) => (shop.sign.face === 'south' ? Math.floor(x / 2) : Math.floor((w - 1 - x) / 2));
-    const c = new PixelCanvas(w, h + Math.ceil(w / 2));
-    for (let x = 0; x < w; x++) {
-      for (let y = 0; y < h; y++) {
-        const i = (y * w + x) * 4;
-        if (src.data[i + 3]) c.setPixel(x, y + shift(x), (src.data[i] << 16) | (src.data[i + 1] << 8) | src.data[i + 2], src.data[i + 3]);
-      }
-    }
-    const mid = Math.floor(w / 2);
-    return { canvas: c, groundX: mid, groundY: h - 1 + shift(mid), mount: 'wall' };
-  }
+  if (w <= wallPx - SHOPS.wallMarginPx) return { ...shearOnWall(src, shop.sign.face), mount: 'wall' };
   // A board on two dark legs; the legs reach the ground.
   const legs = Math.round(SHOPS.boardLevel * 16);
   const c = new PixelCanvas(w, h + legs);
@@ -153,6 +210,16 @@ export function shopFronts(world) {
     if (face === 'south') while (midX + run <= g.x1 && free(midX + run, g.y1 + 1)) run++;
     else while (midY + run <= g.y1 && free(g.x1 + 1, midY + run)) run++;
     const wallTiles = face === 'south' ? g.x1 - g.x0 + 1 : g.y1 - g.y0 + 1;
+    // The wall picture goes on the other visible wall (the side of the shop), when no building hides it.
+    const sideFace = face === 'south' ? 'east' : 'south';
+    const sideTiles = sideFace === 'east' ? g.y1 - g.y0 + 1 : g.x1 - g.x0 + 1;
+    let sideOpen = true;
+    for (let i = 0; i < sideTiles; i++) {
+      const n = sideFace === 'east' ? world.blockAt(g.x1 + 1, g.y0 + i) : world.blockAt(g.x0 + i, g.y1 + 1);
+      if (n && n.kind === 'building') sideOpen = false;
+    }
+    const muralFace = sideOpen ? sideFace : null;
+    const muralMid = sideFace === 'east' ? { x: (g.x1 + 1) * T, y: ((g.y0 + g.y1 + 1) / 2) * T } : { x: ((g.x0 + g.x1 + 1) / 2) * T, y: (g.y1 + 1) * T };
     // Where customers stand: the nearest road or pavement in front (up to 3 tiles out), or none.
     let stand = null;
     for (let d = 1; d <= 3 && !stand; d++) {
@@ -171,7 +238,7 @@ export function shopFronts(world) {
     const sign = face === 'south' ? { x: (midX + run / 2) * T, y: (g.y1 + 1) * T, face } : { x: (g.x1 + 1) * T, y: (midY + run / 2) * T, face };
     const wallMid = face === 'south' ? { x: ((g.x0 + g.x1 + 1) / 2) * T, y: (g.y1 + 1) * T } : { x: (g.x1 + 1) * T, y: ((g.y0 + g.y1 + 1) / 2) * T };
     const front = face === 'south' ? { x: midX + 0.5, y: g.y1 + 1.5 } : { x: g.x1 + 1.5, y: midY + 0.5 };
-    out.push({ id: `shop-${g.x0}-${g.y0}`, kind, name, groupId: g.id, sign, wallMid, wallTiles, floor: g.top, stand, front, district: g.district, x0: g.x0, y0: g.y0, x1: g.x1, y1: g.y1 });
+    out.push({ id: `shop-${g.x0}-${g.y0}`, kind, name, groupId: g.id, sign, wallMid, wallTiles, muralFace, muralMid, floor: g.top, stand, front, district: g.district, x0: g.x0, y0: g.y0, x1: g.x1, y1: g.y1 });
   }
   return out;
 }
