@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BIKES, COLOURS, GEARBOX, LAW, JOBS, SAVINGS_FLOAT, DISTRICTS, RIDER } from '../config.js';
+import { BIKES, COLOURS, GEARBOX, LAW, JOBS, SAVINGS_FLOAT, DISTRICTS, RIDER, HARD_RULES } from '../config.js';
 import { forwardSpeed } from '../sim/bike.js';
 import { serviceDue } from '../sim/maintenance.js';
 import { wrapRetro, retroText, RETRO_CELL } from '../world/retro-font.js';
@@ -62,6 +62,8 @@ export class HudScene extends Phaser.Scene {
     this.serviceText = label();
     this.foodIcon = icon('food'); // rider energy (medium and hard modes)
     this.foodText = label();
+    this.wcIcon = icon('wc'); // the bathroom need (hard mode)
+    this.wcText = label();
     this.groundIcon = icon('mountain');
     this.groundText = label();
     this.placeText = label(UI.dim);
@@ -141,7 +143,8 @@ export class HudScene extends Phaser.Scene {
     // Left window.
     // Medium and hard modes add a row for the rider's energy (FOOD) under the service bar.
     const food = (this.hasRider = !!this.ride?.rider);
-    const extra = food ? 11 : 0;
+    const wc = (this.hasWc = food && !!this.ride?.mode?.bladder);
+    const extra = (food ? 11 : 0) + (wc ? 11 : 0);
     const L = (this.left = { x: 4, y: 4, w: PANEL_W, h: 82 + extra });
     drawWindow(g, L.x, L.y, L.w, L.h);
     this.speedText.setPosition(L.x + 7, L.y + 5);
@@ -159,6 +162,9 @@ export class HudScene extends Phaser.Scene {
     this.foodIcon.setPosition(L.x + 6, L.y + 58).setVisible(food);
     this.foodText.setPosition(L.x + L.w - 32, L.y + 58).setVisible(food);
     this.foodBar = { x: L.x + 18, y: L.y + 59, w: L.w - 54, h: 8 };
+    this.wcIcon.setPosition(L.x + 6, L.y + 69).setVisible(wc);
+    this.wcText.setPosition(L.x + L.w - 32, L.y + 69).setVisible(wc);
+    this.wcBar = { x: L.x + 18, y: L.y + 70, w: L.w - 54, h: 8 };
     this.groundIcon.setPosition(L.x + 6, L.y + 59 + extra);
     this.groundText.setPosition(L.x + 18, L.y + 59 + extra);
     this.placeText.setPosition(L.x + 18, L.y + 69 + extra);
@@ -247,12 +253,19 @@ export class HudScene extends Phaser.Scene {
     this.serviceText.setText(bike.brokenDown ? 'OUT' : `${Math.round(due * 100)}%`).setTint(late || bike.brokenDown ? UI.red : due >= 0.8 ? UI.orange : UI.white);
 
     // Medium and hard modes: the rider's energy. Green, orange when hungry, red and blinking when weak.
-    if (!!ride.rider !== this.hasRider) this.#layout();
+    if (!!ride.rider !== this.hasRider || (!!ride.rider && !!ride.mode?.bladder) !== this.hasWc) this.#layout();
     if (ride.rider) {
       const e = ride.rider.energy, fb = this.foodBar;
       const hungry = e < RIDER.hungryAt, weak = e <= 0.05 && Math.floor(this.time.now / 300) % 2 === 0;
       drawSegBar(g, fb.x, fb.y, fb.w, fb.h, e, weak ? 0xffffff : hungry ? UI.red : e < 0.5 ? UI.orange : UI.green, 12);
       this.foodText.setText(`${Math.round(e * 100)}%`).setTint(hungry ? UI.red : UI.white);
+    }
+    // Hard mode: the bathroom need. Blue, orange when urgent, red and blinking when full.
+    if (this.hasWc) {
+      const v = ride.rider.bladder ?? 0, wb = this.wcBar;
+      const urgent = v >= HARD_RULES.bladder.urgentAt, full = v >= 1 && Math.floor(this.time.now / 300) % 2 === 0;
+      drawSegBar(g, wb.x, wb.y, wb.w, wb.h, v, full ? 0xffffff : v >= 1 ? UI.red : urgent ? UI.orange : 0x4a78e0, 12);
+      this.wcText.setText('WC').setTint(urgent ? UI.red : UI.white);
     }
 
     // Where you are: slope and surface, then the district and the height above the valley.

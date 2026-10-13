@@ -1,8 +1,9 @@
 import { WORLD, COLLISION } from '../config.js';
 import { toScreen } from '../world/iso.js';
 import { addCanvasTexture, placeOnPixels } from './textures.js';
-import { drawCone, CONE_CANVAS, drawBoard, drawBarrier, drawPatch, drawWorker } from '../world/roadevent-sprites.js';
-import { PERSON_CANVAS } from '../world/vehicle-sprites.js';
+import { drawCone, CONE_CANVAS, drawBoard, drawBarrier, drawPatch, drawWorker, drawNoMotoSign } from '../world/roadevent-sprites.js';
+import { PERSON_CANVAS, drawVehicle, VEHICLE_CANVAS } from '../world/vehicle-sprites.js';
+import { bikeFrameForHeading } from '../world/sprites.js';
 
 // Draws the street events (sim/roadevents.js): the road works (a dug-up strip, cones, a sign, two
 // workers with shovels) and the car free morning (barriers and a banner at the ends of the closed road).
@@ -17,6 +18,8 @@ export class RoadEventsView {
     this.works = [];
     this.carFree = [];
     this.workers = [];
+    this.rules = [];
+    this.checks = [];
     if (!scene.textures.exists('works-cone')) {
       addCanvasTexture(scene, 'works-cone', drawCone());
       for (const f of [0, 1]) addCanvasTexture(scene, `works-worker-${f}`, drawWorker(f));
@@ -83,6 +86,34 @@ export class RoadEventsView {
     }
   }
 
+  /**
+   * The street rules (hard rules): a blue ONE WAY board and a round NO MOTOS sign at both ends of the
+   * road, at the roadside. They are not poles, so they never close a junction.
+   */
+  setRuleSigns(oneWays, noMotos) {
+    this.#clear(this.rules);
+    const one = drawBoard('ONE WAY', 0x1f4f9a, 0xf2efe6, 10);
+    if (!this.scene.textures.exists('rule-oneway')) addCanvasTexture(this.scene, 'rule-oneway', one.canvas);
+    const no = drawNoMotoSign();
+    if (!this.scene.textures.exists('rule-nomoto')) addCanvasTexture(this.scene, 'rule-nomoto', no.canvas);
+    const ends = (r) => (r.y !== undefined
+      ? [{ x: (r.x0 + 0.5) * T, y: r.y * T - 1 }, { x: (r.x1 + 0.5) * T, y: r.y * T - 1 }]
+      : [{ x: r.x * T - 1, y: (r.y0 + 0.5) * T }, { x: r.x * T - 1, y: (r.y1 + 0.5) * T }]);
+    for (const o of oneWays) for (const p of ends(o.road)) this.#add(this.rules, 'rule-oneway', p.x, p.y, one.groundX, one.groundY);
+    for (const r of noMotos) for (const p of ends(r)) this.#add(this.rules, 'rule-nomoto', p.x, p.y, no.groundX, no.groundY);
+  }
+
+  /** Today's mobile speed checks: a parked police car at the roadside. It is a pole (you can hit it). */
+  setSpeedChecks(checks) {
+    this.#clear(this.checks);
+    for (const c of checks) {
+      const f = bikeFrameForHeading(c.heading);
+      const key = `check-car-${f}`;
+      if (!this.scene.textures.exists(key)) addCanvasTexture(this.scene, key, drawVehicle('police', 0, f));
+      this.#add(this.checks, key, c.x, c.y, VEHICLE_CANVAS.groundX, VEHICLE_CANVAS.groundY, undefined, 1.2);
+    }
+  }
+
   /** The workers dig (two frames). */
   update(time) {
     const f = Math.floor(time / 450) % 2;
@@ -92,6 +123,8 @@ export class RoadEventsView {
   destroy() {
     this.#clear(this.works);
     this.#clear(this.carFree);
+    this.#clear(this.rules);
+    this.#clear(this.checks);
   }
 }
 

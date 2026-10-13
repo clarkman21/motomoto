@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS, FLEET, RIDER, TRAFFIC_LIGHTS, HELMET_CHECKS, CROSSINGS, STORY, MODES, RUSH, ROAD_EVENTS } from '../config.js';
+import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS, FLEET, RIDER, TRAFFIC_LIGHTS, HELMET_CHECKS, CROSSINGS, STORY, MODES, RUSH, ROAD_EVENTS, HARD_RULES } from '../config.js';
 import { World } from '../world/world.js';
 import { buildKigaliMap } from '../world/maps/kigali.js';
 import { ChunkStreamer, groupKey } from './chunks.js';
@@ -50,6 +50,7 @@ import { shopFronts, shopPlaces } from '../world/shops.js';
 import { umugandaOffer, onMainRoad, stepPatrols, patrolCount } from '../sim/umuganda.js';
 import { pickRoadWorks, planConvoy, convoyVehicles, convoyCheck, isCarFreeDay, carFreeNow, carFreeRoads } from '../sim/roadevents.js';
 import { RoadEventsView } from './RoadEventsView.js';
+import { oneWayRoads, noMotoRoads, pruneOneWay, strictOneWays, streetRule, pickSpeedChecks, speedChecks, overloaded, maybeHeavy, stepBladder, drinkToBladder, bladderPower } from '../sim/hardrules.js';
 import { crossingPaths, stepCrossers } from '../sim/crossers.js';
 import { KiteView } from './KiteView.js';
 import { SmogView } from './SmogView.js';
@@ -144,6 +145,9 @@ export class RideScene extends Phaser.Scene {
     this.smogView = new SmogView(this); // the petrol smog over the city: thinner at each level (story arc)
     this.batteryView = new BatteryView(this); // yellow battery pickups (story arc, levels 3 and 4)
     this.roadEventsView = new RoadEventsView(this, this.world); // road works and the car free morning
+    // Hard mode challenges (sim/hardrules.js): one-way streets and streets with no motos, with their signs.
+    this.oneWays = oneWayRoads(this.world.roads);
+    this.noMotos = noMotoRoads(this.world.roads);
     // These stay bright at night: they are not tinted.
     for (const obj of [this.ghost, this.glow, this.markerRing, this.markerPin, this.arrow]) obj.noAmbient = true;
 
@@ -625,7 +629,7 @@ export class RideScene extends Phaser.Scene {
         : 'You are weak with hunger! Eat something now');
       if (e.type === 'weak') this.engineSound.jingle('gameOver');
     }
-    this.bike.riderPower = riderPower(this.rider);
+    this.bike.riderPower = riderPower(this.rider) * (this.mode.bladder ? bladderPower(this.rider) : 1);
   }
 
   /** The garage screen: the ride waits behind it. */
@@ -701,6 +705,7 @@ export class RideScene extends Phaser.Scene {
       const f = RIDER.foods[food];
       this.#pay('food', f.price, f.name);
       eat(this.rider, food, this.clockHours);
+      if (this.mode.bladder) drinkToBladder(this.rider, food);
       this.events.emit('bark', food === 'ikivuguto' ? 'Ikivuguto! Cold, thick and filling. Energy for hours' : food === 'buffet' ? 'A full plate from the buffet: rice, beans, matoke. Back to work!' : food === 'drink' ? 'An energy drink: a quick boost, but it wears off soon' : 'Sweet bananas: a small snack');
       return;
     }
@@ -760,6 +765,7 @@ export class RideScene extends Phaser.Scene {
           this.raceRival = null;
         }
         this.events.emit('bark', e.job.type === 'passenger' ? `Passenger on board. Go to ${e.job.to.name}` : `${e.job.kg} kg of ${e.job.goods ?? 'rice'} loaded. Go to ${e.job.to.name}`);
+        if (overloaded(e.job)) this.time.delayedCall(2200, () => this.events.emit('bark', `Overloaded: ${e.job.kg} kg (the limit is ${HARD_RULES.overload.limitKg} kg). Keep away from the police!`));
       } else {
         // A side mission: a bonus when you meet its condition, or less pay (a late rush).
         const result = missionResult(e.job);
@@ -860,6 +866,9 @@ export class RideScene extends Phaser.Scene {
     this.world.setOpenDistricts(L.districts);
     this.barriers.update();
     this.roadGraph = buildRoadGraph(openRoads(this.world.roads, this.world.districts, L.districts));
+    pruneOneWay(this.roadGraph, this.oneWays); // traffic keeps to the one-way streets (all modes)
+    this.oneWays = strictOneWays(this.roadGraph, this.oneWays); // a dead-end part is not one-way
+    this.roadEventsView.setRuleSigns(this.oneWays, this.noMotos);
     // Traffic lights in the open districts (not in Kigali 2010).
     this.signals = mode.lights === 'none' ? [] : this.allSignals.filter((l) => L.districts.includes(l.district));
     attachLights(this.roadGraph, this.signals);
@@ -920,13 +929,26 @@ export class RideScene extends Phaser.Scene {
     const roads = carFreeRoads(this.world.roads).filter((r) => L.districts.includes(districtAt(((r.x0 ?? r.x) + 1) * T, ((r.y ?? r.y0) + 1) * T)));
     this.carFree = { day: (this.cheatCarFree ?? isCarFreeDay(this.wallet.day, L.n, dayEvent)) && roads.length > 0, roads, active: false, warned: false };
     this.roadEventsView.setCarFree(roads, false);
+    // Hard mode: mobile speed checks (a parked patrol car with a radar) and the toilets for the bathroom need.
+    this.speedChecks = mode.fines ? pickSpeedChecks(this.roadGraph, districtAt, L.districts, this.wallet.day, L.n) : [];
+    this.speedCheckState = new Map();
+    this.roadEventsView.setSpeedChecks(this.speedChecks);
+    this.busStopWait = 0;
+    this.busStopFined = null;
+    if (this.rider && mode.bladder) this.rider.bladder = 0;
+    this.toilets = mode.bladder ? this.#toilets() : [];
+    this.toiletWait = 0;
     this.trafficView = new TrafficView(this, this.traffic);
     this.lights.setTraffic(this.traffic);
     this.people = createPeople(this.world, this.rng, { hailEvery: L.hailEvery, districts: L.districts, walkers: PEOPLE.walkersPerDistrict * L.districts.length });
     this.peopleView = new PeopleView(this, this.people);
     this.crossState = { timers: new Map(), seen: new Set() };
     // Side missions: some new offers become special jobs (sim/missions.js).
-    const decorate = (offer, board) => maybeMission(offer, board, this.world, L.n, board.rng);
+    // Hard mode: some cargo is too heavy for a moto (overloading: more pay, but the police fine it).
+    const decorate = (offer, board) => {
+      const o = maybeMission(offer, board, this.world, L.n, board.rng);
+      return mode.fines ? maybeHeavy(o, board.rng) : o;
+    };
     this.board = createJobBoard(this.world, Date.now() & 0xffff, { fareMultiplier: L.fare, offerLife: L.offerLife, districts: L.districts, maxOffers: L.maxOffers, decorate });
     this.#eventEffects();
     if (!eventStage(this.dayEvent, this.clockHours).customers) this.board.offers = [];
@@ -1379,6 +1401,7 @@ export class RideScene extends Phaser.Scene {
     this.#updatePolice(dt);
     this.#updateUmuganda(dt);
     this.#updateStreetEvents(dt);
+    this.#updateHardRules(dt);
     this.daylight = daylight(this.clockHours);
     if (this.world.rain) this.daylight.tint = rainTint(this.daylight.tint); // grey light on a rainy day
     this.chunks.night = this.daylight.night;
@@ -1649,7 +1672,12 @@ export class RideScene extends Phaser.Scene {
     if (this.#umugandaCarrying() && kmh > POLICE.ridingKmh && !b.crashed && onMainRoad(this.world, b.x, b.y)) illegal = 'umuganda';
     // A car free morning: no motos on the closed road (hard mode: the officers chase you).
     if (!illegal && kmh > POLICE.ridingKmh && !b.crashed && this.#onCarFreeRoad()) illegal = 'carFree';
-    const where = { pavement: 'on the pavement', offRoad: 'off the road', umuganda: 'a moto during Umuganda', carFree: 'on a car free road' };
+    // Hard mode challenges: the wrong way on a one-way street, a street with no motos, an overloaded moto.
+    if (!illegal && kmh > POLICE.ridingKmh && !b.crashed) illegal = streetRule(this.oneWays, this.noMotos, b) ?? (this.board.active?.stage === 'toDropoff' && overloaded(this.board.active) ? 'overload' : null);
+    const where = {
+      pavement: 'on the pavement', offRoad: 'off the road', umuganda: 'a moto during Umuganda', carFree: 'on a car free road',
+      oneWay: 'the wrong way on a one-way street', noMoto: 'on a street with no motos', overload: 'an overloaded moto',
+    };
     // Kigali 2010 (easy): the officers only stand on the corners (no whistle, no chase, no fines).
     if (!this.mode.police && illegal !== 'umuganda') illegal = null;
     const seen = this.mode.police ? kmh : 0;
@@ -1661,7 +1689,7 @@ export class RideScene extends Phaser.Scene {
       } else if (e.type === 'chase') {
         this.engineSound.whistle();
         this.#bubble(o.x, o.y, 30, 'HAGARARA!', 0xffffff);
-        this.events.emit('bark', e.reason === 'umuganda' ? 'Police! No motos during Umuganda. Get away, into the back roads!' : `Police! You ride ${where[e.reason]}. Get back on the road and get away!`);
+        this.events.emit('bark', e.reason === 'umuganda' ? 'Police! No motos during Umuganda. Get away, into the back roads!' : `Police! You ride ${where[e.reason]}. ${{ pavement: 'Get back on the road and get', offRoad: 'Get back on the road and get', overload: 'Get' }[e.reason] ?? 'Turn off and get'} away!`);
       } else if (e.type === 'caught' && e.reason === 'umuganda') {
         this.#bubble(o.x, o.y, 30, 'HAGARARA!', 0xffa080);
         this.#umugandaCaught();
@@ -1671,6 +1699,69 @@ export class RideScene extends Phaser.Scene {
         this.events.emit('bark', `Caught! The police fine you ${POLICE.fine.toLocaleString('en')} RWF for riding ${where[e.reason]}`);
       } else if (e.type === 'escaped') {
         this.events.emit('bark', 'You got away from the police. Phew!');
+      }
+    }
+  }
+
+  /** Toilets for the bathroom need (hard mode): stations, buffets and the bus park. Metres. */
+  #toilets() {
+    const T = WORLD.tileMetres, out = [];
+    for (const tag of ['fuel', 'swap', 'buffet']) for (const p of this.world.placesWithTag(tag)) out.push({ x: p.x * T, y: p.y * T, name: p.name });
+    const park = this.world.busStops.find((st) => st.park);
+    if (park) out.push({ x: (park.x + 0.5) * T, y: (park.y + 0.5) * T, name: 'the bus park toilets' });
+    return out;
+  }
+
+  /**
+   * Hard mode challenges each frame (sim/hardrules.js): mobile speed checks, stopping at a bus stop,
+   * the bathroom need; warnings for the street rules in the other modes. (The officers chase the
+   * wrong way, no-moto streets and overloading in #updatePolice.)
+   */
+  #updateHardRules(dt) {
+    const b = this.bike, kmh = Math.abs(forwardSpeed(b)) * 3.6, H = HARD_RULES;
+    // Mobile speed checks.
+    for (const e of speedChecks(this.speedCheckState, this.speedChecks, b, kmh, this.speedLimit.limitKmh)) {
+      if (!e.fine) continue;
+      this.engineSound.whistle();
+      this.#bubble(e.check.x, e.check.y, 34, 'RADAR!', 0xffffff);
+      this.#pay('fines', e.fine, `Speed check: ${Math.round(e.speedKmh)} km/h in a ${e.limitKmh} zone`);
+      this.events.emit('bark', `A police speed check! ${Math.round(e.speedKmh)} km/h in a ${e.limitKmh} zone: ${e.fine.toLocaleString('en')} RWF fine`);
+    }
+    // Street rules: in the other modes, a warning (on hard mode the officers chase you).
+    const rule = kmh > POLICE.ridingKmh ? streetRule(this.oneWays, this.noMotos, b) : null;
+    if (rule && rule !== this.ruleWarned && !this.mode.fines) {
+      this.events.emit('bark', rule === 'oneWay' ? 'One-way street! You ride the wrong way. On hard mode that is a fine' : 'No motos on this street! On hard mode that is a fine');
+    }
+    this.ruleWarned = rule;
+    // Stopping at a bus stop: the minibuses need it. Hard mode: a fine when an officer sees you.
+    if (this.mode.fines) {
+      const T = WORLD.tileMetres;
+      const stop = kmh < 2 && this.world.busStops.find((st) => !st.park && Math.hypot((st.x + 0.5) * T - b.x, (st.y + 0.5) * T - b.y) < H.busStop.metres);
+      this.busStopWait = stop ? this.busStopWait + dt : 0;
+      if (stop && this.busStopWait > H.busStop.stopSeconds && this.busStopFined !== stop) {
+        const officer = this.police.police.officers.some((o) => Math.hypot(o.x - b.x, o.y - b.y) < H.busStop.officerMetres);
+        this.busStopFined = stop;
+        if (officer) {
+          this.engineSound.whistle();
+          this.#pay('fines', H.fine, 'Police: stopped at a bus stop');
+          this.events.emit('bark', `PRRRT! No stopping at a bus stop: ${H.fine.toLocaleString('en')} RWF fine`);
+        } else this.events.emit('bark', 'You stop at a bus stop. Careful: if the police see it, that is a fine');
+      }
+      if (!stop && this.busStopWait === 0 && this.busStopFined && Math.hypot((this.busStopFined.x + 0.5) * T - b.x, (this.busStopFined.y + 0.5) * T - b.y) > 20) this.busStopFined = null;
+    }
+    // The bathroom need.
+    if (this.mode.bladder && this.rider) {
+      const { start, end, realSeconds } = this.level.shift;
+      if (stepBladder(this.rider, ((end - start) * dt) / realSeconds) === 'urgent') {
+        this.events.emit('bark', 'You need a toilet! Stop at a station, a buffet or the bus park');
+      }
+      const near = kmh < 1 && this.rider.bladder > 0.25 && this.toilets.find((t) => Math.hypot(t.x - b.x, t.y - b.y) < H.bladder.metres);
+      this.toiletWait = near ? this.toiletWait + dt : 0;
+      if (near && this.toiletWait > H.bladder.stopSeconds) {
+        this.rider.bladder = 0;
+        this.toiletWait = 0;
+        this.#pay('food', H.bladder.cost, 'Toilet');
+        this.events.emit('bark', `Aah, much better! The toilet costs ${H.bladder.cost} RWF`);
       }
     }
   }

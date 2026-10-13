@@ -66,3 +66,21 @@ export function drawWorker(frame) {
   for (let x = x0; x < x0 + 3; x++) c.setPixel(x, y0 + 6, C.silver);
   return c;
 }
+
+/** A round NO MOTOS sign on a pole: a red ring, a white face and a black moto. Origin: the foot of the pole. */
+export function drawNoMotoSign() {
+  const c = new PixelCanvas(15, 24);
+  c.fillDisc(7, 7, 7, C.red);
+  c.fillDisc(7, 7, 5, C.cream);
+  // The moto: two wheels and a body.
+  for (const wx of [4, 10]) for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1], [-1, 0], [0, -1]]) c.setPixel(wx + dx - (wx > 7 ? 1 : 0), 9 + dy, C.ink);
+  for (let x = 5; x <= 9; x++) c.setPixel(x, 7, C.ink);
+  c.setPixel(6, 6, C.ink);
+  c.setPixel(9, 6, C.ink);
+  c.setPixel(10, 5, C.ink);
+  // The red bar across.
+  for (let i = 0; i < 9; i++) c.setPixel(3 + i, 3 + i, C.red);
+  for (let y = 15; y < 24; y++) c.setPixel(7, y, C.charcoal);
+  c.outline(C.ink);
+  return { canvas: c, groundX: 7, groundY: 23 };
+}

@@ -584,6 +584,26 @@ export const LEVELS = [
 
 // Daily app quests and side missions (on the phone, from level 3: after the smartphone milestone).
 // Rewards grow with the level. All guesses, to tune in play.
+// Hard mode challenges (spec "More places for fines and challenges"). Fines only on hard mode (Alp);
+// in the other modes a warning. Traffic keeps to the one-way streets in every mode.
+export const HARD_RULES = {
+  fine: 10000,
+  // Mobile speed checks: a parked police car at the roadside with a radar. Seen within radiusMetres.
+  speedChecks: { fromLevel: 3, perDay: 3, radiusMetres: 20, offset: 4.4 },
+  // One-way streets (dir: +1 = towards +x or +y on the map) and streets where motos may not ride.
+  oneWay: [{ name: 'Town north street', dir: 1 }, { name: 'Town south street', dir: -1 }],
+  // No motos on the road from the US Embassy roundabout to the President's office. No job place is on it.
+  noMoto: ['Embassy road south'],
+  // Overloading: a moto may carry up to limitKg. On hard mode some cargo offers are heavy (more pay):
+  // heavyExtraKg more than the limit.
+  overload: { limitKg: 80, heavyShare: 0.25, heavyExtraKg: [10, 50], heavyPay: 1.35 },
+  // Stopping at a bus stop (the minibuses need it): a fine when an officer sees you.
+  busStop: { metres: 5, stopSeconds: 2.5, officerMetres: 30 },
+  // The bathroom need (hard mode): the WC bar fills with the clock, faster after drinks. Full: less
+  // power (you cannot sit still). Stop at a toilet (stations, buffets, the bus park) to empty it.
+  bladder: { perHour: 0.08, drink: 0.25, ikivuguto: 0.2, urgentAt: 0.8, fullPower: 0.85, metres: 9, stopSeconds: 1.5, cost: 200 },
+};
+
 // Street events (spec "More traffic in later levels"): road works, VIP convoys, car free mornings.
 export const ROAD_EVENTS = {
   // Road works: a dug-up strip at the edge of a main road, cones, a sign and two workers. Traffic slows.
@@ -658,7 +678,7 @@ export const MODES = {
   },
   hard: {
     name: 'Kigali 2020', short: 'HARD', gears: 'manual', fuelUse: 1.15, wear: 1.3, cameras: true, police: true, fines: true,
-    hazards: 1, traffic: 1.25, crashRepair: 1, lights: 'cameras', riderEnergy: 1, helmetChecks: true, crossers: 1.8, crossStepOut: 0.5, rushExtra: 0.9,
+    hazards: 1, traffic: 1.25, crashRepair: 1, lights: 'cameras', riderEnergy: 1, helmetChecks: true, crossers: 1.8, crossStepOut: 0.5, rushExtra: 0.9, bladder: true,
     text: 'Manual gears, more fuel and wear, heavy traffic, all the fines (speed and red light cameras, police, helmet checks), and you must eat.',
   },
 };

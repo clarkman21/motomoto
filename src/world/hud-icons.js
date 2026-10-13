@@ -66,6 +66,17 @@ export const ICONS = {
     '..kkkkk..',
     '.........',
   ],
+  wc: [ // a water drop (the bathroom need, hard mode)
+    '....k....',
+    '...kbk...',
+    '..kbbbk..',
+    '.kbbbbbk.',
+    'kbbwbbbbk',
+    'kbwbbbbbk',
+    'kbbbbbbbk',
+    '.kbbbbbk.',
+    '..kkkkk..',
+  ],
   coin: [
     '..kkkkk..',
     '.kyyyyyk.',
