@@ -728,6 +728,12 @@ export const SHOPS = {
   kinds: { barber: 5, saloon: 3, bar: 3, butcher: 2, shoes: 1.2, phones: 1.5, boutique: 2.5, buffet: 1.5 },
   placeEvery: 3,
   mannequins: 2, // in front of each boutique
+  // Where the sign goes (design review, 13 October 2026): painted on the band above the shop front
+  // when the wall is long enough, else on a board with two legs in front of the shop.
+  wallSignLevel: 1.12, // levels above the floor: the bottom of the sign (its top is at the roof edge of a 1-floor shop)
+  wallMarginPx: 6, // the sign must be this much shorter than the wall (screen pixels)
+  boardLevel: 1.1, // levels above the ground: the bottom of a board on legs
+  boardOutMetres: 0.35, // a board stands this far in front of the wall
 };
 
 // Parts and upgrades at the garages (Alp: parts that bring better tips and a longer service life).

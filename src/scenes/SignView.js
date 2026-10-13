@@ -5,7 +5,7 @@ import { drawBuildingSign, drawFuelSign } from '../world/garage-sprites.js';
 import { FUEL_BRAND, drawBike, BIKE_CANVAS, flagSpots, drawFlagCloth, fountainSpots, drawFountainSpray, SPRAY } from '../world/sprites.js';
 import { addCanvasTexture, placeOnPixels } from './textures.js';
 import { groupKey } from './chunks.js';
-import { drawShopSign, drawMannequin, MANNEQUIN_CANVAS } from '../world/shops.js';
+import { shopSignArt, drawMannequin, MANNEQUIN_CANVAS } from '../world/shops.js';
 import { SHOPS } from '../config.js';
 
 // The names on landmark buildings: big letters on the roof of a tower (lit at night), and a
@@ -121,11 +121,20 @@ export class SignView {
     const dresses = [0x8a3a8a, 0xc0392b, 0x2f6fb0, 0x3f8f4a];
     for (const s of shops) {
       const key = `shopsign-${s.id}`;
-      const sign = drawShopSign(s.kind, s.name);
-      if (!scene.textures.exists(key)) addCanvasTexture(scene, key, sign.canvas);
-      const p = toScreen(s.sign.x, s.sign.y, (s.floor + 1.55) * L);
-      const depth = s.sign.face === 'south' ? (s.x0 + s.x1 + 1) / 2 + s.y1 + 1.6 : s.x1 + 1 + (s.y0 + s.y1 + 1) / 2 + 0.6;
-      const img = placeOnPixels(scene.add.image(0, 0, key), p, sign.groundX, sign.groundY).setDepth(depth);
+      // Design review (13 October 2026): painted on the wall when it fits, else a board on legs.
+      const art = shopSignArt(s);
+      if (!scene.textures.exists(key)) addCanvasTexture(scene, key, art.canvas);
+      let p, depth;
+      if (art.mount === 'wall') {
+        p = toScreen(s.wallMid.x, s.wallMid.y, (s.floor + SHOPS.wallSignLevel) * L);
+        depth = s.sign.face === 'south' ? (s.x0 + s.x1 + 1) / 2 + s.y1 + 1.6 : s.x1 + 1 + (s.y0 + s.y1 + 1) / 2 + 0.6;
+      } else {
+        const out = SHOPS.boardOutMetres;
+        const x = s.sign.x + (s.sign.face === 'east' ? out : 0), y = s.sign.y + (s.sign.face === 'south' ? out : 0);
+        p = toScreen(x, y, world.heightAt(x, y));
+        depth = (x + y) / T + 0.05;
+      }
+      const img = placeOnPixels(scene.add.image(0, 0, key), p, art.groundX, art.groundY).setDepth(depth);
       const keys = new Set(world.blocks.filter((b) => b.groupId === s.groupId).map(groupKey));
       this.items.push({ img, keys });
       if (s.kind !== 'boutique') continue;

@@ -51,6 +51,51 @@ export function drawShopSign(kind, name) {
 }
 
 /**
+ * The sign as it hangs on the shop (design review): 'wall' = painted on the band above the shop front,
+ * sheared to follow the wall (2:1, like the iso faces); 'board' = a flat board on two legs in front of
+ * the shop, for a wall that is too short for the name. Returns { canvas, groundX, groundY, mount }.
+ * groundX, groundY: the point of the canvas that goes at the sign anchor (wall: the bottom of the band
+ * in the middle of the sign; board: the ground between the legs).
+ */
+export function shopSignArt(shop) {
+  const sign = drawShopSign(shop.kind, shop.name);
+  const src = sign.canvas, w = src.width, h = src.height;
+  const wallPx = shop.wallTiles * (WORLD.tileMetres * 8); // a tile face is 32 screen pixels wide
+  if (w <= wallPx - SHOPS.wallMarginPx) {
+    // Shear: on a south face the wall goes down to the right (1 pixel down for 2 across); on an east
+    // face it goes down to the left.
+    const shift = (x) => (shop.sign.face === 'south' ? Math.floor(x / 2) : Math.floor((w - 1 - x) / 2));
+    const c = new PixelCanvas(w, h + Math.ceil(w / 2));
+    for (let x = 0; x < w; x++) {
+      for (let y = 0; y < h; y++) {
+        const i = (y * w + x) * 4;
+        if (src.data[i + 3]) c.setPixel(x, y + shift(x), (src.data[i] << 16) | (src.data[i + 1] << 8) | src.data[i + 2], src.data[i + 3]);
+      }
+    }
+    const mid = Math.floor(w / 2);
+    return { canvas: c, groundX: mid, groundY: h - 1 + shift(mid), mount: 'wall' };
+  }
+  // A board on two dark legs; the legs reach the ground.
+  const legs = Math.round(SHOPS.boardLevel * 16);
+  const c = new PixelCanvas(w, h + legs);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      if (src.data[i + 3]) c.setPixel(x, y, (src.data[i] << 16) | (src.data[i + 1] << 8) | src.data[i + 2], src.data[i + 3]);
+    }
+  }
+  for (const lx of [3, w - 5]) {
+    for (let y = h - 1; y < h + legs; y++) {
+      c.setPixel(lx, y, 0x3a3430);
+      c.setPixel(lx + 1, y, 0x24201c);
+    }
+    c.setPixel(lx - 1, h + legs - 1, 0x000000, 80); // a small shadow at the foot
+    c.setPixel(lx + 2, h + legs - 1, 0x000000, 80);
+  }
+  return { canvas: c, groundX: Math.floor(w / 2), groundY: h + legs - 1, mount: 'board' };
+}
+
+/**
  * A boutique mannequin, with strange proportions (Alp): v 0 is very tall with a tiny head, v 1 has a
  * big head on a short body. A kitenge dress. The canvas origin is at the feet.
  */
@@ -103,6 +148,11 @@ export function shopFronts(world) {
     for (let x = g.x0; x <= g.x1 && !face; x++) if (free(x, g.y1 + 1)) { face = 'south'; midX = x; }
     for (let y = g.y0; y <= g.y1 && !face; y++) if (free(g.x1 + 1, y)) { face = 'east'; midY = y; }
     if (!face) continue;
+    // The run of free tiles in front of the face, from the first one (the sign stands in its middle).
+    let run = 1;
+    if (face === 'south') while (midX + run <= g.x1 && free(midX + run, g.y1 + 1)) run++;
+    else while (midY + run <= g.y1 && free(g.x1 + 1, midY + run)) run++;
+    const wallTiles = face === 'south' ? g.x1 - g.x0 + 1 : g.y1 - g.y0 + 1;
     // Where customers stand: the nearest road or pavement in front (up to 3 tiles out), or none.
     let stand = null;
     for (let d = 1; d <= 3 && !stand; d++) {
@@ -116,9 +166,12 @@ export function shopFronts(world) {
     for (const [k, wgt] of kinds) { if ((r -= wgt) < 0) { kind = k; break; } }
     const names = SHOP_KINDS[kind].names;
     const name = names[Math.floor(hash2(g.y0, g.x0, 403) * names.length)];
-    const sign = face === 'south' ? { x: (midX + 0.5) * T, y: (g.y1 + 1) * T, face } : { x: (g.x1 + 1) * T, y: (midY + 0.5) * T, face };
+    // The sign: in the middle of the free run (the middle of the wall when the sign is painted on it,
+    // see shopSignArt; SignView places it).
+    const sign = face === 'south' ? { x: (midX + run / 2) * T, y: (g.y1 + 1) * T, face } : { x: (g.x1 + 1) * T, y: (midY + run / 2) * T, face };
+    const wallMid = face === 'south' ? { x: ((g.x0 + g.x1 + 1) / 2) * T, y: (g.y1 + 1) * T } : { x: (g.x1 + 1) * T, y: ((g.y0 + g.y1 + 1) / 2) * T };
     const front = face === 'south' ? { x: midX + 0.5, y: g.y1 + 1.5 } : { x: g.x1 + 1.5, y: midY + 0.5 };
-    out.push({ id: `shop-${g.x0}-${g.y0}`, kind, name, groupId: g.id, sign, floor: g.top, stand, front, district: g.district, x0: g.x0, y0: g.y0, x1: g.x1, y1: g.y1 });
+    out.push({ id: `shop-${g.x0}-${g.y0}`, kind, name, groupId: g.id, sign, wallMid, wallTiles, floor: g.top, stand, front, district: g.district, x0: g.x0, y0: g.y0, x1: g.x1, y1: g.y1 });
   }
   return out;
 }

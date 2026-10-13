@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { World } from '../src/world/world.js';
 import { buildKigaliMap } from '../src/world/maps/kigali.js';
-import { shopFronts, shopPlaces, drawShopSign, drawMannequin, SHOP_KINDS, MANNEQUIN_CANVAS } from '../src/world/shops.js';
-import { COLOURS } from '../src/config.js';
+import { shopFronts, shopPlaces, drawShopSign, drawMannequin, shopSignArt, SHOP_KINDS, MANNEQUIN_CANVAS } from '../src/world/shops.js';
+import { COLOURS, SHOPS } from '../src/config.js';
 
 const world = new World(buildKigaliMap());
 const shops = shopFronts(world);
@@ -44,5 +44,23 @@ describe('shops and street life', () => {
     expect(tall.width).toBe(MANNEQUIN_CANVAS.width);
     const topRow = (c) => { for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) if (c.data[(y * c.width + x) * 4 + 3]) return y; return -1; };
     expect(topRow(tall)).toBeLessThan(topRow(big) + 6);
+  });
+
+  it('a sign is painted on the wall when it fits, else it stands on a board with legs (design review)', () => {
+    let wall = 0, board = 0;
+    for (const s of shops) {
+      const art = shopSignArt(s);
+      const sign = drawShopSign(s.kind, s.name).canvas;
+      if (art.mount === 'wall') {
+        wall++;
+        expect(art.canvas.width).toBeLessThanOrEqual(s.wallTiles * 32 - SHOPS.wallMarginPx);
+        expect(art.canvas.height).toBe(sign.height + Math.ceil(sign.width / 2)); // sheared 2:1
+      } else {
+        board++;
+        expect(art.groundY).toBe(art.canvas.height - 1); // the legs reach the ground
+      }
+    }
+    expect(wall).toBeGreaterThan(10);
+    expect(board).toBeGreaterThan(10);
   });
 });

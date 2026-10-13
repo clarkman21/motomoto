@@ -302,6 +302,66 @@ const STYLE_LOOKS = {
 const KITENGE_CURTAIN = [PALETTE.red, PALETTE.kBlue, PALETTE.kOrange, PALETTE.kPurple];
 const SHOP_PAINT = [0xc0392b, 0x3f8f4a, 0x2f6fb0, 0xe07a2a, 0x8a4ab0];
 
+/**
+ * The inside of a shop with a sign, seen through the open front (design review, 13 October 2026), so
+ * that each kind looks different: a barber chair and mirror, braids at the saloon, beer crates at the
+ * bar, meat on white tiles at the butcher, shoes on shelves, phones in a glass counter, kitenge dresses
+ * at the boutique, pots and plates at the buffet. u: 0..1 across the opening; v: 0..1 up from the floor;
+ * bay: the opening's number along the wall. Returns a colour, or null (the plain goods).
+ */
+function shopInterior(kind, u, v, bay, groupId) {
+  const h = (a, b) => hash2(a, b, groupId + 211);
+  switch (kind) {
+    case 'barber':
+      if (v > 0.55 && v < 0.86 && u > 0.18 && u < 0.82) return u < 0.24 || u > 0.76 || v > 0.81 ? 0x6b4a2a : 0xa8d0e0; // a mirror
+      if (v < 0.42 && u > 0.3 && u < 0.7) return v > 0.36 || (v < 0.12 && Math.abs(u - 0.5) > 0.08) ? 0x1a1a1a : 0x9a2a2a; // the chair
+      return 0x5a6f7f;
+    case 'saloon':
+      if (v > 0.6 && v < 0.82 && u > 0.25 && u < 0.75) return 0xb0b4bc; // a hair dryer hood
+      if (v > 0.45 && v < 0.6 && u > 0.4 && u < 0.6) return 0x2a1a14; // a client under it
+      if (v < 0.42 && u > 0.3 && u < 0.7) return v > 0.36 ? 0x1a1a1a : 0x7a3a8a; // the chair
+      if (v > 0.85 && (Math.floor(u * 8) & 1)) return 0x2a1a14; // braids on show
+      return 0xc87aa8;
+    case 'bar':
+      if (v < 0.48) { // crates of beer: red and orange, with bottle tops
+        const cx = Math.floor(u * 3), cy = Math.floor(v * 4);
+        const col = (cx + cy + bay) % 2 ? 0xb02a20 : 0xd07a20;
+        return (u * 3) % 1 < 0.12 || (v * 4) % 1 < 0.15 ? 0x2a1a10 : (u * 12) % 1 < 0.5 && (v * 8) % 1 > 0.6 ? 0x6a4a1a : col;
+      }
+      if (v > 0.66 && v < 0.88) return (u * 10) % 1 < 0.45 ? (h(Math.floor(u * 10), bay) > 0.5 ? 0x3f7a3a : 0x7a4a1a) : 0x1e1814; // bottles on a shelf
+      return v < 0.56 ? 0x6a4228 : 0x1e1814; // the counter
+    case 'butcher':
+      if (v > 0.5 && v < 0.88 && (u * 3) % 1 > 0.3 && (u * 3) % 1 < 0.75 && v > 0.55 + 0.1 * h(Math.floor(u * 3), bay)) return (u * 9) % 1 < 0.3 ? 0xf0e0d0 : 0xa82a2a; // meat on hooks
+      if (v > 0.88 && v < 0.92) return 0x8a8a8a; // the hook rail
+      if (v < 0.35) return v > 0.3 ? 0xd8d8d0 : 0x8a8a8a; // the counter
+      return (u * 6) % 1 < 0.1 || (v * 8) % 1 < 0.1 ? 0xc8c4bc : 0xece8e0; // white tiles
+    case 'shoes':
+      if ((v * 4) % 1 < 0.14) return 0x7a5230; // shelves
+      if ((v * 4) % 1 < 0.5 && (u * 5) % 1 < 0.7) return h(Math.floor(u * 5), Math.floor(v * 4) + bay * 7) > 0.5 ? 0x2a1a10 : 0x8a5a30; // shoes
+      return 0x3a2a1e;
+    case 'phones':
+      if (v < 0.42) return v > 0.36 || u < 0.06 || u > 0.94 ? 0xa0d8f0 : (u * 6) % 1 < 0.5 && v > 0.15 && v < 0.3 ? 0x1a1a1a : 0x2a4a6a; // a glass counter with phones
+      if (v > 0.55 && v < 0.85 && u > 0.2 && u < 0.8) return v > 0.8 || u < 0.25 || u > 0.75 ? 0x1a1a1a : 0x7fd0ff; // a big phone poster
+      return 0x1a2a4a;
+    case 'boutique':
+      if (v > 0.25 && v < 0.9) { // kitenge dresses on a rail
+        const d = Math.floor(u * 3), dv = (v - 0.25) / 0.65;
+        const half = 0.12 + 0.2 * (1 - dv);
+        if (Math.abs((u * 3) % 1 - 0.5) < half) return (Math.floor(u * 24) + Math.floor(v * 20)) % 3 === 0 ? 0xf0c040 : SHOP_PAINT[(d + bay + groupId) % SHOP_PAINT.length];
+      }
+      if (v > 0.9 && v < 0.94) return 0x8a8a8a; // the rail
+      return 0x2a2622;
+    case 'buffet':
+      if (v > 0.84) return (Math.floor(u * 8) + Math.floor(v * 30)) % 2 ? 0xc0392b : 0xf0ece0; // a checked curtain
+      if (v < 0.4 && v > 0.3) return 0xf0ece0; // the table cloth
+      if (v >= 0.4 && v < 0.55 && (u * 3) % 1 > 0.2 && (u * 3) % 1 < 0.8) return v > 0.5 ? 0x8a8a84 : 0xb8b8b0; // big pots
+      if (v < 0.3 && (u * 2) % 1 < 0.15) return 0x6a4228; // table legs
+      return 0x4a3428;
+    default:
+      return null;
+  }
+}
+
 /** The tiles of each building (group id → its bounds), once per world. */
 const groupCache = new WeakMap();
 function groupOf(world, groupId) {
@@ -388,10 +448,15 @@ function drawBuilding(c, block, pt, world, glow) {
     const a3 = (along * 3) % 1;
     if (style === 'shop' && zl < 1.9) {
       // The ground floor: open shop fronts with goods, and a painted band with the shop name above.
+      const kind = world.shopKinds?.get(groupId);
+      const b = (along * 2) % 1, bay = Math.floor(along * 2);
       if (zl > 1.45) col = hash2(Math.floor(along * 12), Math.floor(zl * 8), groupId) > 0.82 ? 0xffffff : paint;
-      else if ((along * 2) % 1 > 0.12 && (along * 2) % 1 < 0.88) {
-        col = zl < 1.1 && hash2(Math.floor(along * 16), Math.floor(zl * 10), groupId + 7) > 0.6 ? SHOP_PAINT[Math.floor(hash2(Math.floor(along * 16), 3, groupId) * 5)] : 0x2a2622;
+      else if (b > 0.12 && b < 0.88) {
+        col = (kind && shopInterior(kind, (b - 0.12) / 0.76, zl / 1.45, bay, groupId))
+          ?? (zl < 1.1 && hash2(Math.floor(along * 16), Math.floor(zl * 10), groupId + 7) > 0.6 ? SHOP_PAINT[Math.floor(hash2(Math.floor(along * 16), 3, groupId) * 5)] : 0x2a2622);
         if (glow && zl > 0.2) glow.setPixel(px, py, shadeColour(0xffd8a0, 0.6 + 0.2 * k), 170);
+      } else if (kind === 'barber' && (bay & 1) === 0 && b > 0.9 && zl > 0.3 && zl < 1.35) {
+        col = [0xc0302a, 0xf6f6f0, 0x2f6fb0][Math.floor(zl * 12 + b * 30) % 3]; // a barber pole beside the door
       }
       return shadeColour(col, k);
     }
