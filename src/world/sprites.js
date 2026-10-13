@@ -1,5 +1,5 @@
 import { WORLD, COLOURS, LIGHTS, PALETTE, ROOFS, SHOPS } from '../config.js';
-import { tone, faceTone } from './palette.js';
+import { tone, faceTone, finishFigure } from './palette.js';
 import { drawText, textWidth, textBit } from './garage-sprites.js';
 import { toScreen } from './iso.js';
 import { PixelCanvas, shadeColour, hash2 } from './pixel-canvas.js';
@@ -13,18 +13,18 @@ export const BIKE_CANVAS = { width: 44, height: 44, groundX: 22, groundY: 34 };
 
 // All moto taxi riders wear a high visibility vest (as in Kigali). Its yellow is a safety yellow,
 // not Ampersand Surge Yellow (that colour is only for batteries, swap stations and the electric moto).
-export const VEST = { colour: 0xd4e83a, stripe: 0xe8e8e8 };
+export const VEST = { colour: PALETTE.vest, stripe: PALETTE.reflect };
 export const BIKE_LOOKS = {
-  petrol: { body: 0x8c2b23, seat: 0x222222, vest: VEST.colour, helmet: 0xc0392b, trousers: 0x2a3550 },
-  electric: { body: COLOURS.ampersandYellow, seat: 0x111111, vest: VEST.colour, helmet: 0x111111, trousers: 0x2a3550 },
-  fleet: { body: COLOURS.ampersandYellow, seat: 0x111111, vest: VEST.colour, helmet: 0x2a4f8a, trousers: 0x2a3550 }, // your hired riders: your electric moto, a blue helmet
-  rival: { body: 0x2b2f36, seat: 0x111111, vest: VEST.colour, helmet: 0xe8e8e8, trousers: 0x3a3a3a }, // other moto taxi riders
+  petrol: { body: PALETTE.motoRed, seat: PALETTE.tyre, vest: VEST.colour, helmet: PALETTE.red, trousers: PALETTE.navy },
+  electric: { body: COLOURS.ampersandYellow, seat: PALETTE.ink, vest: VEST.colour, helmet: PALETTE.ink, trousers: PALETTE.navy },
+  fleet: { body: COLOURS.ampersandYellow, seat: PALETTE.ink, vest: VEST.colour, helmet: PALETTE.carBlue, trousers: PALETTE.navy }, // your hired riders: your electric moto, a blue helmet
+  rival: { body: PALETTE.bumper, seat: PALETTE.ink, vest: VEST.colour, helmet: PALETTE.reflect, trousers: PALETTE.charcoal }, // other moto taxi riders
   // Motos that wait for repair at the garage (no rider).
-  parkedRed: { body: 0x9a2a20, seat: 0x1a1a1a },
-  parkedBlue: { body: 0x2a4f8a, seat: 0x1a1a1a },
-  parkedBlack: { body: 0x2a2c30, seat: 0x3a2a1a },
+  parkedRed: { body: PALETTE.roofRed, seat: PALETTE.tyre },
+  parkedBlue: { body: PALETTE.carBlue, seat: PALETTE.tyre },
+  parkedBlack: { body: PALETTE.bumper, seat: PALETTE.woodDark },
 };
-const SKIN = 0x6b4226;
+const SKIN = PALETTE.skin;
 
 /** Index of the sprite frame for a heading in radians. */
 export function bikeFrameForHeading(heading) {
@@ -34,7 +34,7 @@ export function bikeFrameForHeading(heading) {
 
 /** Load shown on the bike: none, a passenger behind the rider, or cargo on the rear rack (bananas or a rice sack). */
 export const BIKE_LOADS = ['none', 'passenger', 'bananas', 'rice'];
-const PASSENGER = { shirt: 0x3b6fb6, trousers: 0x4a3a2a, helmet: 0xe8e8e8 };
+const PASSENGER = { shirt: PALETTE.blue, trousers: PALETTE.mud, helmet: PALETTE.reflect };
 
 /**
  * Draw one frame of a bike with rider. type is a key of BIKE_LOOKS. load is one of BIKE_LOADS.
@@ -67,7 +67,7 @@ export function drawBike(type, frame, load = 'none', rider = true, pose = 'ride'
       pts.push(P(fc + 0.3 * Math.cos(a), 0, 0.3 + 0.3 * Math.sin(a)));
     }
     const hub = P(fc, 0, 0.3);
-    parts.push({ depth: hub.depth - 0.01, draw: () => { c.fillPoly(pts, 0x1e1e1e); c.fillDisc(hub.x, hub.y, 0.8, 0x8a8a8a); } });
+    parts.push({ depth: hub.depth - 0.01, draw: () => { c.fillPoly(pts, PALETTE.tyre); c.fillDisc(hub.x, hub.y, 0.8, PALETTE.hub); } });
   };
   const seg = (a, b, thick, col, bias = 0) => {
     const pa = P(...a), pb = P(...b);
@@ -81,10 +81,10 @@ export function drawBike(type, frame, load = 'none', rider = true, pose = 'ride'
   wheel(-0.62);
   wheel(0.62);
   seg([-0.72, 0, 0.55], [0.35, 0, 0.66], 3.2, look.body); // body and rear fender
-  seg([0.62, 0, 0.3], [0.42, 0, 0.95], 1.5, 0x9a9a9a); // fork
+  seg([0.62, 0, 0.3], [0.42, 0, 0.95], 1.5, PALETTE.silver); // fork
   seg([-0.45, 0, 0.8], [0.05, 0, 0.84], 3, look.seat); // seat
-  seg([0.42, -0.32, 0.98], [0.42, 0.32, 0.98], 1.5, 0x333333); // handlebar
-  blob([0.52, 0, 0.84], 1.1, 0xfff2b0, 0.05); // headlight
+  seg([0.42, -0.32, 0.98], [0.42, 0.32, 0.98], 1.5, PALETTE.bumper); // handlebar
+  blob([0.52, 0, 0.84], 1.1, PALETTE.headlight, 0.05); // headlight
   if (pose !== 'ride') {
     // The rider walks on the left of the bike, leans on it, one hand on the handlebar, one on
     // the seat. The legs take long steps. A drop of sweat on the second step.
@@ -97,19 +97,19 @@ export function drawBike(type, frame, load = 'none', rider = true, pose = 'ride'
     seg(shoulder, [0.42, 0.34, 0.98], 2, SKIN, 0.03); // hand on the handlebar
     seg([0.24, 0.5, 1.3], [-0.12, 0.2, 0.86], 2, SKIN, 0.03); // hand on the seat
     blob([0.36, 0.56, 1.6], 2.6, look.helmet, 0.04); // helmet
-    blob([0.44, 0.54, 1.58], 1.1, 0x9fd3f0, 0.05); // visor
-    if (step > 0) blob([0.3, 0.75, 1.82], 0.9, 0x9fd3f0, 0.06); // sweat
+    blob([0.44, 0.54, 1.58], 1.1, PALETTE.visor, 0.05); // visor
+    if (step > 0) blob([0.3, 0.75, 1.82], 0.9, PALETTE.visor, 0.06); // sweat
     if (load === 'passenger') drawPassenger(seg, blob, false); // the passenger stays on the seat
     if (load === 'bananas' || load === 'rice') return drawBikeLoad(c, parts, P, seg, blob, load);
     parts.sort((a, b) => a.depth - b.depth);
     for (const p of parts) p.draw();
-    c.outline(0x161616);
+    finishFigure(c);
     return c;
   }
   if (!rider) {
     parts.sort((a, b) => a.depth - b.depth);
     for (const p of parts) p.draw();
-    c.outline(0x161616);
+    finishFigure(c);
     return c;
   }
   for (const side of [-1, 1]) {
@@ -120,7 +120,7 @@ export function drawBike(type, frame, load = 'none', rider = true, pose = 'ride'
   seg([-0.15, 0, 0.9], [0.05, 0, 1.42], 4.6, look.vest, 0.02); // torso in the vest
   seg([-0.09, 0, 1.08], [-0.06, 0, 1.14], 4.8, VEST.stripe, 0.021); // reflective band
   blob([0.08, 0, 1.68], 2.6, look.helmet, 0.03); // helmet
-  blob([0.16, 0, 1.66], 1.1, 0x9fd3f0, 0.04); // visor
+  blob([0.16, 0, 1.66], 1.1, PALETTE.visor, 0.04); // visor
 
   if (load === 'passenger') {
     drawPassenger(seg, blob, true);
@@ -130,7 +130,7 @@ export function drawBike(type, frame, load = 'none', rider = true, pose = 'ride'
 
   parts.sort((a, b) => a.depth - b.depth);
   for (const p of parts) p.draw();
-  c.outline(0x161616);
+  finishFigure(c);
   return c;
 }
 
@@ -153,22 +153,22 @@ function drawPassenger(seg, blob, holdRider) {
 function drawBikeLoad(c, parts, P, seg, blob, load) {
   if (load === 'bananas') {
     // A big bunch of green bananas (matoke) tied on the rear rack.
-    seg([-0.62, 0, 0.86], [-0.62, 0, 1.5], 1.4, 0x6b4a2a, -0.03); // stem
-    const greens = [0x5f9a32, 0x4f8a2a, 0x76b23e];
+    seg([-0.62, 0, 0.86], [-0.62, 0, 1.5], 1.4, PALETTE.wood, -0.03); // stem
+    const greens = [PALETTE.banana, PALETTE.bananaDark, PALETTE.tarp];
     let i = 0;
     for (let z = 0.9; z <= 1.42; z += 0.13) {
       for (const sd of [-0.16, 0, 0.16]) blob([-0.62 + (i % 2) * 0.05, sd, z], 2.3 - (z - 0.9) * 1.2, greens[i++ % 3], -0.02 + sd * 0.01);
     }
   } else if (load === 'rice') {
     // A big white sack of rice with a printed stripe, strapped on the rear rack.
-    seg([-0.84, 0, 0.98], [-0.4, 0, 0.98], 8, 0xe6e0cc, -0.02);
-    seg([-0.8, 0, 1.0], [-0.44, 0, 1.0], 2, 0x2f6fb0, -0.015); // printed band
-    seg([-0.62, -0.25, 0.86], [-0.62, -0.25, 1.22], 1, 0x3a2a1a, 0.05); // strap
+    seg([-0.84, 0, 0.98], [-0.4, 0, 0.98], 8, PALETTE.sack, -0.02);
+    seg([-0.8, 0, 1.0], [-0.44, 0, 1.0], 2, PALETTE.blue, -0.015); // printed band
+    seg([-0.62, -0.25, 0.86], [-0.62, -0.25, 1.22], 1, PALETTE.woodDark, 0.05); // strap
   }
 
   parts.sort((a, b) => a.depth - b.depth);
   for (const p of parts) p.draw();
-  c.outline(0x161616);
+  finishFigure(c);
   return c;
 }
 
@@ -775,30 +775,35 @@ function isFlagTile(block, world) {
 
 // Tree kinds of Kigali. lumps: discs of the crown [x, y, radius] in pixels from the crown centre.
 // crown: the height of the crown centre above the ground, in levels. Colours: dark to light.
+// The 4 shades of a crown, from dark to light (light rule): the deep colour in shade and lit, then the
+// leaf colour half lit and lit.
+function crown(deep, leaf) {
+  return [tone(deep, 'right'), tone(deep, 'top'), tone(leaf, 'left'), tone(leaf, 'top')];
+}
 const TREES = {
   // Umbrella thorn acacia: a tall forked trunk and a wide flat crown.
   acacia: {
     trunk: 3.3, crown: 3.7, fork: true,
     lumps: [[-18, 1, 5], [-10, -1, 6], [-2, -2, 6], [7, -1, 6], [15, 0, 5], [21, 2, 4], [-23, 3, 3], [3, 2, 5], [-8, 3, 4]],
-    colours: [0x485f22, 0x5a7a2a, 0x6f8f34, 0x87a844], outline: 0x2a3a14,
+    colours: crown(PALETTE.acaciaDeep, PALETTE.acaciaLeaf), outline: PALETTE.acaciaInk,
   },
   // Jacaranda: a big round crown of purple flowers, with some green leaves.
   jacaranda: {
     trunk: 2.4, crown: 3.0,
     lumps: [[0, -9, 10], [-10, -2, 9], [10, -2, 9], [-5, 7, 9], [6, 7, 8], [0, 0, 10], [-15, 5, 5], [15, 5, 5]],
-    colours: [0x5e4290, 0x7a5ab0, 0x9a7ad0, 0xb89ae0], leaf: 0x4f7f3a, outline: 0x2e2048,
+    colours: crown(PALETTE.jacarandaDeep, PALETTE.jacaranda), leaf: PALETTE.jacarandaLeaf, outline: PALETTE.jacarandaInk,
   },
   // Avocado: a dense, tall, dark green crown, with fruit.
   avocado: {
     trunk: 1.8, crown: 2.9,
     lumps: [[0, -12, 8], [-7, -4, 9], [7, -4, 9], [0, 3, 10], [-6, 10, 7], [6, 10, 7], [0, -18, 5]],
-    colours: [0x1f4a24, 0x2c5f2c, 0x3f7a3a, 0x58904a], fruit: 0x6a8a2a, outline: 0x13301a,
+    colours: crown(PALETTE.avocadoDeep, PALETTE.avocadoLeaf), fruit: PALETTE.avocadoFruit, outline: PALETTE.avocadoInk,
   },
   // A big shade tree (fig or eucalyptus mix): the common street tree.
   fig: {
     trunk: 2.3, crown: 2.9,
     lumps: [[0, -7, 11], [-10, 0, 10], [10, 0, 10], [-4, 7, 10], [5, 7, 9], [-15, 6, 5], [16, 6, 5]],
-    colours: [0x2f6f2a, 0x3d8a34, 0x52a344, 0x6bbf55], outline: 0x1f3a1a,
+    colours: crown(PALETTE.figDeep, PALETTE.figLeaf), outline: PALETTE.figInk,
   },
 };
 const TREE_MIX = {
@@ -830,12 +835,12 @@ function drawTree(c, block, pt, world) {
   // Trunk
   const r = 0.06;
   drawBox(c, cx - r, cy - r, cx + r, cy + r, Math.min(baseLevel, ground), ground + kind.trunk, pt,
-    () => 0x5a3a22, () => 0x4a2f1c, () => 0x5a3a22);
+    () => tone(PALETTE.bark, 'top'), () => tone(PALETTE.bark, 'right'), () => tone(PALETTE.bark, 'left'));
   const centre = pt(cx, cy, ground + kind.crown);
   if (kind.fork) {
     // The acacia trunk forks into branches that hold the flat crown.
     const f = pt(cx, cy, ground + kind.trunk - 1.1);
-    for (const dx of [-12, -4, 6, 13]) c.line(f.x, f.y, centre.x + dx, centre.y + 1, 1.4, 0x4a2f1c);
+    for (const dx of [-12, -4, 6, 13]) c.line(f.x, f.y, centre.x + dx, centre.y + 1, 1.4, tone(PALETTE.bark, 'right'));
   }
   const minX = Math.min(...kind.lumps.map(([x, , r2]) => x - r2)), maxX = Math.max(...kind.lumps.map(([x, , r2]) => x + r2));
   const minY = Math.min(...kind.lumps.map(([, y, r2]) => y - r2)), maxY = Math.max(...kind.lumps.map(([, y, r2]) => y + r2));
@@ -859,8 +864,8 @@ function drawTree(c, block, pt, world) {
 // leans a little, a skirt of dry brown fronds under the crown, and a round crown of fan leaves.
 const PALM = {
   height: 6.4, // levels (about 9.6 m) to the crown
-  trunk: [0x8a7a62, 0x6e604c], skirt: [0x9a7448, 0x7a5a36],
-  leaves: [0x2f6a2a, 0x3f8a34, 0x5aa843, 0x78c058], outline: 0x1a3418,
+  trunk: [PALETTE.palmTrunk, tone(PALETTE.palmTrunk, 'right')], skirt: [PALETTE.palmSkirt, tone(PALETTE.palmSkirt, 'right')],
+  leaves: crown(PALETTE.palmDeep, PALETTE.palmLeaf), outline: PALETTE.palmInk,
 };
 function drawPalm(c, block, pt, world) {
   const { tx, ty, baseLevel } = block;
@@ -1189,17 +1194,17 @@ export function drawDigits(c, text, cx, top, rgb) {
 }
 
 function pole(c, topY) {
-  for (let y = topY; y <= PROP_CANVAS.groundY; y++) c.setPixel(PROP_CANVAS.groundX, y, 0x8a8a8a);
+  for (let y = topY; y <= PROP_CANVAS.groundY; y++) c.setPixel(PROP_CANVAS.groundX, y, PALETTE.hub);
 }
 
 export function drawCamera() {
   const c = new PixelCanvas(PROP_CANVAS.width, PROP_CANVAS.height);
   pole(c, 10);
   // Camera box on top of the pole
-  for (let y = 5; y < 11; y++) for (let x = 4; x < 14; x++) c.setPixel(x, y, y === 5 ? 0x5a5a5a : 0x3a3a3a);
-  c.setPixel(5, 7, 0x9fd3f0); c.setPixel(6, 7, 0x9fd3f0); c.setPixel(5, 8, 0x9fd3f0); c.setPixel(6, 8, 0x9fd3f0); // lens
-  c.setPixel(12, 7, 0xff4a3a); // red light
-  c.outline(0x161616);
+  for (let y = 5; y < 11; y++) for (let x = 4; x < 14; x++) c.setPixel(x, y, y === 5 ? PALETTE.slate : PALETTE.charcoal);
+  c.setPixel(5, 7, PALETTE.visor); c.setPixel(6, 7, PALETTE.visor); c.setPixel(5, 8, PALETTE.visor); c.setPixel(6, 8, PALETTE.visor); // lens
+  c.setPixel(12, 7, PALETTE.tailLight); // red light
+  c.outline(PALETTE.ink);
   return c;
 }
 
@@ -1210,11 +1215,11 @@ export function drawSpeedSign(limitKmh) {
   for (let y = 0; y < 18; y++) {
     for (let x = 0; x < 18; x++) {
       const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy);
-      if (d <= 7.6) c.setPixel(x, y, d > 5.6 ? 0xd0302a : 0xffffff);
+      if (d <= 7.6) c.setPixel(x, y, d > 5.6 ? PALETTE.signRed : PALETTE.signWhite);
     }
   }
-  drawDigits(c, String(limitKmh), PROP_CANVAS.groundX + 0.5, 6, 0x111111);
-  c.outline(0x161616);
+  drawDigits(c, String(limitKmh), PROP_CANVAS.groundX + 0.5, 6, PALETTE.ink);
+  c.outline(PALETTE.ink);
   return c;
 }
 
@@ -1233,28 +1238,28 @@ export function drawRoadSign(kind) {
       const half = Math.floor((y - 1) * 0.58);
       for (let x = cx - half; x <= cx + half; x++) {
         const edge = y >= 12 || x <= cx - half + 1 || x >= cx + half - 1;
-        c.setPixel(x, y, edge ? 0xd0302a : 0xffffff);
+        c.setPixel(x, y, edge ? PALETTE.signRed : PALETTE.signWhite);
       }
     }
     // The hump: a low black arc on a line.
-    for (let x = cx - 4; x <= cx + 4; x++) c.setPixel(x, 10, 0x111111);
-    for (let x = cx - 2; x <= cx + 2; x++) c.setPixel(x, 9, 0x111111);
-    c.setPixel(cx - 1, 8, 0x111111); c.setPixel(cx, 8, 0x111111); c.setPixel(cx + 1, 8, 0x111111);
+    for (let x = cx - 4; x <= cx + 4; x++) c.setPixel(x, 10, PALETTE.ink);
+    for (let x = cx - 2; x <= cx + 2; x++) c.setPixel(x, 9, PALETTE.ink);
+    c.setPixel(cx - 1, 8, PALETTE.ink); c.setPixel(cx, 8, PALETTE.ink); c.setPixel(cx + 1, 8, PALETTE.ink);
   } else {
     // The blue square with a white triangle, and a black person who walks across.
-    for (let y = 1; y <= 14; y++) for (let x = cx - 6; x <= cx + 6; x++) c.setPixel(x, y, 0x1f5fb0);
+    for (let y = 1; y <= 14; y++) for (let x = cx - 6; x <= cx + 6; x++) c.setPixel(x, y, PALETTE.signBlue);
     for (let y = 3; y <= 12; y++) {
       const half = Math.floor((y - 3) * 0.6);
-      for (let x = cx - half; x <= cx + half; x++) c.setPixel(x, y, 0xffffff);
+      for (let x = cx - half; x <= cx + half; x++) c.setPixel(x, y, PALETTE.signWhite);
     }
-    for (let x = cx - 5; x <= cx + 5; x += 2) c.setPixel(x, 13, 0xffffff); // the zebra bars
-    const ink = 0x111111;
+    for (let x = cx - 5; x <= cx + 5; x += 2) c.setPixel(x, 13, PALETTE.signWhite); // the zebra bars
+    const ink = PALETTE.ink;
     c.setPixel(cx, 5, ink); // the head
     c.setPixel(cx, 7, ink); c.setPixel(cx, 8, ink); // the body
     c.setPixel(cx - 1, 7, ink); c.setPixel(cx + 1, 8, ink); // the arms
     c.setPixel(cx - 1, 9, ink); c.setPixel(cx + 1, 9, ink); c.setPixel(cx - 2, 10, ink); c.setPixel(cx + 2, 10, ink); // the legs
   }
-  c.outline(0x161616);
+  c.outline(PALETTE.ink);
   return c;
 }
 
@@ -1325,7 +1330,7 @@ export function drawCargoPile(goods = 'rice') {
     return c;
   }
   if (goods === 'bananas') {
-    const greens = [0x5f9a32, 0x4f8a2a, 0x76b23e];
+    const greens = [PALETTE.banana, PALETTE.bananaDark, PALETTE.tarp];
     for (const [bx, top] of [[gx - 3, gy - 12], [gx + 4, gy - 9]]) {
       c.line(bx, gy - 1, bx, top - 2, 1.2, 0x6b4a2a); // stem
       let i = 0;

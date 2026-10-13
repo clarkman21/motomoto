@@ -17,7 +17,7 @@ import { UI, pixelScale, ensureRetroFont, ensureIcons, retroLabel, retroWidth, d
 const PANEL_W = 150;
 const JOBS_W = 144;
 const LINE = RETRO_CELL.height + 1; // virtual pixels between text lines
-const PETROL_RED = 0xec5825;
+const PETROL_RED = UI.petrol;
 const money = (n) => `${Math.round(n).toLocaleString('en')}`;
 
 export class HudScene extends Phaser.Scene {
@@ -115,7 +115,7 @@ export class HudScene extends Phaser.Scene {
     this.over = add(this.add.graphics());
     for (const l of [...this.promptLines, ...this.fuelRows.map((r) => r.text), ...this.barkLines]) this.ui.bringToTop(l);
     for (const z of [this.promptZone, ...this.fuelRows.map((r) => r.zone)]) this.ui.bringToTop(z);
-    this.flash = this.add.rectangle(0, 0, 10, 10, 0xffffff, 1).setOrigin(0).setAlpha(0);
+    this.flash = this.add.rectangle(0, 0, 10, 10, UI.white, 1).setOrigin(0).setAlpha(0);
     this.isTouch = this.sys.game.device.input.touch;
     if (this.isTouch) this.#createTouchControls();
 
@@ -203,7 +203,7 @@ export class HudScene extends Phaser.Scene {
     this.flash.setSize(width, height);
     this.jobLimit = vh - 6; // the lowest line of the jobs window (touch: above the buttons)
     if (this.isTouch) this.#layoutTouch(width, height);
-    if (this.helpText.visible) g.fillStyle(0x0a0c18, 0.8).fillRect(this.helpText.x - 3, this.helpText.y - 2, this.helpText.width + 6, LINE + 2);
+    if (this.helpText.visible) g.fillStyle(UI.helpBack, 0.8).fillRect(this.helpText.x - 3, this.helpText.y - 2, this.helpText.width + 6, LINE + 2);
   }
 
   update(_time, deltaMs) {
@@ -231,7 +231,7 @@ export class HudScene extends Phaser.Scene {
     this.energyText.setText(`${Math.round(bike.energy * 100)}%`).setTint(low ? UI.red : UI.white);
     const eb = this.energyBar;
     const blinkLow = bike.energy < 0.1 && Math.floor(this.time.now / 300) % 2 === 0;
-    drawSegBar(g, eb.x, eb.y, eb.w, eb.h, bike.energy, blinkLow ? 0xffffff : electric || bike.boost > 0 ? COLOURS.ampersandYellow : low ? UI.red : PETROL_RED, 12); // a yellow battery boost: the bar is yellow
+    drawSegBar(g, eb.x, eb.y, eb.w, eb.h, bike.energy, blinkLow ? UI.white : electric || bike.boost > 0 ? COLOURS.ampersandYellow : low ? UI.red : PETROL_RED, 12); // a yellow battery boost: the bar is yellow
     const ratio = (bike.energyRate ?? 0) * spec.energySeconds;
     this.useSmooth = (this.useSmooth ?? 0) + (ratio - (this.useSmooth ?? 0)) * Math.min(1, deltaMs / 250);
     this.useText.setText(this.useSmooth < -0.02 ? 'CHARGE' : `USE ${Math.max(0, this.useSmooth).toFixed(1)}×`).setTint(this.useSmooth < -0.02 ? UI.green : UI.dim);
@@ -249,7 +249,7 @@ export class HudScene extends Phaser.Scene {
     const late = due >= 1;
     const blink = bike.brokenDown && Math.floor(this.time.now / 300) % 2 === 0;
     const sb = this.serviceBar;
-    drawSegBar(g, sb.x, sb.y, sb.w, sb.h, Math.min(1, due), blink ? 0xffffff : late ? UI.red : due >= 0.8 ? UI.orange : 0xe8e8f8, 12);
+    drawSegBar(g, sb.x, sb.y, sb.w, sb.h, Math.min(1, due), blink ? UI.white : late ? UI.red : due >= 0.8 ? UI.orange : UI.frameLight, 12);
     this.serviceText.setText(bike.brokenDown ? 'OUT' : `${Math.round(due * 100)}%`).setTint(late || bike.brokenDown ? UI.red : due >= 0.8 ? UI.orange : UI.white);
 
     // Medium and hard modes: the rider's energy. Green, orange when hungry, red and blinking when weak.
@@ -257,14 +257,14 @@ export class HudScene extends Phaser.Scene {
     if (ride.rider) {
       const e = ride.rider.energy, fb = this.foodBar;
       const hungry = e < RIDER.hungryAt, weak = e <= 0.05 && Math.floor(this.time.now / 300) % 2 === 0;
-      drawSegBar(g, fb.x, fb.y, fb.w, fb.h, e, weak ? 0xffffff : hungry ? UI.red : e < 0.5 ? UI.orange : UI.green, 12);
+      drawSegBar(g, fb.x, fb.y, fb.w, fb.h, e, weak ? UI.white : hungry ? UI.red : e < 0.5 ? UI.orange : UI.green, 12);
       this.foodText.setText(`${Math.round(e * 100)}%`).setTint(hungry ? UI.red : UI.white);
     }
     // Hard mode: the bathroom need. Blue, orange when urgent, red and blinking when full.
     if (this.hasWc) {
       const v = ride.rider.bladder ?? 0, wb = this.wcBar;
       const urgent = v >= HARD_RULES.bladder.urgentAt, full = v >= 1 && Math.floor(this.time.now / 300) % 2 === 0;
-      drawSegBar(g, wb.x, wb.y, wb.w, wb.h, v, full ? 0xffffff : v >= 1 ? UI.red : urgent ? UI.orange : 0x4a78e0, 12);
+      drawSegBar(g, wb.x, wb.y, wb.w, wb.h, v, full ? UI.white : v >= 1 ? UI.red : urgent ? UI.orange : UI.water, 12);
       this.wcText.setText('WC').setTint(urgent ? UI.red : UI.white);
     }
 
@@ -299,10 +299,10 @@ export class HudScene extends Phaser.Scene {
     const limit = ride.speedLimit.limitKmh;
     const blink = kmh > limit + LAW.toleranceKmh && Math.floor(this.time.now / 250) % 2 === 0;
     const { x, y, r } = this.limitPos;
-    g.fillStyle(0x000000, 1).fillCircle(x, y, r + 1).fillStyle(0xd0302a, 1).fillCircle(x, y, r).fillStyle(blink ? 0xffb080 : 0xffffff, 1).fillCircle(x, y, r - 3);
+    g.fillStyle(UI.frame, 1).fillCircle(x, y, r + 1).fillStyle(UI.signRed, 1).fillCircle(x, y, r).fillStyle(blink ? UI.signBlink : UI.white, 1).fillCircle(x, y, r - 3);
     // The number in the small sign font (3 × 5 pixels a digit), like a real road sign.
     const num = String(limit), nw = textWidth(num);
-    g.fillStyle(0x101010, 1);
+    g.fillStyle(UI.signInk, 1);
     for (let py = 0; py < 5; py++) for (let px = 0; px < nw; px++) if (textBit(num, px, py)) g.fillRect(Math.round(x - nw / 2) + px, Math.round(y - 2) + py, 1, 1);
     // Level and savings toward the milestone.
     const Lv = ride.level;
@@ -580,10 +580,10 @@ export class HudScene extends Phaser.Scene {
 
   /** A round touch button with a pixel font label. */
   #button(label, onDown, onUp, size = 34) {
-    const circle = this.add.circle(0, 0, size, 0x102060, 0.7).setStrokeStyle(3, 0xe8e8f8, 0.9).setInteractive();
+    const circle = this.add.circle(0, 0, size, UI.blueBands[6], 0.7).setStrokeStyle(3, UI.frameLight, 0.9).setInteractive();
     const text = this.add.bitmapText(0, 0, 'retro', retroText(label)).setOrigin(0.5).setScale(Math.max(2, Math.round(size / 12)));
-    circle.on('pointerdown', (p) => { p.hitButton = true; onDown(); circle.setFillStyle(0x3050c0, 0.9); });
-    const up = () => { onUp?.(); circle.setFillStyle(0x102060, 0.7); };
+    circle.on('pointerdown', (p) => { p.hitButton = true; onDown(); circle.setFillStyle(UI.blueBands[0], 0.9); });
+    const up = () => { onUp?.(); circle.setFillStyle(UI.blueBands[6], 0.7); };
     circle.on('pointerup', up);
     circle.on('pointerout', up);
     return { circle, text, setPosition: (x, y) => { circle.setPosition(x, y); text.setPosition(x, y); } };
@@ -619,7 +619,7 @@ export class HudScene extends Phaser.Scene {
     const g = this.stickGfx.clear();
     if (!this.stickPointer) return;
     const s = this.ride.touch.stick;
-    g.lineStyle(3, 0xe8e8f8, 0.6).strokeCircle(this.stickBase.x, this.stickBase.y, 60);
-    g.fillStyle(0x3050c0, 0.6).fillCircle(this.stickBase.x + s.x * 60, this.stickBase.y + s.y * 60, 22);
+    g.lineStyle(3, UI.frameLight, 0.6).strokeCircle(this.stickBase.x, this.stickBase.y, 60);
+    g.fillStyle(UI.blueBands[0], 0.6).fillCircle(this.stickBase.x + s.x * 60, this.stickBase.y + s.y * 60, 22);
   }
 }

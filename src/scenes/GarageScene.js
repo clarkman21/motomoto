@@ -77,7 +77,7 @@ export class GarageScene extends Phaser.Scene {
     this.k = Math.max(2, Math.min(6, Math.floor(Math.min(width / 320, height / 200))));
     this.vw = Math.floor(width / this.k);
     this.vh = Math.floor(height / this.k);
-    this.add.rectangle(0, 0, width, height, 0x060818, 0.55).setOrigin(0);
+    this.add.rectangle(0, 0, width, height, UI.veil, 0.55).setOrigin(0);
     this.ui = this.add.container(Math.floor((width - this.vw * this.k) / 2), Math.floor((height - this.vh * this.k) / 2)).setScale(this.k);
     const g = this.add.graphics();
     this.ui.add(g);

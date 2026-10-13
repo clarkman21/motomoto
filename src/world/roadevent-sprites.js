@@ -1,5 +1,6 @@
 import { PALETTE } from '../config.js';
 import { PixelCanvas } from './pixel-canvas.js';
+import { tone } from './palette.js';
 import { drawText, textWidth } from './garage-sprites.js';
 import { toScreen } from './iso.js';
 import { drawPerson } from './vehicle-sprites.js';
@@ -15,7 +16,7 @@ export function drawCone() {
   const c = new PixelCanvas(CONE_CANVAS.width, CONE_CANVAS.height);
   for (let y = 0; y < 7; y++) {
     const half = Math.floor(y / 3);
-    for (let x = 2 - half; x <= 3 + half; x++) c.setPixel(x, y, y === 3 || y === 4 ? C.cream : x <= 2 ? C.kOrange : 0xb85a1a);
+    for (let x = 2 - half; x <= 3 + half; x++) c.setPixel(x, y, y === 3 || y === 4 ? C.cream : x <= 2 ? C.kOrange : tone(C.kOrange, 'right'));
   }
   for (let x = 0; x < 6; x++) c.setPixel(x, 7, C.charcoal); // the base
   for (let x = 0; x < 6; x++) c.setPixel(x, 8, 0x000000, 70);

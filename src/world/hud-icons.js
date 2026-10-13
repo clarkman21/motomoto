@@ -1,4 +1,4 @@
-import { COLOURS } from '../config.js';
+import { COLOURS, UI_PALETTE } from '../config.js';
 import { PixelCanvas } from './pixel-canvas.js';
 
 // Small pixel icons for the retro HUD (9 × 9 px each), drawn from text maps.
@@ -6,20 +6,7 @@ import { PixelCanvas } from './pixel-canvas.js';
 
 export const ICON_SIZE = 9;
 
-const PALETTE = {
-  k: 0x0a0a1a, // outline
-  w: 0xf2f2f2, // white
-  s: 0x9098a8, // steel grey
-  r: 0xe04a30, // red
-  o: 0xf08a24, // orange
-  y: 0xf0c040, // gold (not Surge Yellow)
-  g: 0x58c040, // green
-  d: 0x2f7a2a, // dark green
-  b: 0x4a78e0, // blue
-  n: 0x8a5a30, // brown
-  t: 0xd8c090, // tan (sacks)
-  c: COLOURS.ampersandYellow, // Surge Yellow: the battery of the Ampersand moto only
-};
+const PALETTE = { ...UI_PALETTE.icon, c: COLOURS.ampersandYellow }; // the letters of the icon maps (config.js)
 
 export const ICONS = {
   fuel: [

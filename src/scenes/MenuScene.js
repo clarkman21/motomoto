@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { loadGame } from './save.js';
 import { levelDef } from '../sim/levels.js';
-import { MODES, VERSION } from '../config.js';
+import { MODES, VERSION, UI_PALETTE } from '../config.js';
 import { modeOf } from '../sim/modes.js';
 import { STEERING_LABELS } from '../sim/controls.js';
 import { drawRetroFontSheet, RETRO_CHARS, RETRO_CELL, RETRO_PER_ROW, retroText, wrapRetro } from '../world/retro-font.js';
@@ -15,7 +15,7 @@ import { addCanvasTexture } from './textures.js';
 // Keyboard: ↑ ↓ to choose, Enter to select, Esc to go back. Mouse and touch: tap a line.
 
 const money = (n) => `${Math.round(n).toLocaleString('en')} RWF`;
-const WHITE = 0xffffff, DIM = 0xa8b0e0, GREEN = 0x7fe0b8, GOLD = 0xffc85a, RED = 0xd84a3a;
+const { white: WHITE, dim: DIM, green: GREEN, gold: GOLD, red: RED } = UI_PALETTE;
 const ROW = 14; // virtual pixels between menu lines
 
 // How to play: one page for each topic. Simplified Technical English.
@@ -138,7 +138,7 @@ export class MenuScene extends Phaser.Scene {
     this.ui = this.add.container(Math.floor((width - this.vw * this.k) / 2), Math.floor((height - this.vh * this.k) / 2)).setScale(this.k);
     // Dim the city behind, and draw scanlines over everything.
     const dim = this.mode === 'welcome' && this.screen === 'main' ? 0.35 : 0.55;
-    this.add.rectangle(0, 0, width, height, 0x060818, dim).setOrigin(0).setDepth(-1);
+    this.add.rectangle(0, 0, width, height, UI_PALETTE.veil, dim).setOrigin(0).setDepth(-1);
     this.#scanlines(width, height);
     if (this.screen === 'main') this.#main();
     else if (this.screen === 'pause') this.#pause();
@@ -477,14 +477,14 @@ export class MenuScene extends Phaser.Scene {
   /** A window like the menus of 16-bit role playing games: a blue gradient and a light border. */
   #window(x, y, w, h) {
     const g = this.#gfx();
-    const bands = [0x3050c0, 0x2a48b0, 0x2440a0, 0x1e3890, 0x183080, 0x142870, 0x102060];
+    const bands = UI_PALETTE.blueBands;
     const bandH = Math.ceil(h / bands.length);
     bands.forEach((col, i) => g.fillStyle(col, 0.96).fillRect(x + 2, y + 2 + i * bandH, w - 4, Math.min(bandH, h - 4 - i * bandH)));
-    g.fillStyle(0x000000, 1);
+    g.fillStyle(UI_PALETTE.frame, 1);
     g.fillRect(x + 1, y, w - 2, 1).fillRect(x + 1, y + h - 1, w - 2, 1).fillRect(x, y + 1, 1, h - 2).fillRect(x + w - 1, y + 1, 1, h - 2);
-    g.fillStyle(0xe8e8f8, 1);
+    g.fillStyle(UI_PALETTE.frameLight, 1);
     g.fillRect(x + 2, y + 1, w - 4, 1).fillRect(x + 1, y + 2, 1, h - 4);
-    g.fillStyle(0x9098c8, 1);
+    g.fillStyle(UI_PALETTE.frameMid, 1);
     g.fillRect(x + 2, y + h - 2, w - 4, 1).fillRect(x + w - 2, y + 2, 1, h - 4);
     return g;
   }
@@ -537,7 +537,7 @@ export class MenuScene extends Phaser.Scene {
     const key = `scanline-${this.k}`;
     if (!this.textures.exists(key)) {
       const c = new PixelCanvas(1, this.k);
-      c.setPixel(0, this.k - 1, 0x000000, 60);
+      c.setPixel(0, this.k - 1, UI_PALETTE.frame, 60);
       addCanvasTexture(this, key, c);
     }
     this.add.tileSprite(0, 0, width, height, key).setOrigin(0).setDepth(10);

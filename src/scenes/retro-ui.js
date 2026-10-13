@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { UI_PALETTE } from '../config.js';
 import { drawRetroFontSheet, RETRO_CHARS, RETRO_CELL, RETRO_PER_ROW, retroText } from '../world/retro-font.js';
 import { drawIconSheet } from '../world/hud-icons.js';
 import { drawText, textWidth } from '../world/garage-sprites.js';
@@ -9,9 +10,7 @@ import { addCanvasTexture } from './textures.js';
 // the blue windows and the segmented bars. All sizes are in virtual pixels: the scene draws
 // at a low resolution in a container, and scales the container by a whole number.
 
-export const UI = {
-  white: 0xffffff, dim: 0xa8b0e0, green: 0x7fe0b8, gold: 0xffc85a, red: 0xf05a40, orange: 0xf0a040, grey: 0x7a80a0,
-};
+export const UI = UI_PALETTE; // the UI colours (config.js)
 
 /** The biggest whole number scale that keeps at least minW × minH virtual pixels (2 at least). */
 export function pixelScale(width, height, minW, minH) {
@@ -57,20 +56,18 @@ export const retroWidth = (text, scale = 1) => retroText(text).length * RETRO_CE
  * style 'dark': a near black window (for the minimap and prompts on busy ground).
  */
 export function drawWindow(g, x, y, w, h, style = 'blue', alpha = 0.94) {
-  const bands = style === 'dark'
-    ? [0x1a1e2e, 0x181c2a, 0x161a26, 0x141822, 0x12161e]
-    : [0x3050c0, 0x2a48b0, 0x2440a0, 0x1e3890, 0x183080, 0x142870, 0x102060];
+  const bands = style === 'dark' ? UI.darkBands : UI.blueBands;
   const bandH = Math.ceil((h - 4) / bands.length);
   bands.forEach((col, i) => {
     const top = y + 2 + i * bandH;
     const hh = Math.min(bandH, y + h - 2 - top);
     if (hh > 0) g.fillStyle(col, alpha).fillRect(x + 2, top, w - 4, hh);
   });
-  g.fillStyle(0x000000, 1);
+  g.fillStyle(UI.frame, 1);
   g.fillRect(x + 1, y, w - 2, 1).fillRect(x + 1, y + h - 1, w - 2, 1).fillRect(x, y + 1, 1, h - 2).fillRect(x + w - 1, y + 1, 1, h - 2);
-  g.fillStyle(style === 'dark' ? 0x8088a8 : 0xe8e8f8, 1);
+  g.fillStyle(style === 'dark' ? UI.darkFrameLight : UI.frameLight, 1);
   g.fillRect(x + 2, y + 1, w - 4, 1).fillRect(x + 1, y + 2, 1, h - 4);
-  g.fillStyle(style === 'dark' ? 0x4a5068 : 0x9098c8, 1);
+  g.fillStyle(style === 'dark' ? UI.darkFrameMid : UI.frameMid, 1);
   g.fillRect(x + 2, y + h - 2, w - 4, 1).fillRect(x + w - 2, y + 2, 1, h - 4);
   return g;
 }
@@ -79,8 +76,8 @@ export function drawWindow(g, x, y, w, h, style = 'blue', alpha = 0.94) {
  * A segmented bar (like the life bar of a 16-bit game): a black frame, then `segments` blocks.
  * frac 0..1 fills the blocks from the left. colour: a number, or a function (segment index) → colour.
  */
-export function drawSegBar(g, x, y, w, h, frac, colour, segments = 10, empty = 0x2a2e40) {
-  g.fillStyle(0x000000, 1).fillRect(x, y, w, h);
+export function drawSegBar(g, x, y, w, h, frac, colour, segments = 10, empty = UI.barEmpty) {
+  g.fillStyle(UI.frame, 1).fillRect(x, y, w, h);
   const inner = w - 2, seg = inner / segments;
   const filled = Math.max(0, Math.min(1, frac)) * segments;
   for (let i = 0; i < segments; i++) {
@@ -88,7 +85,7 @@ export function drawSegBar(g, x, y, w, h, frac, colour, segments = 10, empty = 0
     const on = i < Math.floor(filled) || (i < filled && filled - i >= 0.5);
     const col = on ? (typeof colour === 'function' ? colour(i) : colour) : empty;
     g.fillStyle(col, 1).fillRect(x0, y + 1, Math.max(1, x1 - x0), h - 2);
-    if (on) g.fillStyle(0xffffff, 0.35).fillRect(x0, y + 1, Math.max(1, x1 - x0), 1); // shine on top
+    if (on) g.fillStyle(UI.white, 0.35).fillRect(x0, y + 1, Math.max(1, x1 - x0), 1); // shine on top
   }
 }
 
@@ -111,8 +108,8 @@ export function smallLabel(scene, tint = UI.white) {
     if (text === img.textValue) return img;
     img.textValue = text;
     const c = new PixelCanvas(Math.max(1, smallWidth(text) + 1), 6);
-    drawText(c, text, 1, 1, 0x0a0a28); // the shadow
-    drawText(c, text, 0, 0, 0xffffff);
+    drawText(c, text, 1, 1, UI.textShadow); // the shadow
+    drawText(c, text, 0, 0, UI.white);
     addCanvasTexture(scene, key, c);
     img.setTexture(key);
     return img;

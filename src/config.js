@@ -251,6 +251,34 @@ export const PALETTE = {
   slate: 0x4a4e58, water: 0x3f7fb8, waterLight: 0x8ac0e8, concrete: 0xb5b0a5, mudWall: 0xa8724a, mudLight: 0xc08a5a, brick: 0x9a4a32, stone: 0x6a645a,
   // Police
   uniform: 0x1c2a5a, policeWhite: 0xf4f4f4, boots: 0x101010, policeSilver: 0xd8dce4,
+  // Trees: a light and a deep colour for each crown (each in its tones), the outline, and the bark.
+  figLeaf: 0x6bbf55, figDeep: 0x3d8a34, figInk: 0x1f3a1a,
+  acaciaLeaf: 0x87a844, acaciaDeep: 0x5a7a2a, acaciaInk: 0x2a3a14,
+  jacaranda: 0xb89ae0, jacarandaDeep: 0x7a5ab0, jacarandaInk: 0x2e2048, jacarandaLeaf: 0x4f7f3a,
+  avocadoLeaf: 0x58904a, avocadoDeep: 0x2c5f2c, avocadoInk: 0x13301a, avocadoFruit: 0x6a8a2a,
+  palmLeaf: 0x78c058, palmDeep: 0x3f8a34, palmInk: 0x1a3418, palmTrunk: 0x8a7a62, palmSkirt: 0x9a7448,
+  bark: 0x5a3a22,
+  // The moto riders: the safety vest (not Surge Yellow), its reflective band, the visor, the red moto.
+  vest: 0xd4e83a, reflect: 0xe8e8e8, visor: 0x9fd3f0, motoRed: 0x8c2b23,
+  // Road signs
+  signWhite: 0xffffff, signRed: 0xd0302a, signBlue: 0x1f5fb0,
+};
+
+// The UI palette: the HUD, the menus, the day end and the HUD icons (the retro 16-bit windows). The UI is
+// flat and on top of the world, so it does not use the light rule; all its colours come from here.
+export const UI_PALETTE = {
+  // Text
+  white: 0xffffff, dim: 0xa8b0e0, green: 0x7fe0b8, gold: 0xffc85a, red: 0xf05a40, orange: 0xf0a040, grey: 0x7a80a0,
+  textShadow: 0x0a0a28,
+  // Windows: the blue gradient (top to bottom) and the dark one, the frame (black, light, mid).
+  blueBands: [0x3050c0, 0x2a48b0, 0x2440a0, 0x1e3890, 0x183080, 0x142870, 0x102060],
+  darkBands: [0x1a1e2e, 0x181c2a, 0x161a26, 0x141822, 0x12161e],
+  frame: 0x000000, frameLight: 0xe8e8f8, frameMid: 0x9098c8, darkFrameLight: 0x8088a8, darkFrameMid: 0x4a5068,
+  // Bars, screens behind windows, touch buttons.
+  barEmpty: 0x2a2e40, petrol: 0xec5825, water: 0x4a78e0, veil: 0x060818, helpBack: 0x0a0c18,
+  storyCard: 0x0f3a2a, road: 0xd8d6cc, signRed: 0xd0302a, signBlink: 0xffb080, signInk: 0x101010,
+  // HUD icons (9 × 9 px): the letters of the icon maps. 'c' (Surge Yellow) is only on the battery.
+  icon: { k: 0x0a0a1a, w: 0xf2f2f2, s: 0x9098a8, r: 0xe04a30, o: 0xf08a24, y: 0xf0c040, g: 0x58c040, d: 0x2f7a2a, b: 0x4a78e0, n: 0x8a5a30, t: 0xd8c090 },
 };
 
 // ---------------------------------------------------------------------------

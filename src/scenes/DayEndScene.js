@@ -28,7 +28,7 @@ export class DayEndScene extends Phaser.Scene {
     const k = (this.k = pixelScale(width, height, 400, 250));
     this.vw = Math.floor(width / k);
     this.vh = Math.floor(height / k);
-    this.add.rectangle(0, 0, width, height, 0x060818, 0.6).setOrigin(0);
+    this.add.rectangle(0, 0, width, height, UI.veil, 0.6).setOrigin(0);
     this.ui = this.add.container(0, 0).setScale(k);
     this.g = this.add.graphics();
     this.ui.add(this.g);
@@ -123,8 +123,8 @@ export class DayEndScene extends Phaser.Scene {
     // window and the text are relative to its top.
     const top = Math.max(4, Math.floor((this.vh - H - 30) / 2));
     drawWindow(this.g, x, 0, W, H);
-    this.g.fillStyle(0x0f3a2a, 0.9).fillRect(x + 8, cardTop, W - 16, cardH);
-    this.g.fillStyle(0x7fe0b8, 1).fillRect(x + 8, cardTop, W - 16, 1);
+    this.g.fillStyle(UI.storyCard, 0.9).fillRect(x + 8, cardTop, W - 16, cardH);
+    this.g.fillStyle(UI.green, 1).fillRect(x + 8, cardTop, W - 16, 1);
     this.ui.setY(top * this.k);
     for (const d of draw) d();
 
@@ -249,7 +249,7 @@ export class DayEndScene extends Phaser.Scene {
         bike.setTexture(`gameover-bicycle-${f}`);
         // The road dashes move to the left (the bicycle goes to the right, slowly).
         const off = Math.floor(t * 14) % 16;
-        dashes.clear().fillStyle(0xd8d6cc, 1);
+        dashes.clear().fillStyle(UI.road, 1);
         for (let dx = -off; dx < pic.w; dx += 16) {
           const x0 = Math.max(0, dx), x1 = Math.min(pic.w, dx + 8);
           if (x1 > x0) dashes.fillRect(pic.x + x0, roadMid, x1 - x0, 1);
