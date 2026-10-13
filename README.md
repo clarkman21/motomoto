@@ -122,7 +122,12 @@ All 10 levels, the three modes, the story arc (smog, the yellow battery, the swa
 | Rush hours (07:00–09:00 and 17:00–19:00): extra cars and buses wake up near you, jams at the junctions and the traffic lights | Done |
 | The ending: after the level 10 milestone (the house), a THE END screen with the new house in clear air, three Ampersand motos, the family, your career numbers and the credits; then free play | Done |
 | Final pass: the help pages split onto more pages when a topic is long (no line is lost); a help page for the city and the story; phone layout (one row of touch buttons at the bottom; a phone held upright pauses the ride and asks you to turn it); version label V1.0 RC1 | Done |
-| Road works, VIP convoys, the moto shop look (a container shop) | Later (after v1.0) |
+| The Umuganda run (Umuganda mornings, all modes): a bonus mission to carry cargo or a passenger to a roadside Umuganda work site before the clock ends, with no motos allowed. Police patrol cars drive the main roads and officers stand on the corners: when they see you, they chase you. Take the back roads (murram and cobble). Caught = no fare and no bonus (and a fine on hard mode) | Done |
+| Street events: road works from level 3 (a dug-up strip, cones, a sign, two workers; the traffic slows down), VIP convoys from level 5 (a police car and black cars, fast on the main roads; pull over and stop, or a fine on hard mode), car free mornings from level 4 (07:00–10:00 on the Kacyiru boulevard: barriers, joggers, no motos) | Done |
+| Hard mode challenges: mobile speed checks (a parked patrol car with a radar, 3 each day from level 3), one-way streets (Town north and south streets: ONE WAY boards; the traffic keeps to them in all modes), no motos on Embassy road south (a round sign), overloaded cargo (some cargo offers are heavy: more pay, but over 80 kg the police chase you), no stopping at a bus stop near an officer, and the bathroom need (a WC bar; drinks fill it faster; when it is full, less power; stop at a station, a buffet or the bus park, 200 RWF). On easy and medium the street rules give only a warning | Done |
+| Garden walls around the Kimihurura villas: one compound for each villa, a painted wall with a top and a foot band, one steel gate on the road side; the walls are solid | Done |
+| Design system step 2: the player moto, the trees, the road signs, the HUD icons and the menus use only colour tokens (`PALETTE` with the light rule for the world, `UI_PALETTE` for the HUD and the menus); a test checks it | Done |
+| The moto shop look (a container shop) | Later (after v1.0) |
 
 ## Run the game
 
@@ -151,6 +156,7 @@ Type `INZIZA` in any menu (or tap the version label on the main menu 5 times on 
 | DAY EVENT | Auto, none, rain, Umuganda |
 | RUSH HOUR | Rush hour traffic on, or by the clock |
 | YELLOW BATTERY BOOST | 25 s of boost |
+| CAR FREE MORNING, VIP CONVOY NOW | Start a street event at once |
 | GO TO | The Ampersand showroom, the nearest garage, the nearest station, the Nyabugogo bus park |
 | SHOW THE ENDING | The ending screen |
 
@@ -278,6 +284,10 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `HELMET_CHECKS` | How many checks each day, how near, the time to stop and to check, the fine |
 | `CROSSINGS` | People on the zebra crossings: how often, how near, when they wait for traffic, the fine |
 | `KITES` | Brown kites: how many, how high, how wide they circle, how fast, wing beats, rain and night |
+| `ROAD_EVENTS` | Road works, VIP convoys and car free mornings: from which level, how often, the speeds and the fine |
+| `HARD_RULES` | Hard mode challenges: the fine, the speed checks, the one-way and no-moto streets, overloading, bus stops, the bathroom need |
+| `GARDEN_WALLS` | The garden walls: the districts, the height, the gate and its pillars |
+| `UI_PALETTE` | The colours of the HUD, the menus, the day end and the HUD icons |
 | `SHOPS` | Shops and street life: the share of shop buildings with a sign, how common each kind is, how many are job places, mannequins in front of a boutique |
 | `EVENTS` | Day events: the Umuganda hours, traffic share, rush fares and hails; rain fares, hails, the grey tint and the rain streaks. A level's `events` gives the chance of each event on a day |
 | `JOBS.maxOffersShown` | The HUD shows 4 job cards: the board never has more offers than this |
@@ -314,6 +324,8 @@ src/
     minimap.js           Draws the minimap (the whole map as a small diamond)
     kite-sprites.js      The brown kite (three wing frames) and its shadow
     shops.js             Shops and street life: shop kinds and names, painted signs, mannequins, shop fronts and job places
+    compounds.js         Garden walls and gates around the villas (the plan, the collisions and the art)
+    roadevent-sprites.js Cones, boards, barriers, road workers, the NO MOTOS sign
     story-sprites.js     The yellow battery pickup and the ending picture (the house, the motos, the family)
     bicycle-sprites.js   The game over pictures: a bicycle taxi (side view) and the evening hills; the jail cell
   sim/
@@ -348,6 +360,9 @@ src/
     kites.js             Brown kites that circle in the sky
     rush.js              Rush hours: which hours, the extra traffic, waking it near the bike
     story.js             The story arc: the smog at each level, the yellow battery spots and pickups
+    umuganda.js          The Umuganda run: the offer, the patrol cars, being seen on a main road
+    roadevents.js        Street events: road works, VIP convoys, car free mornings
+    hardrules.js         Hard mode challenges: speed checks, one-way and no-moto streets, overloading, the bathroom need
   audio/engine-sound.js  Engine, horn, crash, yells, jingles and menu sounds (Web Audio)
   scenes/
     MenuScene.js         Welcome menu, pause menu, How to play, Settings
