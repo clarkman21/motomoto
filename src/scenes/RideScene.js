@@ -522,7 +522,7 @@ export class RideScene extends Phaser.Scene {
   }
 
   /**
-   * Through a red light: a fine only when a red light camera (hard mode) or a police officer near the
+   * Through a red light: a fine (hard mode only) when a red light camera or a police officer near the
    * junction sees you (Alp). Otherwise only a warning.
    */
   #checkRedLights() {
@@ -538,7 +538,8 @@ export class RideScene extends Phaser.Scene {
       if (!red) continue;
       const camera = this.mode.lights === 'cameras';
       const officer = this.police.police.officers.some((o) => Math.hypot(o.x - l.x, o.y - l.y) < TRAFFIC_LIGHTS.officerRangeMetres);
-      if (camera || officer) {
+      if (!this.mode.fines) this.events.emit('bark', 'You went through a red light! Careful: in Kigali 2020 (hard) that is a fine');
+      else if (camera || officer) {
         this.#pay('fines', TRAFFIC_LIGHTS.fine, camera ? 'Red light camera' : 'Police: a red light');
         this.events.emit('bark', `${camera ? 'FLASH! A red light camera' : 'PRRRT! A police officer'} saw you go through a red light: ${TRAFFIC_LIGHTS.fine.toLocaleString('en')} RWF fine`);
         if (!camera) this.engineSound.whistle();
@@ -596,7 +597,7 @@ export class RideScene extends Phaser.Scene {
     }
   }
 
-  /** Hard mode: where the rider can eat. Positions in metres. */
+  /** Medium and hard modes: where the rider can eat. Positions in metres. */
   #foodStops() {
     const T = WORLD.tileMetres, stops = [];
     for (const p of this.world.placesWithTag('buffet')) stops.push({ food: 'buffet', name: `Buffet, ${p.name}`, x: p.x * T, y: p.y * T });
@@ -606,7 +607,7 @@ export class RideScene extends Phaser.Scene {
     return stops;
   }
 
-  /** Hard mode: the rider's energy goes down with the clock; a hungry rider has less power. */
+  /** Medium and hard modes: the rider's energy goes down with the clock; a hungry rider has less power. */
   #updateRider(dt) {
     if (!this.rider) return;
     const { start, end, realSeconds } = this.level.shift;
@@ -816,7 +817,7 @@ export class RideScene extends Phaser.Scene {
       this.fuelChoice = null;
       return;
     }
-    // Hard mode: food stops (a station of kind 'food'). A fuel or swap station near them comes first.
+    // Medium and hard modes: food stops (a station of kind 'food'). A fuel or swap station near them comes first.
     this.foodStop = null;
     for (const f of this.foodStops ?? []) {
       if (Math.hypot(b.x - f.x, b.y - f.y) < STATION_RANGE_METRES) {
@@ -844,8 +845,8 @@ export class RideScene extends Phaser.Scene {
     // Parts and upgrades from the garage, and the fuel use and wear of the mode.
     this.bike.mods = this.#bikeMods();
     if (setHazardShare(this.world, mode.hazards)) this.chunks?.reload();
-    // Hard mode: the rider must eat (sim/rider.js). Breakfast at home: each day starts with RIDER.startEnergy.
-    this.rider = mode.riderEnergy ? createRider() : null;
+    // Medium and hard modes: the rider must eat (sim/rider.js). Breakfast at home: each day starts with RIDER.startEnergy.
+    this.rider = mode.riderEnergy ? createRider(mode.riderEnergy) : null;
     this.bike.riderPower = 1;
     this.foodStops = mode.riderEnergy ? this.#foodStops() : [];
     // The map grows with the levels: only the open districts have roads, traffic, people and jobs.
@@ -1159,7 +1160,7 @@ export class RideScene extends Phaser.Scene {
           if (e.speed >= PEOPLE.hitSpeed) {
             e.hit.hurt = 3;
             this.#yell(e.hit, 'AYA!');
-            this.#pay('fines', PEOPLE.hitFine, 'Police: you hit a person');
+            if (this.mode.fines) this.#pay('fines', PEOPLE.hitFine, 'Police: you hit a person');
             this.events.emit('bark', 'You hit a person! Slow down near people');
           }
           continue;
@@ -1552,7 +1553,7 @@ export class RideScene extends Phaser.Scene {
     const movers = [b, ...this.traffic.vehicles.filter((v) => Math.abs(v.x - b.x) < 110 && Math.abs(v.y - b.y) < 110)];
     for (const e of stepCrossers(this.crossState, this.people, this.crossPaths ?? [], { bike: b, movers, mode: this.mode, districts: this.level.districts }, dt)) {
       const p = e.person;
-      const officer = this.mode.police && this.police.police.officers.some((o) => Math.hypot(o.x - p.x, o.y - p.y) < CROSSINGS.officerRangeMetres);
+      const officer = this.mode.fines && this.mode.police && this.police.police.officers.some((o) => Math.hypot(o.x - p.x, o.y - p.y) < CROSSINGS.officerRangeMetres);
       this.#yell(p, 'HEY!');
       if (officer) {
         this.engineSound.whistle();

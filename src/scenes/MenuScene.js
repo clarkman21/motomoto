@@ -55,9 +55,9 @@ const HELP = [
     title: 'Garages and modes',
     lines: [
       'Each district has a garage (orange on the minimap; the nearest one shows at the edge). Press F there: service the moto, or buy parts and upgrades. A speaker and a phone charger bring extra tips; a chain kit, brake pads and wheel bearings make the service meter fill slower. New parts come at the higher levels.',
-      'At a new game you choose your Kigali. 2010 (easy): automatic gears, no wear, no cameras and no police fines. 2015 (medium): the normal game, with traffic lights. 2020 (hard): manual gears, heavy traffic, red light cameras and helmet checks.',
-      'Hard mode: watch the FOOD bar. Eat a buffet lunch (11:00 to 16:00), ikivuguto at an Inyange Milk Zone, bananas from a market seller, or an energy drink at an MTN MoMo kiosk. A hungry rider has less power.',
-      'Traffic lights: stop on red. A red light camera or a police officer near the junction gives a 10,000 RWF fine.',
+      'At a new game you choose your Kigali. 2010 (easy): automatic gears, no wear, no fines. 2015 (medium): the normal game, with traffic lights and the FOOD bar, but no fines. 2020 (hard): manual gears, heavy traffic and all the fines: speed and red light cameras, police chases and helmet checks.',
+      'Medium and hard modes: watch the FOOD bar. Eat a buffet lunch (11:00 to 16:00), ikivuguto at an Inyange Milk Zone, bananas from a market seller, or an energy drink at an MTN MoMo kiosk. A hungry rider has less power.',
+      'Traffic lights: stop on red. On hard mode, a red light camera or a police officer near the junction gives a 10,000 RWF fine.',
     ],
   },
   {

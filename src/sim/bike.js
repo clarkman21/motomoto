@@ -146,7 +146,7 @@ export function stepBike(bike, input, world, dt) {
   // Engine. A load makes the bike heavier, so the same engine force gives less acceleration.
   const massFactor = 1 + bike.loadKg / LOAD.baseMassKg;
   let accel = slopeAccel;
-  // bike.riderPower: a hungry rider (hard mode) rides with less power (sim/rider.js).
+  // bike.riderPower: a hungry rider (medium and hard modes) rides with less power (sim/rider.js).
   // bike.boost: seconds of a yellow battery boost left (the story arc): more power, and no fuel.
   const boost = bike.boost > 0 ? STORY.boostPower : 1;
   if (throttle > 0) accel += (throttle * enginePull(spec, bike, v) * powerFactor(bike) * (bike.riderPower ?? 1) * boost) / massFactor;

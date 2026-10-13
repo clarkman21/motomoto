@@ -123,7 +123,7 @@ export function shopFronts(world) {
   return out;
 }
 
-/** Job places for some of the shops (tags: 'shop', and 'buffet' for a buffet: a food stop in hard mode). */
+/** Job places for some of the shops (tags: 'shop', and 'buffet' for a buffet: a food stop in medium and hard modes). */
 export function shopPlaces(shops) {
   return shops
     .filter((s, i) => s.stand && (s.kind === 'buffet' || i % SHOPS.placeEvery === 0))

@@ -55,7 +55,7 @@ export const ICONS = {
     'kwwk.....',
     'kkk......',
   ],
-  food: [ // a bowl with steam (rider energy, hard mode)
+  food: [ // a bowl with steam (rider energy, medium and hard modes)
     '..w..w...',
     '.w..w..w.',
     '..w..w...',

@@ -44,4 +44,12 @@ describe('rider energy (hard mode)', () => {
     expect(world.placesWithTag('buffet').length).toBeGreaterThanOrEqual(5);
     expect(world.placesWithTag('milk').length).toBeGreaterThanOrEqual(3);
   });
+
+  it('a medium mode rider (drain 0.7) gets hungry more slowly', () => {
+    const hard = createRider(1), medium = createRider(0.7);
+    expect(drainRate(medium, 10)).toBeCloseTo(drainRate(hard, 10) * 0.7);
+    stepRider(hard, 10, 4);
+    stepRider(medium, 10, 4);
+    expect(medium.energy).toBeGreaterThan(hard.energy);
+  });
 });

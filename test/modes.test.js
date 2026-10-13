@@ -21,7 +21,20 @@ describe('difficulty modes', () => {
     expect(hard.traffic).toBeGreaterThan(medium.traffic);
     expect(easy.cameras || easy.police).toBe(false);
     expect(hard.riderEnergy && hard.helmetChecks).toBe(true);
-    expect(medium.riderEnergy).toBe(false);
+    expect(easy.riderEnergy).toBe(false);
+    // Medium (Alp): the rider must eat, but more slowly than on hard.
+    expect(medium.riderEnergy).toBeGreaterThan(0);
+    expect(medium.riderEnergy).toBeLessThan(hard.riderEnergy);
+  });
+
+  it('all the fines are only on hard (Alp)', () => {
+    const { easy, medium, hard } = MODES;
+    for (const m of [easy, medium]) {
+      expect(m.fines).toBe(false);
+      expect(m.cameras || m.police || m.helmetChecks).toBe(false);
+      expect(m.lights).not.toBe('cameras');
+    }
+    expect(hard.fines && hard.cameras && hard.police && hard.helmetChecks).toBe(true);
   });
 
   it('easy forces automatic gears, hard forces manual, medium keeps your choice', () => {

@@ -1,15 +1,16 @@
 import { RIDER } from '../config.js';
 
-// Rider energy (hard mode): the rider must eat. No Phaser here.
-// rider = { energy (0..1), slowUntil, crashUntil (game hours), hungryWarned, weakWarned }.
+// Rider energy (medium and hard modes): the rider must eat. No Phaser here.
+// rider = { energy (0..1), drain (the mode factor), slowUntil, crashUntil (game hours), hungryWarned, weakWarned }.
 
-export function createRider() {
-  return { energy: RIDER.startEnergy, slowUntil: -1, crashUntil: -1, hungryWarned: false, weakWarned: false };
+/** drain: how fast the rider gets hungry in this mode (1 = the RIDER values; medium is slower). */
+export function createRider(drain = 1) {
+  return { energy: RIDER.startEnergy, drain, slowUntil: -1, crashUntil: -1, hungryWarned: false, weakWarned: false };
 }
 
 /** How fast energy goes down now (per game hour): ikivuguto slows it, an energy drink wears off. */
 export function drainRate(rider, hour, pushing = false) {
-  let r = RIDER.drainPerHour * (pushing ? RIDER.pushDrainFactor : 1);
+  let r = RIDER.drainPerHour * (rider.drain ?? 1) * (pushing ? RIDER.pushDrainFactor : 1);
   if (hour < rider.slowUntil) r *= RIDER.foods.ikivuguto.slowFactor;
   if (hour < rider.crashUntil) r *= RIDER.foods.drink.crashFactor;
   return r;

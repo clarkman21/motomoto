@@ -60,7 +60,7 @@ export class HudScene extends Phaser.Scene {
     this.useText = label(UI.dim);
     this.serviceIcon = icon('spanner');
     this.serviceText = label();
-    this.foodIcon = icon('food'); // rider energy (hard mode only)
+    this.foodIcon = icon('food'); // rider energy (medium and hard modes)
     this.foodText = label();
     this.groundIcon = icon('mountain');
     this.groundText = label();
@@ -139,7 +139,7 @@ export class HudScene extends Phaser.Scene {
     const g = this.bg.clear();
 
     // Left window.
-    // Hard mode adds a row for the rider's energy (FOOD) under the service bar.
+    // Medium and hard modes add a row for the rider's energy (FOOD) under the service bar.
     const food = (this.hasRider = !!this.ride?.rider);
     const extra = food ? 11 : 0;
     const L = (this.left = { x: 4, y: 4, w: PANEL_W, h: 82 + extra });
@@ -246,7 +246,7 @@ export class HudScene extends Phaser.Scene {
     drawSegBar(g, sb.x, sb.y, sb.w, sb.h, Math.min(1, due), blink ? 0xffffff : late ? UI.red : due >= 0.8 ? UI.orange : 0xe8e8f8, 12);
     this.serviceText.setText(bike.brokenDown ? 'OUT' : `${Math.round(due * 100)}%`).setTint(late || bike.brokenDown ? UI.red : due >= 0.8 ? UI.orange : UI.white);
 
-    // Hard mode: the rider's energy. Green, orange when hungry, red and blinking when weak.
+    // Medium and hard modes: the rider's energy. Green, orange when hungry, red and blinking when weak.
     if (!!ride.rider !== this.hasRider) this.#layout();
     if (ride.rider) {
       const e = ride.rider.energy, fb = this.foodBar;
