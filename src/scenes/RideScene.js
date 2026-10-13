@@ -1102,10 +1102,11 @@ export class RideScene extends Phaser.Scene {
       ['FILL UP: FUEL, SERVICE, FOOD', 'fill'],
       ['CLOCK +1 HOUR', 'hour'],
       ['END THE SHIFT NOW', 'endShift'],
+      [`MOTO: ${this.bike.type === 'electric' ? 'ELECTRIC (SWAP)' : 'PETROL (FUEL)'}`, 'bike'],
       [`MODE: ${mode.short}`, 'mode'],
       [`DAY EVENT: ${ev}`, 'event'],
       [`RUSH HOUR: ${this.cheatRush ? 'ON' : 'AUTO'}`, 'rush'],
-      ['YELLOW BATTERY BOOST', 'boost'],
+      ['YELLOW BATTERY: 25 S BOOST', 'boost'],
       [`CAR FREE MORNING: ${this.carFree?.day ? 'ON' : 'OFF'}`, 'carFree'],
       ['VIP CONVOY NOW', 'convoy'],
       ['GO TO: AMPERSAND SHOWROOM', 'goOffice'],
@@ -1159,6 +1160,13 @@ export class RideScene extends Phaser.Scene {
       case 'endShift':
         this.dayTime = this.level.shift.realSeconds;
         return { text: 'THE SHIFT ENDS', close: 'resume' };
+      case 'bike': {
+        // Petrol or electric: the electric moto is yours (no bike rent, swap stations), as after the level 4 milestone.
+        w.perks.electric = !w.perks.electric;
+        this.#cheatBike();
+        this.#cheatRefresh();
+        return { text: this.bike.type === 'electric' ? 'ELECTRIC MOTO: FULL BATTERY, USE THE SWAP STATIONS' : 'PETROL MOTO: FULL TANK, USE THE FUEL STATIONS' };
+      }
       case 'mode': {
         const ids = Object.keys(MODES);
         w.mode = ids[(ids.indexOf(this.mode.id) + 1) % ids.length];
@@ -1202,16 +1210,19 @@ export class RideScene extends Phaser.Scene {
     }
   }
 
+  /** Cheat: a new bike at the same place when the bike type of the wallet is not the type you ride. */
+  #cheatBike() {
+    const type = levelSettings(this.wallet).bikeType;
+    if (type === this.bike.type) return;
+    const { x, y, heading, autoShift } = this.bike;
+    this.bike = createBike(this.world, type);
+    Object.assign(this.bike, { x, y, heading, autoShift, z: this.world.heightAt(x, y), energy: 1 });
+  }
+
   /** Cheat: go to level n now. A new bike when the type changes; back to the start if your district closes. */
   #cheatLevel(n) {
-    const before = this.level.bikeType;
     setLevel(this.wallet, n);
-    const type = levelSettings(this.wallet).bikeType;
-    if (type !== before) {
-      const { x, y, heading, autoShift } = this.bike;
-      this.bike = createBike(this.world, type);
-      Object.assign(this.bike, { x, y, heading, autoShift, z: this.world.heightAt(x, y) });
-    }
+    this.#cheatBike();
     this.#cheatRefresh();
     const T = WORLD.tileMetres;
     if (!this.level.districts.includes(this.world.districtAt(Math.floor(this.bike.x / T), Math.floor(this.bike.y / T)))) {

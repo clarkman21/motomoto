@@ -155,7 +155,8 @@ Main menu → SETTINGS → CHEATS: ON. Then, in a ride, pause (Esc, or the pause
 | MODE | Easy, medium, hard (the level is built again) |
 | DAY EVENT | Auto, none, rain, Umuganda |
 | RUSH HOUR | Rush hour traffic on, or by the clock |
-| YELLOW BATTERY BOOST | 25 s of boost |
+| MOTO: PETROL / ELECTRIC | Change to the other moto at once, with a full tank or battery. Electric = the moto is yours (no bike rent, swap stations), as after the level 4 milestone |
+| YELLOW BATTERY: 25 S BOOST | 25 s of extra power on the moto you ride (not the electric moto) |
 | CAR FREE MORNING, VIP CONVOY NOW | Start a street event at once |
 | GO TO | The Ampersand showroom, the nearest garage, the nearest station, the Nyabugogo bus park |
 | SHOW THE ENDING | The ending screen |
