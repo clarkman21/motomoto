@@ -2,6 +2,7 @@ import { TRAFFIC, WORLD, BUS_PARK, HAZARDS } from '../config.js';
 import { lanePoint, LANE_OFFSET, roadLane, shortestPath } from './roads.js';
 import { speedLimitAt } from './law.js';
 import { lightLimit } from './lights.js';
+import { slowZoneLimit } from './roadevents.js';
 
 // Traffic: cars, minibuses, trucks and other motos that drive on the road network.
 // No Phaser here. Each vehicle drives along an edge (s = metres from its start) in the right
@@ -18,45 +19,59 @@ const cornerFor = (a, b) => Math.min(CORNER, a.length / 2 - 0.05, b.length / 2 -
 
 /** counts: how many of each kind (default: TRAFFIC.counts). */
 export function createTraffic(world, graph, rng, counts = TRAFFIC.counts) {
-  const vehicles = [];
-  let id = 1;
+  const traffic = { graph, vehicles: [], rng, nodeClaims: new Map(), time: 0, nextId: 1, slowZones: [], closed: null };
   const roadEdges = graph.edges.filter((e) => e.length > 12);
   for (const [kind, count] of Object.entries(counts)) {
     for (let i = 0; i < count; i++) {
       const spec = TRAFFIC.kinds[kind];
       const pool = spec.mainRoads ? roadEdges.filter((e) => e.road?.surface !== 'm') : roadEdges;
       const edge = (pool.length ? pool : roadEdges)[Math.floor(rng() * (pool.length || roadEdges.length))];
-      const v = {
-        id: id++,
-        kind,
-        variant: Math.floor(rng() * spec.variants),
-        edge,
-        prev: null,
-        next: null,
-        s: CORNER + rng() * Math.max(0, edge.length - 2 * CORNER),
-        speed: 0,
-        length: spec.length,
-        width: spec.width,
-        laneExtra: (spec.laneOffset ?? LANE_OFFSET) - LANE_OFFSET, // cyclists keep further to the edge
-        maxSpeed: spec.maxKmh * KMH * (0.9 + rng() * 0.2),
-        x: 0, y: 0, heading: 0,
-        stopTimer: 0,
-        lastStop: null,
-        route: [],
-        puff: rng(),
-      };
-      v.next = chooseNext(v, edge.to, rng);
-      place(v);
-      vehicles.push(v);
+      traffic.vehicles.push(addVehicle(traffic, kind, edge, CORNER + rng() * Math.max(0, edge.length - 2 * CORNER)));
     }
   }
-  return { graph, vehicles, rng, nodeClaims: new Map(), time: 0 };
+  return traffic;
+}
+
+/**
+ * A new vehicle of a kind on an edge, s metres along it, with a planned route (a list of edges) or
+ * none (it drives at random). The caller adds it to traffic.vehicles.
+ */
+export function addVehicle(traffic, kind, edge, s, route = []) {
+  const rng = traffic.rng;
+  const spec = TRAFFIC.kinds[kind];
+  const v = {
+    id: traffic.nextId++,
+    kind,
+    variant: Math.floor(rng() * spec.variants),
+    edge,
+    prev: null,
+    next: null,
+    s,
+    speed: 0,
+    length: spec.length,
+    width: spec.width,
+    laneExtra: (spec.laneOffset ?? LANE_OFFSET) - LANE_OFFSET, // cyclists keep further to the edge
+    maxSpeed: spec.maxKmh * KMH * (0.9 + rng() * 0.2),
+    x: 0, y: 0, heading: 0,
+    stopTimer: 0,
+    lastStop: null,
+    route,
+    puff: rng(),
+  };
+  v.next = chooseNext(v, edge.to, rng, traffic.closed);
+  place(v);
+  return v;
 }
 
 /** The next edge from a node: follow the route if there is one, else a random way on (no U-turn unless a dead end). */
-function chooseNext(v, node, rng) {
+function chooseNext(v, node, rng, closed = null) {
   if (v.route.length) return v.route.shift();
   let ways = node.out.filter((e) => e !== v.edge.reverse);
+  // Closed roads (a car free morning): drive round them when there is another way.
+  if (closed?.size) {
+    const open = ways.filter((e) => !closed.has(e.road));
+    if (open.length) ways = open;
+  }
   // Police patrol cars keep to the main roads (no murram back roads): at the end of a main road they turn back.
   if (TRAFFIC.kinds[v.kind]?.mainRoads) {
     const main = ways.filter((e) => e.road?.surface !== 'm');
@@ -191,6 +206,8 @@ export function stepTraffic(traffic, world, obstacles, dt) {
     const toEnd = v.edge.length - v.s;
     const turning = v.next && v.edge.dx * v.next.dx + v.edge.dy * v.next.dy < 0.5;
     if (turning && toEnd < 10) target = Math.min(target, TRAFFIC.turnKmh * KMH);
+    // Road works (sim/roadevents.js): slow past the cones and the workers.
+    if (traffic.slowZones?.length) target = Math.min(target, slowZoneLimit(traffic.slowZones, v.x, v.y));
     // Speed bumps and potholes: slow down before them, as the bike must.
     const hazard = hazardAhead(world, v, TRAFFIC.hazardLookMetres);
     if (hazard) target = Math.min(target, safeSpeed(hazard.type) + Math.max(0, hazard.dist - 2) * 1.2);
@@ -269,7 +286,7 @@ export function stepTraffic(traffic, world, obstacles, dt) {
       v.waited = 0;
       v.prev = v.edge;
       v.edge = v.next;
-      v.next = chooseNext(v, v.edge.to, rng);
+      v.next = chooseNext(v, v.edge.to, rng, traffic.closed);
     }
     if (v.claimed !== undefined && v.s > CORNER) {
       if (nodeClaims.get(v.claimed)?.id === v.id) nodeClaims.delete(v.claimed);

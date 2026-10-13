@@ -19,6 +19,8 @@ export const VEHICLE_VARIANTS = {
   bus: [{ rack: false }, { rack: true }],
   // A police patrol car: white, a blue stripe, a light bar (two frames: the red and the blue lamp swap).
   police: [{ flash: 0 }, { flash: 1 }],
+  // A VIP convoy car: a big black car with dark glass.
+  vip: [{}],
   truck: [
     // Taglines from Alp; the first one that fits is painted (long ones on the side boards).
     { cab: C.carRed, load: 'sacks', slogan: ['GOD IS WIN', 'GOD IS KING', 'IMANA'] },
@@ -171,6 +173,11 @@ const BUILD = {
       { f0: -0.35, f1: 0.05, s0: -0.6, s1: 0, z0: 1.4, z1: 1.55, top: a, side: a },
       { f0: -0.35, f1: 0.05, s0: 0, s1: 0.6, z0: 1.4, z1: 1.55, top: b, side: b },
     );
+    return car;
+  },
+  vip: () => {
+    const car = BUILD.car(C.charcoal);
+    for (const p of car.parts) { p.f0 *= 1.12; p.f1 *= 1.12; } // a little longer than a car
     return car;
   },
   bus: (v) => {

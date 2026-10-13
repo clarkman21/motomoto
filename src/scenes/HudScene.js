@@ -315,7 +315,9 @@ export class HudScene extends Phaser.Scene {
     const short = (j) => j.fuel !== undefined && j.fuel > bike.energy;
     let y = box.y + 15;
     // The day event: one line under the title.
-    const ev = eventLine(ride.dayEvent, ride.clockHours) ?? (ride.rushNow ? { text: 'RUSH HOUR · HEAVY TRAFFIC', tone: 'warn' } : null);
+    const ev = eventLine(ride.dayEvent, ride.clockHours)
+      ?? (ride.carFree?.active ? { text: 'CAR FREE DAY · BOULEVARD CLOSED', tone: 'info' } : null)
+      ?? (ride.rushNow ? { text: 'RUSH HOUR · HEAVY TRAFFIC', tone: 'warn' } : null);
     this.eventText.setVisible(!!ev);
     if (ev) {
       this.eventText.setText(ev.text).setTint(ev.tone === 'warn' ? UI.orange : ev.tone === 'good' ? UI.green : UI.dim).setPosition(box.x + 6, y);

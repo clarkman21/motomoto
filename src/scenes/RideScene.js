@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS, FLEET, RIDER, TRAFFIC_LIGHTS, HELMET_CHECKS, CROSSINGS, STORY, MODES, RUSH } from '../config.js';
+import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS, FLEET, RIDER, TRAFFIC_LIGHTS, HELMET_CHECKS, CROSSINGS, STORY, MODES, RUSH, ROAD_EVENTS } from '../config.js';
 import { World } from '../world/world.js';
 import { buildKigaliMap } from '../world/maps/kigali.js';
 import { ChunkStreamer, groupKey } from './chunks.js';
@@ -18,10 +18,10 @@ import { garageQuote, serviceDue } from '../sim/maintenance.js';
 import { createJobBoard, updateBoard, acceptOffer, cancelJob, updateJob, jobTarget, acceptHail, tripMetres, passengerWaits, loseJobWhenEmpty } from '../sim/jobs.js';
 import { createCameraState, checkCameras, speedLimitAt } from '../sim/law.js';
 import { buildRoadGraph, openRoads } from '../sim/roads.js';
-import { createTraffic, stepTraffic, insideVehicle, sendBusToPark } from '../sim/traffic.js';
+import { createTraffic, stepTraffic, addVehicle, insideVehicle, sendBusToPark } from '../sim/traffic.js';
 import { mulberry32 } from '../sim/jobs.js';
 import { TrafficView, isDiesel } from './TrafficView.js';
-import { createPeople, stepPeople, hailInReach, insidePerson, busArrivalHails, honkAt } from '../sim/people.js';
+import { createPeople, stepPeople, hailInReach, insidePerson, busArrivalHails, honkAt, newPerson } from '../sim/people.js';
 import { startRace, chaseHail, stepRivals, cancelMission } from '../sim/rivals.js';
 import { PeopleView } from './PeopleView.js';
 import { PERSON_LOOKS } from '../world/vehicle-sprites.js';
@@ -48,6 +48,8 @@ import { pickLightJunctions, attachLights, redLightCheck } from '../sim/lights.j
 import { TrafficLightView } from './TrafficLightView.js';
 import { shopFronts, shopPlaces } from '../world/shops.js';
 import { umugandaOffer, onMainRoad, stepPatrols, patrolCount } from '../sim/umuganda.js';
+import { pickRoadWorks, planConvoy, convoyVehicles, convoyCheck, isCarFreeDay, carFreeNow, carFreeRoads } from '../sim/roadevents.js';
+import { RoadEventsView } from './RoadEventsView.js';
 import { crossingPaths, stepCrossers } from '../sim/crossers.js';
 import { KiteView } from './KiteView.js';
 import { SmogView } from './SmogView.js';
@@ -141,6 +143,7 @@ export class RideScene extends Phaser.Scene {
     this.rainView = new RainView(this); // rain streaks on a rainy day
     this.smogView = new SmogView(this); // the petrol smog over the city: thinner at each level (story arc)
     this.batteryView = new BatteryView(this); // yellow battery pickups (story arc, levels 3 and 4)
+    this.roadEventsView = new RoadEventsView(this, this.world); // road works and the car free morning
     // These stay bright at night: they are not tinted.
     for (const obj of [this.ghost, this.glow, this.markerRing, this.markerPin, this.arrow]) obj.noAmbient = true;
 
@@ -908,6 +911,15 @@ export class RideScene extends Phaser.Scene {
     attachFleet(this.traffic, this.fleetPlan, mulberry32(this.wallet.day * 53 + 1));
     markRush(this.traffic, rush);
     if (this.dayEvent === 'umuganda') parkTraffic(this.traffic, EVENTS.umuganda.trafficShare, mulberry32(this.wallet.day * 31 + 5));
+    // Street events (sim/roadevents.js): road works, a VIP convoy, a car free morning.
+    const districtAt = (x, y) => this.world.districtAt(Math.floor(x / T), Math.floor(y / T));
+    const works = pickRoadWorks(this.roadGraph, districtAt, L.districts, this.wallet.day, L.n);
+    this.traffic.slowZones = works.map((w) => w.zone);
+    this.roadEventsView.setWorks(works);
+    this.convoy = { plan: planConvoy(this.roadGraph, districtAt, L.districts, this.wallet.day, L.n, L.shift), started: false, warned: false, fined: false };
+    const roads = carFreeRoads(this.world.roads).filter((r) => L.districts.includes(districtAt(((r.x0 ?? r.x) + 1) * T, ((r.y ?? r.y0) + 1) * T)));
+    this.carFree = { day: (this.cheatCarFree ?? isCarFreeDay(this.wallet.day, L.n, dayEvent)) && roads.length > 0, roads, active: false, warned: false };
+    this.roadEventsView.setCarFree(roads, false);
     this.trafficView = new TrafficView(this, this.traffic);
     this.lights.setTraffic(this.traffic);
     this.people = createPeople(this.world, this.rng, { hailEvery: L.hailEvery, districts: L.districts, walkers: PEOPLE.walkersPerDistrict * L.districts.length });
@@ -1042,6 +1054,7 @@ export class RideScene extends Phaser.Scene {
     if (choice === 'newGame') {
       this.cheatEvent = undefined;
       this.cheatRush = false;
+      this.cheatCarFree = undefined;
       clearSave();
       this.wallet = createWallet();
       this.wallet.mode = this.newMode ?? this.wallet.mode;
@@ -1093,6 +1106,8 @@ export class RideScene extends Phaser.Scene {
       [`DAY EVENT: ${ev}`, 'event'],
       [`RUSH HOUR: ${this.cheatRush ? 'ON' : 'AUTO'}`, 'rush'],
       ['YELLOW BATTERY BOOST', 'boost'],
+      [`CAR FREE MORNING: ${this.carFree?.day ? 'ON' : 'OFF'}`, 'carFree'],
+      ['VIP CONVOY NOW', 'convoy'],
       ['GO TO: AMPERSAND SHOWROOM', 'goOffice'],
       ['GO TO: NEAREST GARAGE', 'goGarage'],
       [`GO TO: NEAREST ${this.bike.type === 'electric' ? 'SWAP' : 'FUEL'} STATION`, 'goStation'],
@@ -1159,6 +1174,19 @@ export class RideScene extends Phaser.Scene {
       case 'rush':
         this.cheatRush = !this.cheatRush;
         return { text: this.cheatRush ? 'RUSH HOUR TRAFFIC ON (NOT IN EASY MODE)' : 'RUSH HOURS BY THE CLOCK' };
+      case 'carFree':
+        this.cheatCarFree = !this.carFree?.day;
+        this.#cheatRefresh();
+        return { text: this.carFree.day ? `CAR FREE ${ROAD_EVENTS.carFree.fromHour}:00-${ROAD_EVENTS.carFree.toHour}:00 (KACYIRU OPEN?)` : 'NO CAR FREE MORNING' };
+      case 'convoy': {
+        const T = WORLD.tileMetres;
+        const plan = planConvoy(this.roadGraph, (x, y) => this.world.districtAt(Math.floor(x / T), Math.floor(y / T)), this.level.districts, this.wallet.day + Math.floor(this.rng() * 1000), this.level.n, this.level.shift, true);
+        if (!plan) return { text: 'NO ROUTE FOR A CONVOY HERE' };
+        this.convoy = { plan: { ...plan, hour: 0 }, started: false, warned: false, fined: false };
+        const start = plan.route[0];
+        this.teleport((start.from.x + start.dx * 30 - start.dy * 9) / T, (start.from.y + start.dy * 30 + start.dx * 9) / T, 0);
+        return { text: 'THE CONVOY COMES: PULL OVER AND STOP', close: 'resume' };
+      }
       case 'boost':
         b.boost = STORY.boostSeconds;
         return { text: `${STORY.boostSeconds} S OF ELECTRIC BOOST`, close: 'resume' };
@@ -1350,6 +1378,7 @@ export class RideScene extends Phaser.Scene {
     this.attendant.update(this, dt, this.time.now);
     this.#updatePolice(dt);
     this.#updateUmuganda(dt);
+    this.#updateStreetEvents(dt);
     this.daylight = daylight(this.clockHours);
     if (this.world.rain) this.daylight.tint = rainTint(this.daylight.tint); // grey light on a rainy day
     this.chunks.night = this.daylight.night;
@@ -1618,7 +1647,9 @@ export class RideScene extends Phaser.Scene {
     // The Umuganda run: with the passenger or the tools on the bike, an officer chases a moto on a
     // main road, in every mode (the murram back roads are safe).
     if (this.#umugandaCarrying() && kmh > POLICE.ridingKmh && !b.crashed && onMainRoad(this.world, b.x, b.y)) illegal = 'umuganda';
-    const where = { pavement: 'on the pavement', offRoad: 'off the road', umuganda: 'a moto during Umuganda' };
+    // A car free morning: no motos on the closed road (hard mode: the officers chase you).
+    if (!illegal && kmh > POLICE.ridingKmh && !b.crashed && this.#onCarFreeRoad()) illegal = 'carFree';
+    const where = { pavement: 'on the pavement', offRoad: 'off the road', umuganda: 'a moto during Umuganda', carFree: 'on a car free road' };
     // Kigali 2010 (easy): the officers only stand on the corners (no whistle, no chase, no fines).
     if (!this.mode.police && illegal !== 'umuganda') illegal = null;
     const seen = this.mode.police ? kmh : 0;
@@ -1640,6 +1671,98 @@ export class RideScene extends Phaser.Scene {
         this.events.emit('bark', `Caught! The police fine you ${POLICE.fine.toLocaleString('en')} RWF for riding ${where[e.reason]}`);
       } else if (e.type === 'escaped') {
         this.events.emit('bark', 'You got away from the police. Phew!');
+      }
+    }
+  }
+
+  /** The bike is on a road that is closed now (a car free morning). */
+  #onCarFreeRoad() {
+    if (!this.carFree?.active) return false;
+    const T = WORLD.tileMetres, tx = Math.floor(this.bike.x / T), ty = Math.floor(this.bike.y / T);
+    return this.carFree.roads.some((r) => {
+      const w = (r.width ?? 2) - 1;
+      return r.y !== undefined ? tx >= r.x0 && tx <= r.x1 && ty >= r.y && ty <= r.y + w : ty >= r.y0 && ty <= r.y1 && tx >= r.x && tx <= r.x + w;
+    });
+  }
+
+  /**
+   * Street events each frame (sim/roadevents.js): the car free morning opens and closes, and the VIP
+   * convoy starts at its hour, drives its route and leaves. (The road works only slow the traffic.)
+   */
+  #updateStreetEvents(dt) {
+    const b = this.bike, kmh = Math.abs(forwardSpeed(b)) * 3.6;
+    this.roadEventsView.update(this.time.now);
+    // The car free morning.
+    const cf = this.carFree;
+    if (cf?.day) {
+      const on = carFreeNow(this.clockHours);
+      if (on !== cf.active) {
+        cf.active = on;
+        this.traffic.closed = on ? new Set(cf.roads) : null;
+        this.roadEventsView.setCarFree(cf.roads, on);
+        if (on) {
+          // The cars on the closed road leave it; people jog and cycle on it.
+          const closed = new Set(cf.roads);
+          this.traffic.dormant = this.traffic.dormant ?? [];
+          this.traffic.vehicles = this.traffic.vehicles.filter((v) => (closed.has(v.edge.road) ? (this.traffic.dormant.push(v), false) : true));
+          this.#carFreeJoggers();
+          this.events.emit('bark', `Car Free Day! ${cf.roads.map((r) => r.name).join(', ')} is closed to motos and cars until ${ROAD_EVENTS.carFree.toHour}:00. People run and cycle there`);
+        } else {
+          this.people.walkers = this.people.walkers.filter((p) => !p.jogger || Math.hypot(p.x - b.x, p.y - b.y) < 60);
+          this.events.emit('bark', 'The car free morning is over: the boulevard is open again');
+        }
+      }
+      if (on && this.#onCarFreeRoad() && kmh > POLICE.ridingKmh) {
+        if (!cf.warned && !this.mode.police) this.events.emit('bark', 'Car Free Day: no motos on this road until 10:00! On hard mode that is a fine');
+        cf.warned = true;
+      } else if (!this.#onCarFreeRoad()) cf.warned = false;
+    }
+    // The VIP convoy.
+    const c = this.convoy;
+    if (c?.plan && !c.started && this.clockHours >= c.plan.hour) {
+      c.started = true;
+      const cars = convoyVehicles(c.plan, (kind, edge, s, route) => addVehicle(this.traffic, kind, edge, s, route));
+      this.traffic.vehicles.push(...cars);
+      c.cars = cars;
+    }
+    if (c?.cars?.length) {
+      const flash = Math.floor(this.time.now / 220) % 2;
+      for (const v of c.cars) if (v.kind === 'police') v.variant = flash;
+      const { near, violation } = convoyCheck(c.cars, b, kmh);
+      if (near && !c.warned) {
+        c.warned = true;
+        this.engineSound.whistle();
+        this.#bubble(c.cars[0].x, c.cars[0].y, 34, 'WEE-OO!', 0xffffff);
+        this.events.emit('bark', 'VIP convoy! Pull over to the side of the road and stop until it passes');
+      }
+      if (violation && !c.fined) {
+        c.fined = true;
+        if (this.mode.fines) {
+          this.#pay('fines', ROAD_EVENTS.vip.fine, 'Police: did not pull over for a VIP convoy');
+          this.events.emit('bark', `You did not stop for the VIP convoy: ${ROAD_EVENTS.vip.fine.toLocaleString('en')} RWF fine`);
+        } else this.events.emit('bark', 'Stop for a VIP convoy! On hard mode that is a fine');
+      }
+      // At the end of its route, the convoy leaves (when you cannot see it).
+      const done = c.cars.filter((v) => !v.route.length && Math.hypot(v.x - b.x, v.y - b.y) > 70);
+      for (const v of done) {
+        this.trafficView.remove(v);
+        this.traffic.vehicles = this.traffic.vehicles.filter((w) => w !== v);
+      }
+      c.cars = c.cars.filter((v) => !done.includes(v));
+    }
+  }
+
+  /** People jog and cycle on the closed road (a car free morning). */
+  #carFreeJoggers() {
+    const T = WORLD.tileMetres;
+    for (const r of this.carFree.roads) {
+      for (let i = 0; i < ROAD_EVENTS.carFree.joggers; i++) {
+        const k = this.rng(), side = 1 + Math.floor(this.rng() * ((r.width ?? 2) - 1));
+        const a = r.y !== undefined ? { x: (r.x0 + k * (r.x1 - r.x0)) * T, y: (r.y + side) * T } : { x: (r.x + side) * T, y: (r.y0 + k * (r.y1 - r.y0)) * T };
+        const to = r.y !== undefined ? { x: (this.rng() < 0.5 ? r.x0 : r.x1) * T, y: a.y } : { x: a.x, y: (this.rng() < 0.5 ? r.y0 : r.y1) * T };
+        const p = newPerson(this.people, a.x, a.y);
+        Object.assign(p, { tx: to.x, ty: to.y, speed: p.speed * 2, jogger: true });
+        this.people.walkers.push(p);
       }
     }
   }

@@ -13,15 +13,30 @@ export class TrafficView {
     this.#buildAtlas();
     this.sprites = new Map();
     // Dormant vehicles (off the road on an Umuganda morning) get sprites too, hidden until they come back.
-    for (const v of [...traffic.vehicles, ...(traffic.dormant ?? [])]) {
-      const shadow = scene.add.image(0, 0, 'shadow').setAlpha(0.9).setVisible(false);
-      const moto = v.kind === 'moto' || v.kind === 'fleet' || v.kind === 'cyclist'; // two wheels: the bike canvas
-      const c = moto ? BIKE_CANVAS : VEHICLE_CANVAS;
-      const img = scene.add.image(0, 0, 'vehicles', this.#frame(v)).setOrigin(c.groundX / c.width, c.groundY / c.height).setVisible(false);
-      // Shadow size from the vehicle size (the shadow texture is 24 × 12 px).
-      shadow.setScale(moto ? (v.kind === 'cyclist' ? 0.7 : 0.9) : v.length / 3.2, moto ? 0.8 : v.width / 1.5);
-      this.sprites.set(v.id, { img, shadow });
-    }
+    for (const v of [...traffic.vehicles, ...(traffic.dormant ?? [])]) this.#make(v);
+  }
+
+  /** The sprite and the shadow of a vehicle (also for a vehicle that comes later, for example a VIP convoy). */
+  #make(v) {
+    const scene = this.scene;
+    const shadow = scene.add.image(0, 0, 'shadow').setAlpha(0.9).setVisible(false);
+    const moto = v.kind === 'moto' || v.kind === 'fleet' || v.kind === 'cyclist'; // two wheels: the bike canvas
+    const c = moto ? BIKE_CANVAS : VEHICLE_CANVAS;
+    const img = scene.add.image(0, 0, 'vehicles', this.#frame(v)).setOrigin(c.groundX / c.width, c.groundY / c.height).setVisible(false);
+    // Shadow size from the vehicle size (the shadow texture is 24 × 12 px).
+    shadow.setScale(moto ? (v.kind === 'cyclist' ? 0.7 : 0.9) : v.length / 3.2, moto ? 0.8 : v.width / 1.5);
+    const sprite = { img, shadow };
+    this.sprites.set(v.id, sprite);
+    return sprite;
+  }
+
+  /** A vehicle leaves the game (the end of a VIP convoy). */
+  remove(v) {
+    const sp = this.sprites.get(v.id);
+    if (!sp) return;
+    sp.img.destroy();
+    sp.shadow.destroy();
+    this.sprites.delete(v.id);
   }
 
   #frame(v) {
@@ -34,7 +49,7 @@ export class TrafficView {
   #buildAtlas() {
     if (this.scene.textures.exists('vehicles')) return;
     const frames = [];
-    for (const kind of ['car', 'bus', 'truck', 'police']) {
+    for (const kind of ['car', 'bus', 'truck', 'police', 'vip']) {
       for (let variant = 0; variant < VEHICLE_VARIANTS[kind].length; variant++) {
         for (let f = 0; f < BIKE_DIRECTIONS; f++) frames.push({ name: `${kind}-${variant}-${f}`, canvas: drawVehicle(kind, variant, f) });
       }
@@ -67,7 +82,7 @@ export class TrafficView {
   update(world, view) {
     const m = 80;
     for (const v of this.traffic.vehicles) {
-      const { img, shadow } = this.sprites.get(v.id);
+      const { img, shadow } = this.sprites.get(v.id) ?? this.#make(v);
       const s = toScreen(v.x, v.y, world.heightAt(v.x, v.y));
       const visible = s.x > view.x - m && s.x < view.right + m && s.y > view.y - m && s.y < view.bottom + m;
       img.setVisible(visible);

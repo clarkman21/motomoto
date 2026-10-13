@@ -423,6 +423,8 @@ export const TRAFFIC = {
     cyclist: { length: 1.8, width: 0.6, maxKmh: 16, accel: 0.8, brake: 4, limitFactor: 1, hillSlowdown: 4, minHillFactor: 0.3, exhaust: 0, variants: 3, laneOffset: 3.6 },
     // Police patrol cars (the Umuganda mission): they drive only on the main roads (mainRoads), not on murram.
     police: { length: 4.3, width: 1.8, maxKmh: 40, accel: 2.5, brake: 6, limitFactor: 1.0, hillSlowdown: 1.0, minHillFactor: 0.5, exhaust: 0.4, variants: 2, mainRoads: true },
+    // VIP convoy cars: big black cars; they follow a planned route on the main roads.
+    vip: { length: 4.8, width: 1.9, maxKmh: 60, accel: 3.0, brake: 7, limitFactor: 1.2, hillSlowdown: 0.6, minHillFactor: 0.6, exhaust: 0.3, variants: 1, mainRoads: true },
   },
   turnKmh: 18,
   busStopSeconds: 5,
@@ -582,6 +584,17 @@ export const LEVELS = [
 
 // Daily app quests and side missions (on the phone, from level 3: after the smartphone milestone).
 // Rewards grow with the level. All guesses, to tune in play.
+// Street events (spec "More traffic in later levels"): road works, VIP convoys, car free mornings.
+export const ROAD_EVENTS = {
+  // Road works: a dug-up strip at the edge of a main road, cones, a sign and two workers. Traffic slows.
+  works: { fromLevel: 3, chancePerDistrict: 0.6, minEdgeMetres: 40, lengthMetres: 12, offset: 3.3, kmh: 18, radiusExtra: 6 },
+  // A VIP convoy: a police car in front of black cars, fast, on the main roads. Pull over and stop.
+  vip: { fromLevel: 5, chance: 0.5, cars: 3, gapMetres: 9, kmh: 55, minMetres: 500, seeMetres: 60, pullOverMetres: 14, stopKmh: 8, fine: 10000 },
+  // Car free morning (like Kigali Car Free Day): the Kacyiru boulevard is closed to motor traffic,
+  // people jog and cycle on it. No motos: on hard mode an officer chases you (a fine); else a warning.
+  carFree: { fromLevel: 4, chance: 0.2, fromHour: 7, toHour: 10, roads: ['Kacyiru boulevard'], joggers: 12 },
+};
+
 export const MISSIONS = {
   fromLevel: 3,
   questsPerDay: 2,
