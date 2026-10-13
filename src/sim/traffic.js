@@ -23,8 +23,9 @@ export function createTraffic(world, graph, rng, counts = TRAFFIC.counts) {
   const roadEdges = graph.edges.filter((e) => e.length > 12);
   for (const [kind, count] of Object.entries(counts)) {
     for (let i = 0; i < count; i++) {
-      const edge = roadEdges[Math.floor(rng() * roadEdges.length)];
       const spec = TRAFFIC.kinds[kind];
+      const pool = spec.mainRoads ? roadEdges.filter((e) => e.road?.surface !== 'm') : roadEdges;
+      const edge = (pool.length ? pool : roadEdges)[Math.floor(rng() * (pool.length || roadEdges.length))];
       const v = {
         id: id++,
         kind,
@@ -55,7 +56,12 @@ export function createTraffic(world, graph, rng, counts = TRAFFIC.counts) {
 /** The next edge from a node: follow the route if there is one, else a random way on (no U-turn unless a dead end). */
 function chooseNext(v, node, rng) {
   if (v.route.length) return v.route.shift();
-  const ways = node.out.filter((e) => e !== v.edge.reverse);
+  let ways = node.out.filter((e) => e !== v.edge.reverse);
+  // Police patrol cars keep to the main roads (no murram back roads): at the end of a main road they turn back.
+  if (TRAFFIC.kinds[v.kind]?.mainRoads) {
+    const main = ways.filter((e) => e.road?.surface !== 'm');
+    ways = main.length ? main : node.out.filter((e) => e.road?.surface !== 'm');
+  }
   const pool = ways.length ? ways : node.out;
   return pool[Math.floor(rng() * pool.length)];
 }

@@ -47,6 +47,7 @@ import { createRider, stepRider, riderPower, canEat, eat } from '../sim/rider.js
 import { pickLightJunctions, attachLights, redLightCheck } from '../sim/lights.js';
 import { TrafficLightView } from './TrafficLightView.js';
 import { shopFronts, shopPlaces } from '../world/shops.js';
+import { umugandaOffer, onMainRoad, stepPatrols, patrolCount } from '../sim/umuganda.js';
 import { crossingPaths, stepCrossers } from '../sim/crossers.js';
 import { KiteView } from './KiteView.js';
 import { SmogView } from './SmogView.js';
@@ -880,6 +881,10 @@ export class RideScene extends Phaser.Scene {
     counts.bus += rush.bus;
     const riders = fleetRiders(this.wallet);
     counts.fleet = riders.length; // your hired riders (levels 6 and 8)
+    // The Umuganda run (sim/umuganda.js): police patrol cars on the main roads on an Umuganda day.
+    const dayEvent = this.cheatEvent !== undefined ? this.cheatEvent : pickDayEvent(L, this.wallet.day);
+    if (dayEvent === 'umuganda') counts.police = patrolCount(L.districts);
+    this.umuganda = { done: 0, gap: 3, spot: { spot: null }, jobId: null };
     // The story arc: in the petrol levels 3 and 4 an Ampersand rider rides in the traffic (a fleet moto with no
     // hired rider), and yellow battery pickups lie on the roads.
     const yellow = STORY.batteryLevels.includes(L.n) && L.bikeType === 'petrol';
@@ -892,7 +897,7 @@ export class RideScene extends Phaser.Scene {
     this.peopleView?.destroy();
     this.traffic = createTraffic(this.world, this.roadGraph, mulberry32(Date.now() & 0xffff), counts);
     // The day event (from level 6): Umuganda or rain (sim/events.js). The same day gives the same event.
-    this.dayEvent = this.cheatEvent !== undefined ? this.cheatEvent : pickDayEvent(L, this.wallet.day); // cheatEvent: the cheat menu
+    this.dayEvent = dayEvent; // cheatEvent: the cheat menu
     this.eventStage = undefined; // #updateEvent barks at the first frame
     const wasRain = !!this.world.rain;
     this.world.rain = this.dayEvent === 'rain';
@@ -1344,6 +1349,7 @@ export class RideScene extends Phaser.Scene {
     this.markets.update(this.time.now);
     this.attendant.update(this, dt, this.time.now);
     this.#updatePolice(dt);
+    this.#updateUmuganda(dt);
     this.daylight = daylight(this.clockHours);
     if (this.world.rain) this.daylight.tint = rainTint(this.daylight.tint); // grey light on a rainy day
     this.chunks.night = this.daylight.night;
@@ -1609,9 +1615,12 @@ export class RideScene extends Phaser.Scene {
       const nearStation = ['fuel', 'swap', 'garage', 'office'].some((tag) => this.world.placesWithTag(tag).some((p) => Math.hypot(p.x * T - b.x, p.y * T - b.y) < g));
       if (nearTarget || nearStation) illegal = null;
     }
-    const where = { pavement: 'on the pavement', offRoad: 'off the road' };
+    // The Umuganda run: with the passenger or the tools on the bike, an officer chases a moto on a
+    // main road, in every mode (the murram back roads are safe).
+    if (this.#umugandaCarrying() && kmh > POLICE.ridingKmh && !b.crashed && onMainRoad(this.world, b.x, b.y)) illegal = 'umuganda';
+    const where = { pavement: 'on the pavement', offRoad: 'off the road', umuganda: 'a moto during Umuganda' };
     // Kigali 2010 (easy): the officers only stand on the corners (no whistle, no chase, no fines).
-    if (!this.mode.police) illegal = null;
+    if (!this.mode.police && illegal !== 'umuganda') illegal = null;
     const seen = this.mode.police ? kmh : 0;
     for (const e of this.police.update(this.time.now, dt, b, { speedKmh: seen, limitKmh: this.speedLimit.limitKmh, illegal })) {
       const o = e.officer;
@@ -1621,7 +1630,10 @@ export class RideScene extends Phaser.Scene {
       } else if (e.type === 'chase') {
         this.engineSound.whistle();
         this.#bubble(o.x, o.y, 30, 'HAGARARA!', 0xffffff);
-        this.events.emit('bark', `Police! You ride ${where[e.reason]}. Get back on the road and get away!`);
+        this.events.emit('bark', e.reason === 'umuganda' ? 'Police! No motos during Umuganda. Get away, into the back roads!' : `Police! You ride ${where[e.reason]}. Get back on the road and get away!`);
+      } else if (e.type === 'caught' && e.reason === 'umuganda') {
+        this.#bubble(o.x, o.y, 30, 'HAGARARA!', 0xffa080);
+        this.#umugandaCaught();
       } else if (e.type === 'caught') {
         this.#pay('fines', POLICE.fine, `Police: riding ${where[e.reason]}`);
         this.#bubble(o.x, o.y, 30, 'FINE!', 0xffa080);
@@ -1630,6 +1642,72 @@ export class RideScene extends Phaser.Scene {
         this.events.emit('bark', 'You got away from the police. Phew!');
       }
     }
+  }
+
+  /** The Umuganda run: the passenger or the tools are on the bike. */
+  #umugandaCarrying() {
+    const job = this.board?.active;
+    return job?.mission?.kind === 'umuganda' && job.stage === 'toDropoff';
+  }
+
+  /**
+   * The Umuganda run (Alp): on an Umuganda morning, a bonus mission on the empty job board. Take the
+   * passenger or the tools to the roadside work site against the clock; the patrol cars and the
+   * officers on the main roads must not catch you (sim/umuganda.js).
+   */
+  #updateUmuganda(dt) {
+    const u = this.umuganda;
+    if (!u || this.dayEvent !== 'umuganda' || !this.board) return;
+    const morning = !eventStage(this.dayEvent, this.clockHours).customers;
+    const isRun = (o) => o.mission?.kind === 'umuganda';
+    // A run that ended (delivered, too late or given up): the next one comes after a short wait.
+    const active = this.board.active;
+    if (u.jobId && active?.id !== u.jobId) {
+      u.jobId = null;
+      u.done++;
+      u.gap = MISSIONS.umuganda.gapSeconds;
+    }
+    if (active && isRun(active)) u.jobId = active.id;
+    if (!morning) {
+      this.board.offers = this.board.offers.filter((o) => !isRun(o));
+    } else if (!active && !this.board.offers.some(isRun) && u.done < MISSIONS.umuganda.maxPerMorning && (u.gap -= dt) <= 0) {
+      const offer = umugandaOffer(this.world, this.board.rng, this.board.nextId++, this.board.opts);
+      if (offer) {
+        this.board.offers.unshift(offer);
+        this.events.emit('bark', offer.type === 'passenger'
+          ? `Bonus: UMUGANDA RUN! A passenger is late for Umuganda. Motos may not ride now: keep off the main roads, away from the police patrols`
+          : `Bonus: UMUGANDA RUN! Take hoes and water to the Umuganda work site. Motos may not ride now: keep off the main roads, away from the police patrols`);
+        this.engineSound.jingle('reward');
+      } else u.gap = MISSIONS.umuganda.gapSeconds;
+    }
+    // The patrol cars: the siren flashes; a patrol that sees you on a main road gives you seconds to get away.
+    const cars = this.traffic.vehicles.filter((v) => v.kind === 'police');
+    const flash = Math.floor(this.time.now / 220) % 2;
+    for (const v of cars) v.variant = v.siren ? flash : 0;
+    const b = this.bike;
+    for (const e of stepPatrols(u.spot, cars, b, this.#umugandaCarrying(), onMainRoad(this.world, b.x, b.y), dt)) {
+      if (e.type === 'spotted') {
+        this.engineSound.whistle();
+        this.#bubble(e.car.x, e.car.y, 34, 'WEE-OO!', 0xffffff);
+        this.events.emit('bark', `A police patrol saw you! Get ${MISSIONS.umuganda.patrolEscapeMetres} m away in ${MISSIONS.umuganda.patrolGraceSeconds} s, or you are caught`);
+      } else if (e.type === 'escaped') {
+        this.events.emit('bark', 'You lost the patrol. Phew! Keep to the back roads');
+      } else if (e.type === 'caught') {
+        this.#bubble(e.car.x, e.car.y, 34, 'HAGARARA!', 0xffa080);
+        this.#umugandaCaught();
+      }
+    }
+  }
+
+  /** Caught on the Umuganda run: the run fails (no fare, no bonus); on hard mode, a fine too. */
+  #umugandaCaught() {
+    const job = this.board.active;
+    if (!job) return;
+    cancelJob(this.board, this.bike);
+    this.engineSound.whistle();
+    const who = job.type === 'passenger' ? 'Your passenger walks to the work site' : 'The police keep the tools for the work site';
+    if (this.mode.fines) this.#pay('fines', POLICE.fine, 'Police: a moto during Umuganda');
+    this.events.emit('bark', `Caught! No motos during Umuganda. ${who}. No fare${this.mode.fines ? `, and a ${POLICE.fine.toLocaleString('en')} RWF fine` : ''}`);
   }
 
   /** Traffic behind a bike that stands in the road honks (a cyclist rings the bell). */

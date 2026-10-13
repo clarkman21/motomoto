@@ -34,7 +34,7 @@ export class TrafficView {
   #buildAtlas() {
     if (this.scene.textures.exists('vehicles')) return;
     const frames = [];
-    for (const kind of ['car', 'bus', 'truck']) {
+    for (const kind of ['car', 'bus', 'truck', 'police']) {
       for (let variant = 0; variant < VEHICLE_VARIANTS[kind].length; variant++) {
         for (let f = 0; f < BIKE_DIRECTIONS; f++) frames.push({ name: `${kind}-${variant}-${f}`, canvas: drawVehicle(kind, variant, f) });
       }

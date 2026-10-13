@@ -421,6 +421,8 @@ export const TRAFFIC = {
     fleet: { length: 2.0, width: 0.8, maxKmh: 50, accel: 3.5, brake: 7, limitFactor: 1.0, hillSlowdown: 0.6, minHillFactor: 0.6, exhaust: 0, variants: 1 },
     // Cyclists ride slowly at the edge of the road (laneOffset), so cars can pass them. Very slow uphill.
     cyclist: { length: 1.8, width: 0.6, maxKmh: 16, accel: 0.8, brake: 4, limitFactor: 1, hillSlowdown: 4, minHillFactor: 0.3, exhaust: 0, variants: 3, laneOffset: 3.6 },
+    // Police patrol cars (the Umuganda mission): they drive only on the main roads (mainRoads), not on murram.
+    police: { length: 4.3, width: 1.8, maxKmh: 40, accel: 2.5, brake: 6, limitFactor: 1.0, hillSlowdown: 1.0, minHillFactor: 0.5, exhaust: 0.4, variants: 2, mainRoads: true },
   },
   turnKmh: 18,
   busStopSeconds: 5,
@@ -592,6 +594,14 @@ export const MISSIONS = {
   // to another swap station. Do not drop them (damage under maxDamage). Each delivery grows the network.
   batteries: { fromLevel: 5, payFactor: 2.0, bonusFactor: 0.8, maxDamage: 0.15, kg: 40 },
   hotel: { payFactor: 2.5, bonusFactor: 0.7, metresPerSecond: 6.5, extraSeconds: 30 }, // a hotel guest in a hurry
+  // Umuganda run (Alp): on an Umuganda morning, take a passenger or tools to the roadside Umuganda work
+  // site against the clock. Motos may not ride during Umuganda: patrol cars drive the main roads and
+  // officers stand at the corners. Seen on a main road, you must get away; murram back roads are safe.
+  umuganda: {
+    payFactor: 1.8, bonusFactor: 1.0, metresPerSecond: 6, extraSeconds: 35,
+    minTripMetres: 450, maxPerMorning: 2, gapSeconds: 12, offerLife: 999, cargoKg: 30,
+    patrolsPerDistrict: 1, patrolSeeMetres: 24, patrolEscapeMetres: 34, patrolGraceSeconds: 3,
+  },
   secretBonus: 2500, // a secret place, found once in a game
 };
 

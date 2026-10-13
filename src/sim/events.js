@@ -85,7 +85,7 @@ export function rainTint(tint) {
 export function parkTraffic(traffic, share, rng) {
   traffic.dormant = traffic.dormant ?? [];
   const keep = [];
-  for (const v of traffic.vehicles) (rng() < share ? keep : traffic.dormant).push(v);
+  for (const v of traffic.vehicles) (v.kind === 'police' || rng() < share ? keep : traffic.dormant).push(v); // the patrols stay out
   traffic.vehicles = keep;
 }
 

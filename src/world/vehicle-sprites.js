@@ -17,6 +17,8 @@ export const VEHICLE_VARIANTS = {
   car: [C.white, C.silver, C.carRed, C.carBlue, C.carGreen],
   // Buses are plain white government buses (Alp); one kind has a roof rack.
   bus: [{ rack: false }, { rack: true }],
+  // A police patrol car: white, a blue stripe, a light bar (two frames: the red and the blue lamp swap).
+  police: [{ flash: 0 }, { flash: 1 }],
   truck: [
     // Taglines from Alp; the first one that fits is painted (long ones on the side boards).
     { cab: C.carRed, load: 'sacks', slogan: ['GOD IS WIN', 'GOD IS KING', 'IMANA'] },
@@ -157,6 +159,19 @@ const BUILD = {
         { f0: 0.75, f1: 0.85, s0: W / 2, s1: W / 2 + 0.14, z0: 0.85, z1: 0.95, top: paint, side: paint },
       ],
     };
+  },
+  police: (v) => {
+    // A white car with a blue stripe on the sides and POLICE, and a red and blue light bar on the roof.
+    const car = BUILD.car(C.policeWhite);
+    const stripe = (side) => (u, z, face) => (face !== 'front' && face !== 'back' && band(z, 0.48, 0.64) ? C.uniform : side(u, z, face));
+    const body = car.parts.find((p) => p.z0 === 0.25 && p.z1 === 0.8);
+    body.side = stripe(body.side);
+    const [a, b] = v.flash ? [C.red, C.blue] : [C.blue, C.red];
+    car.parts.push(
+      { f0: -0.35, f1: 0.05, s0: -0.6, s1: 0, z0: 1.4, z1: 1.55, top: a, side: a },
+      { f0: -0.35, f1: 0.05, s0: 0, s1: 0.6, z0: 1.4, z1: 1.55, top: b, side: b },
+    );
+    return car;
   },
   bus: (v) => {
     // A plain white minibus: many side windows, a sliding door, maybe a roof rack.

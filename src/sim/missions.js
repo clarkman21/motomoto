@@ -96,7 +96,7 @@ export function checkQuests(quests, stats) {
 // Side missions
 // ---------------------------------------------------------------------------
 
-export const MISSION_TITLES = { vip: 'VIP PASSENGER', rush: 'RUSH DELIVERY', ikivuguto: 'IKIVUGUTO', hotel: 'HOTEL GUEST', batteries: 'AMPERSAND BATTERIES' };
+export const MISSION_TITLES = { vip: 'VIP PASSENGER', rush: 'RUSH DELIVERY', ikivuguto: 'IKIVUGUTO', hotel: 'HOTEL GUEST', batteries: 'AMPERSAND BATTERIES', umuganda: 'UMUGANDA RUN' };
 
 /**
  * Maybe turn a new offer into a side mission (at most one on the board). Returns the offer (changed
@@ -153,6 +153,7 @@ export function missionRule(m) {
     case 'ikivuguto': return `DO NOT SPILL IT (UNDER ${Math.round(MISSIONS.ikivuguto.maxDamage * 100)}%)`;
     case 'hotel': return 'THE GUEST IS IN A HURRY';
     case 'batteries': return `DO NOT DROP THEM (UNDER ${Math.round(MISSIONS.batteries.maxDamage * 100)}%)`;
+    case 'umuganda': return 'AVOID THE POLICE: TAKE THE BACK ROADS';
     default: return '';
   }
 }
@@ -184,6 +185,9 @@ export function missionResult(job) {
   } else if (m.kind === 'hotel') {
     ok = !late;
     why = 'the guest missed the meeting';
+  } else if (m.kind === 'umuganda') {
+    ok = !late;
+    why = 'too late: the work at the site has started';
   } else if (m.kind === 'batteries') {
     ok = job.damage <= MISSIONS.batteries.maxDamage;
     why = 'the batteries got knocked about';
