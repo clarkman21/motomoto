@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS, FLEET, RIDER, TRAFFIC_LIGHTS, HELMET_CHECKS, CROSSINGS, STORY } from '../config.js';
+import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS, FLEET, RIDER, TRAFFIC_LIGHTS, HELMET_CHECKS, CROSSINGS, STORY, MODES, RUSH } from '../config.js';
 import { World } from '../world/world.js';
 import { buildKigaliMap } from '../world/maps/kigali.js';
 import { ChunkStreamer, groupKey } from './chunks.js';
@@ -26,7 +26,7 @@ import { startRace, chaseHail, stepRivals, cancelMission } from '../sim/rivals.j
 import { PeopleView } from './PeopleView.js';
 import { PERSON_LOOKS } from '../world/vehicle-sprites.js';
 import { trafficHonks } from '../sim/honk.js';
-import { levelSettings, milestoneReady, buyMilestone, startAtLevel, streakMultiplier, updateStreak, savingsTarget } from '../sim/levels.js';
+import { levelSettings, milestoneReady, buyMilestone, startAtLevel, setLevel, streakMultiplier, updateStreak, savingsTarget } from '../sim/levels.js';
 import { loadGame, saveGame, clearSave, loadSettings, saveSettings } from './save.js';
 import { deliveryLine } from '../sim/family.js';
 import { jobFuel } from '../sim/fuel.js';
@@ -191,6 +191,7 @@ export class RideScene extends Phaser.Scene {
       this.autoChoice = !!settings.autoShift; // the player's choice (a mode can force automatic or manual)
       this.showMap = settings.map !== false;
       this.testLevel = settings.testLevel ?? 1;
+      this.cheatsOn = !!settings.cheats;
     }
 
     this.chunks.update(this.bike.x, this.bike.y);
@@ -276,7 +277,7 @@ export class RideScene extends Phaser.Scene {
   }
 
   #saveSettings() {
-    saveSettings({ sound: this.engineSound.enabled, steering: this.steeringMode, autoShift: !!this.bike.autoShift, map: this.showMap, testLevel: this.testLevel });
+    saveSettings({ sound: this.engineSound.enabled, steering: this.steeringMode, autoShift: !!this.bike.autoShift, map: this.showMap, testLevel: this.testLevel, cheats: !!this.cheatsOn });
   }
 
   /** Behind the welcome menu: the camera moves slowly over Nyabugogo at dusk, and the traffic drives. */
@@ -889,7 +890,7 @@ export class RideScene extends Phaser.Scene {
     this.peopleView?.destroy();
     this.traffic = createTraffic(this.world, this.roadGraph, mulberry32(Date.now() & 0xffff), counts);
     // The day event (from level 6): Umuganda or rain (sim/events.js). The same day gives the same event.
-    this.dayEvent = pickDayEvent(L, this.wallet.day);
+    this.dayEvent = this.cheatEvent !== undefined ? this.cheatEvent : pickDayEvent(L, this.wallet.day); // cheatEvent: the cheat menu
     this.eventStage = undefined; // #updateEvent barks at the first frame
     const wasRain = !!this.world.rain;
     this.world.rain = this.dayEvent === 'rain';
@@ -933,9 +934,9 @@ export class RideScene extends Phaser.Scene {
     // Rush hours: the extra traffic comes and goes far from you (not on the Umuganda morning).
     if ((this.rushTimer = (this.rushTimer ?? 0) - dt) <= 0) {
       this.rushTimer = 1;
-      stepRush(this.traffic, this.clockHours, this.bike, st.trafficFull);
+      stepRush(this.traffic, this.cheatRush ? RUSH.hours[0][0] + 0.5 : this.clockHours, this.bike, st.trafficFull);
     }
-    const rushNow = isRushHour(this.clockHours) && this.mode.rushExtra > 0 && st.trafficFull;
+    const rushNow = (this.cheatRush || isRushHour(this.clockHours)) && this.mode.rushExtra > 0 && st.trafficFull;
     if (rushNow !== !!this.rushNow) {
       this.rushNow = rushNow;
       if (rushNow) this.events.emit('bark', 'Rush hour! Heavy traffic on the main roads. Filter with care, or take the side streets');
@@ -1032,6 +1033,8 @@ export class RideScene extends Phaser.Scene {
     this.jailTimer = null;
     const { autoShift, energy, serviceWear, brokenDown, brakeWearKm } = this.bike;
     if (choice === 'newGame') {
+      this.cheatEvent = undefined;
+      this.cheatRush = false;
       clearSave();
       this.wallet = createWallet();
       this.wallet.mode = this.newMode ?? this.wallet.mode;
@@ -1054,6 +1057,139 @@ export class RideScene extends Phaser.Scene {
   get clockHours() {
     const { start, end, realSeconds } = this.level.shift;
     return start + ((end - start) * Math.min(this.dayTime, realSeconds)) / realSeconds;
+  }
+
+  // ---------------------------------------------------------------------------
+  // The cheat menu (for tests of all the levels and functions). Type INZIZA in a menu, or tap the
+  // version label 5 times, to turn it on; then CHEATS is in the pause menu (MenuScene).
+  // ---------------------------------------------------------------------------
+
+  setCheats(on) {
+    this.cheatsOn = on;
+    this.#saveSettings();
+  }
+
+  /** The lines of the cheat menu: [label, id]. */
+  cheatItems() {
+    const w = this.wallet, L = this.level, mode = this.mode;
+    const ev = this.cheatEvent === undefined ? 'AUTO' : this.cheatEvent === null ? 'NONE' : this.cheatEvent.toUpperCase();
+    const office = L.buyAt === 'office';
+    return [
+      [`LEVEL ${w.level} ▶ ${w.level < LEVELS.length ? w.level + 1 : 1} (NOW)`, 'levelUp'],
+      [`LEVEL ${w.level} ▶ ${w.level > 1 ? w.level - 1 : LEVELS.length} (NOW)`, 'levelDown'],
+      ...(L.freePlay ? [] : [[office ? 'SAVE THE GOAL, GO TO SHOWROOM' : 'SAVE THE GOAL, END THE SHIFT', office ? 'goalOffice' : 'goal']]),
+      ['+50,000 RWF', 'cash'],
+      ['FILL UP: FUEL, SERVICE, FOOD', 'fill'],
+      ['CLOCK +1 HOUR', 'hour'],
+      ['END THE SHIFT NOW', 'endShift'],
+      [`MODE: ${mode.short}`, 'mode'],
+      [`DAY EVENT: ${ev}`, 'event'],
+      [`RUSH HOUR: ${this.cheatRush ? 'ON' : 'AUTO'}`, 'rush'],
+      ['YELLOW BATTERY BOOST', 'boost'],
+      ['GO TO: AMPERSAND SHOWROOM', 'goOffice'],
+      ['GO TO: NEAREST GARAGE', 'goGarage'],
+      [`GO TO: NEAREST ${this.bike.type === 'electric' ? 'SWAP' : 'FUEL'} STATION`, 'goStation'],
+      ['GO TO: NYABUGOGO BUS PARK', 'goPark'],
+      ['SHOW THE ENDING', 'ending'],
+    ];
+  }
+
+  /**
+   * Do a cheat. Returns { text, close }: close 'resume' = close the menu and ride on; 'none' = close
+   * the menu, the cheat opens its own screen; no close = stay in the cheat menu.
+   */
+  cheat(id) {
+    const w = this.wallet, b = this.bike, T = WORLD.tileMetres;
+    const money = (n) => `${n.toLocaleString('en')} RWF`;
+    const nearest = (tag) => this.world.placesWithTag(tag)
+      .filter((p) => !p.district || this.level.districts.includes(p.district))
+      .sort((p, q) => Math.hypot(p.x * T - b.x, p.y * T - b.y) - Math.hypot(q.x * T - b.x, q.y * T - b.y))[0];
+    const goTo = (p, name) => {
+      if (!p) return { text: `${name}: none in the open districts` };
+      this.teleport(p.x, p.y, 0);
+      return { text: `YOU ARE AT: ${name}`, close: 'resume' };
+    };
+    switch (id) {
+      case 'levelUp': case 'levelDown': {
+        const n = id === 'levelUp' ? (w.level % LEVELS.length) + 1 : ((w.level + LEVELS.length - 2) % LEVELS.length) + 1;
+        this.#cheatLevel(n);
+        return { text: `LEVEL ${n}: ${this.level.name.toUpperCase()}` };
+      }
+      case 'goal':
+        w.cash = Math.max(w.cash, savingsTarget(w) + 20000); // + the costs of the day
+        this.dayTime = this.level.shift.realSeconds;
+        return { text: 'GOAL SAVED: AT THE DAY END, PRESS M', close: 'resume' };
+      case 'goalOffice':
+        w.cash = Math.max(w.cash, savingsTarget(w) + 20000); // + the costs of the day
+        return goTo(this.world.placesWithTag('office')[0], 'AMPERSAND SHOWROOM (PRESS F)');
+      case 'cash':
+        w.cash += 50000;
+        return { text: `CASH: ${money(w.cash)}` };
+      case 'fill':
+        Object.assign(b, { energy: 1, serviceWear: 0, brokenDown: false, brakeWearKm: 0, engineDead: false });
+        if (this.rider) Object.assign(this.rider, { energy: 1, hungryWarned: false, weakWarned: false });
+        return { text: 'FULL TANK, NEW SERVICE, FULL FOOD BAR' };
+      case 'hour': {
+        const { start, end, realSeconds } = this.level.shift;
+        this.dayTime = Math.min(realSeconds, this.dayTime + realSeconds / (end - start));
+        return { text: `CLOCK: ${String(Math.floor(this.clockHours)).padStart(2, '0')}:00` };
+      }
+      case 'endShift':
+        this.dayTime = this.level.shift.realSeconds;
+        return { text: 'THE SHIFT ENDS', close: 'resume' };
+      case 'mode': {
+        const ids = Object.keys(MODES);
+        w.mode = ids[(ids.indexOf(this.mode.id) + 1) % ids.length];
+        this.#cheatRefresh();
+        return { text: `MODE: ${this.mode.name.toUpperCase()}` };
+      }
+      case 'event': {
+        const order = [undefined, null, 'rain', 'umuganda'];
+        this.cheatEvent = order[(order.indexOf(this.cheatEvent) + 1) % order.length];
+        this.#cheatRefresh();
+        return { text: `DAY EVENT: ${this.dayEvent ? this.dayEvent.toUpperCase() : 'NONE'}` };
+      }
+      case 'rush':
+        this.cheatRush = !this.cheatRush;
+        return { text: this.cheatRush ? 'RUSH HOUR TRAFFIC ON (NOT IN EASY MODE)' : 'RUSH HOURS BY THE CLOCK' };
+      case 'boost':
+        b.boost = STORY.boostSeconds;
+        return { text: `${STORY.boostSeconds} S OF ELECTRIC BOOST`, close: 'resume' };
+      case 'goOffice': return goTo(this.world.placesWithTag('office')[0], 'AMPERSAND SHOWROOM');
+      case 'goGarage': return goTo(nearest('garage'), 'GARAGE');
+      case 'goStation': return goTo(nearest(b.type === 'electric' ? 'swap' : 'fuel'), 'STATION');
+      case 'goPark': return goTo(this.parkStop, 'NYABUGOGO BUS PARK');
+      case 'ending':
+        this.scene.launch('dayEnd', { ending: this.#endingStats(), onContinue: () => this.resumeGame() });
+        return { text: '', close: 'none' };
+      default:
+        return { text: '' };
+    }
+  }
+
+  /** Cheat: go to level n now. A new bike when the type changes; back to the start if your district closes. */
+  #cheatLevel(n) {
+    const before = this.level.bikeType;
+    setLevel(this.wallet, n);
+    const type = levelSettings(this.wallet).bikeType;
+    if (type !== before) {
+      const { x, y, heading, autoShift } = this.bike;
+      this.bike = createBike(this.world, type);
+      Object.assign(this.bike, { x, y, heading, autoShift, z: this.world.heightAt(x, y) });
+    }
+    this.#cheatRefresh();
+    const T = WORLD.tileMetres;
+    if (!this.level.districts.includes(this.world.districtAt(Math.floor(this.bike.x / T), Math.floor(this.bike.y / T)))) {
+      this.teleport(this.world.start.x, this.world.start.y, this.world.start.headingDeg);
+    }
+  }
+
+  /** Cheat: build the level again (mode, event, traffic, jobs); the clock and the bike stay. */
+  #cheatRefresh() {
+    this.station = null;
+    this.#applyLevel();
+    this.#placeBike();
+    this.#save();
   }
 
   /** Debug and tests: go to a level (opens its districts). */

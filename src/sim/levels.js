@@ -60,6 +60,16 @@ export function startAtLevel(wallet, n) {
 }
 
 /**
+ * Cheat menu: go to level n now, as if you bought the milestones of the levels before it (and none
+ * after it). The cash stays as it is.
+ */
+export function setLevel(wallet, n) {
+  wallet.perks = {};
+  wallet.milestones = [];
+  return startAtLevel(wallet, n);
+}
+
+/**
  * Restart the current level with start cash. Level, perks and milestones stay. The game over does
  * not use it (you start again at level 1); it is for a later "Restart level" choice in the menu.
  */

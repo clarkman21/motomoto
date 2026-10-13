@@ -144,6 +144,7 @@ export class MenuScene extends Phaser.Scene {
     else if (this.screen === 'pause') this.#pause();
     else if (this.screen === 'help') this.#help();
     else if (this.screen === 'settings') this.#settings();
+    else if (this.screen === 'cheats') this.#cheats();
     else if (this.screen === 'confirm') this.#confirmScreen();
     else if (this.screen === 'mode') this.#modeScreen();
     this.focus = Math.min(this.focus, Math.max(0, this.items.length - 1));
@@ -183,7 +184,59 @@ export class MenuScene extends Phaser.Scene {
     this.#menuWindow(lines, y + 4, 120);
     const hint = this.sys.game.device.input.touch ? 'TAP A LINE' : '↑↓ CHOOSE   ENTER SELECT';
     this.blink = this.#label(cx, this.vh - 22, hint, WHITE).setOrigin(0.5, 0);
-    this.#label(cx, this.vh - 11, `V${VERSION}`, DIM).setOrigin(0.5, 0);
+    const version = this.#label(cx, this.vh - 11, `V${VERSION}${this.ride?.cheatsOn ? ' · CHEATS ON' : ''}`, this.ride?.cheatsOn ? GOLD : DIM).setOrigin(0.5, 0);
+    // Tap the version label 5 times to turn the cheat menu on (for tests on a phone).
+    version.setInteractive({ useHandCursor: false }).on('pointerdown', () => {
+      this.versionTaps = (this.versionTaps ?? 0) + 1;
+      if (this.versionTaps >= 5) {
+        this.versionTaps = 0;
+        this.#cheatCode();
+      }
+    });
+  }
+
+  /** The cheat code (INZIZA, or 5 taps on the version label): the cheat menu on or off. */
+  #cheatCode() {
+    this.ride.setCheats(!this.ride.cheatsOn);
+    this.#sound(this.ride.cheatsOn ? 'select' : 'back');
+    this.#redraw();
+  }
+
+  /**
+   * The cheat menu (pause menu → CHEATS): jump between levels, money, fuel, the clock, the mode, the
+   * day event, rush hour, places and the ending, to test all the levels and functions. Two columns.
+   */
+  #cheats() {
+    const cx = Math.floor(this.vw / 2);
+    let y = 6;
+    this.#label(cx + 2, y + 2, 'CHEATS', RED, 2).setOrigin(0.5, 0);
+    this.#label(cx, y, 'CHEATS', GOLD, 2).setOrigin(0.5, 0);
+    y += 22;
+    const note = this.cheatNote ?? this.#sessionSummary();
+    for (const line of wrapRetro(note, Math.floor((this.vw - 8) / RETRO_CELL.width)).slice(0, 2)) {
+      this.#label(cx, y, line, this.cheatNote ? GOLD : GREEN).setOrigin(0.5, 0);
+      y += 10;
+    }
+    y += 3;
+    const run = (id) => {
+      const res = this.ride.cheat(id);
+      if (res.close === 'resume') return this.#resume();
+      if (res.close === 'none') return this.scene.stop();
+      this.cheatNote = res.text;
+      this.#redraw();
+    };
+    const items = [...this.ride.cheatItems().map(([label, id]) => [label, () => run(id)]), ['BACK', () => this.#back()]];
+    // Two columns when the screen is wide enough, else one column.
+    const colW = Math.max(...items.map(([l]) => retroText(l).length * RETRO_CELL.width + 26));
+    const cols = this.vw >= colW * 2 + 12 ? 2 : 1;
+    const perCol = Math.ceil(items.length / cols);
+    const h = perCol * ROW + 8;
+    const x0 = Math.floor((this.vw - (colW * cols + (cols - 1) * 6)) / 2);
+    for (let c = 0; c < cols; c++) {
+      const x = x0 + c * (colW + 6);
+      this.#window(x, y, colW, h);
+      items.slice(c * perCol, (c + 1) * perCol).forEach(([label, fn], i) => this.#item(x + 16, y + 6 + i * ROW, label, fn, colW - 20));
+    }
   }
 
   #pause() {
@@ -210,6 +263,7 @@ export class MenuScene extends Phaser.Scene {
       ['RESTART SHIFT', () => this.#ask('RESTART THIS SHIFT? YOU LOSE THE MONEY AND THE JOBS OF THIS SHIFT.', 'YES, RESTART', () => this.#restartShift())],
       ['HOW TO PLAY', () => this.#go('help')],
       ['SETTINGS', () => this.#go('settings')],
+      ...(this.ride.cheatsOn ? [['CHEATS', () => { this.cheatNote = null; this.#go('cheats'); }]] : []),
       ['MAIN MENU', () => this.#toMainMenu()],
     ], y, 132);
   }
@@ -285,6 +339,7 @@ export class MenuScene extends Phaser.Scene {
       [`MAP: ${ride.showMap !== false ? 'ON' : 'OFF'}`, () => { ride.toggleMap(); this.#redraw(); }],
       // Test mode: to check the later levels, a new game starts at this level.
       [`TEST: NEW GAME AT LEVEL ${ride.testLevel ?? 1}`, () => { ride.cycleTestLevel(); this.#redraw(); }],
+      ...(ride.cheatsOn ? [['CHEATS: ON (SELECT TO TURN OFF)', () => { ride.setCheats(false); this.#redraw(); }]] : []),
       ['BACK', () => this.#back()],
     ], y + 28, 240);
   }
@@ -489,6 +544,20 @@ export class MenuScene extends Phaser.Scene {
   }
 
   #key(e) {
+    // On a slow frame, Phaser can give the same key event again: handle each event one time only.
+    const id = `${e.code}@${e.timeStamp}`;
+    this.seenKeys ??= [];
+    if (this.seenKeys.includes(id)) return undefined;
+    this.seenKeys = [...this.seenKeys.slice(-15), id];
+    // The cheat code: type INZIZA in any menu screen.
+    if (/^Key[A-Z]$/.test(e.code)) {
+      this.typed = ((this.typed ?? '') + e.code.slice(3)).slice(-6);
+      if (this.typed === 'INZIZA') {
+        this.typed = '';
+        this.#cheatCode();
+        return undefined;
+      }
+    }
     const n = this.items.length;
     const move = (d) => {
       this.focus = (this.focus + d + n) % n;

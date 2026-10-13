@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { World } from '../src/world/world.js';
 import { buildKigaliMap } from '../src/world/maps/kigali.js';
 import { createWallet, endDay, fuelFillCost } from '../src/sim/economy.js';
-import { levelDef, levelSettings, milestoneReady, buyMilestone, restartLevel, savingsTarget, streakMultiplier, updateStreak, districtsForLevel } from '../src/sim/levels.js';
+import { levelDef, levelSettings, milestoneReady, buyMilestone, restartLevel, savingsTarget, streakMultiplier, updateStreak, districtsForLevel, setLevel } from '../src/sim/levels.js';
 import { createJobBoard, makeOffer, mulberry32 } from '../src/sim/jobs.js';
 import { createBike } from '../src/sim/bike.js';
 import { LEVELS, SAVINGS_FLOAT, MONEY, STREAK } from '../src/config.js';
@@ -130,5 +130,21 @@ describe('level settings in the game rules', () => {
     expect(streakMultiplier(w)).toBeCloseTo(STREAK.max);
     updateStreak(w, false);
     expect(streakMultiplier(w)).toBe(1);
+  });
+
+  it('the cheat menu can go to any level, up and down, with the right perks', () => {
+    const w = createWallet();
+    w.cash = 12345;
+    setLevel(w, 7);
+    expect(w.level).toBe(7);
+    expect(levelSettings(w).bikeType).toBe('electric');
+    expect(w.perks.rider1).toBe(true);
+    expect(w.milestones.length).toBe(6);
+    setLevel(w, 2);
+    expect(w.level).toBe(2);
+    expect(levelSettings(w).bikeType).toBe('petrol');
+    expect(w.perks.rider1).toBeUndefined();
+    expect(w.milestones.length).toBe(1);
+    expect(w.cash).toBe(12345);
   });
 });
