@@ -8,12 +8,6 @@ export function modeOf(wallet) {
   return { id, ...MODES[id] };
 }
 
-/** The automatic gearbox setting for a mode: true or false when the mode decides, else the player's choice. */
-export function forcedAutoShift(mode, choice) {
-  if (mode.gears === 'auto') return true;
-  if (mode.gears === 'manual') return false;
-  return choice;
-}
 
 /**
  * Keep only a share of the potholes and loose rocks (easy mode has fewer). Speed bumps always stay.

@@ -3,7 +3,6 @@ import { loadGame } from './save.js';
 import { levelDef } from '../sim/levels.js';
 import { MODES, VERSION, UI_PALETTE } from '../config.js';
 import { modeOf } from '../sim/modes.js';
-import { STEERING_LABELS } from '../sim/controls.js';
 import { drawRetroFontSheet, RETRO_CHARS, RETRO_CELL, RETRO_PER_ROW, retroText, wrapRetro } from '../world/retro-font.js';
 import { PixelCanvas } from '../world/pixel-canvas.js';
 import { addCanvasTexture } from './textures.js';
@@ -32,11 +31,12 @@ const HELP = [
     title: 'Controls',
     lines: [
       'W or ↑: throttle.   S or ↓: brake. Hold it when you stand still to walk the bike back.',
-      'A D or ← →: steer.   C: change the steering mode.',
-      'E and Q: shift up and down (petrol moto).   G: automatic shift on or off.',
+      'A D or ← →: steer.',
+      'E and Q: shift up and down (petrol moto). The gears are always manual.',
       '1 to 4: take a job. Stop next to a person who waves and press 1 to take a street hail.   Backspace: cancel the job.',
       'F: buy fuel (then 1, 2 or 3: 25% of a tank, 50% of a tank, or a full tank), swap the battery, open the garage (service, parts and upgrades), or eat (hard mode).',
       'T: phone a moto that brings you 1 litre of fuel (or a charged battery), for 20% more than at a station. You can call at any time.',
+      'Cheats (for tests): Settings, then CHEATS: ON. In a ride, pause (Esc) and choose CHEATS.',
       'H: horn.   V: sound.   R: put the bike back on the nearest road (your fuel and the bike wear stay as they are).   M: map on or off.   Esc or P: pause menu.',
       'Touch: the stick on the left steers. GO and STOP are on the right, + and − shift, T calls the fuel moto. Tap a job card to take it.',
     ],
@@ -47,7 +47,7 @@ const HELP = [
       'Income: fares, cargo, tips (a smooth ride gives a bigger tip) and a bonus for a row of clean rides.',
       'Costs: fuel or battery swaps, the bike rent (until the moto is yours), the service at the garage, repairs after a crash, and fines from speed cameras and the police.',
       'Fuel: like real riders, buy only what you need. 25% of a tank costs about 1,000 RWF (prices change by district). Each job card shows the fuel that the job needs. A full tank ties up cash that you may need for the rent or the bills. Learn where the stations are: there is no arrow.',
-      'Save fuel: shift up while the RPM bar is green. Gold uses more fuel, and the red zone uses almost twice as much as green. Manual shifting with E saves more fuel than the automatic shift (G).',
+      'Save fuel: shift up while the RPM bar is green. Gold uses more fuel, and the red zone uses almost twice as much as green. Shift up early to save fuel.',
       'Service: the SERVICE meter fills as you ride, faster on bad roads, off the road, at high revs and when you brake hard. The garage does an oil change, new brake pads and a check. At 100% the bike loses power and the brakes get weak. At 150% it breaks down, and you must push it to the garage.',
     ],
   },
@@ -55,7 +55,7 @@ const HELP = [
     title: 'Garages and modes',
     lines: [
       'Each district has a garage (orange on the minimap; the nearest one shows at the edge). Press F there: service the moto, or buy parts and upgrades. A speaker and a phone charger bring extra tips; a chain kit, brake pads and wheel bearings make the service meter fill slower. New parts come at the higher levels.',
-      'At a new game you choose your Kigali. 2010 (easy): automatic gears, no wear, no fines. 2015 (medium): the normal game, with traffic lights and the FOOD bar, but no fines. 2020 (hard): manual gears, heavy traffic and all the fines: speed and red light cameras, police chases and helmet checks.',
+      'At a new game you choose your Kigali. 2010 (easy): no wear, no fines. 2015 (medium): the normal game, with traffic lights and the FOOD bar. The only fines: ride on the pavement or off the road near an officer, and the officer chases you; if you are caught, you pay 5,000 RWF. 2020 (hard): heavy traffic and all the fines: speed and red light cameras, police chases and helmet checks. All modes have manual gears.',
       'Medium and hard modes: watch the FOOD bar. Eat a buffet lunch (11:00 to 16:00), ikivuguto at an Inyange Milk Zone, bananas from a market seller, or an energy drink at an MTN MoMo kiosk. A hungry rider has less power.',
       'Traffic lights: stop on red. On hard mode, a red light camera or a police officer near the junction gives a 10,000 RWF fine.',
     ],
@@ -263,7 +263,8 @@ export class MenuScene extends Phaser.Scene {
       ['RESTART SHIFT', () => this.#ask('RESTART THIS SHIFT? YOU LOSE THE MONEY AND THE JOBS OF THIS SHIFT.', 'YES, RESTART', () => this.#restartShift())],
       ['HOW TO PLAY', () => this.#go('help')],
       ['SETTINGS', () => this.#go('settings')],
-      ...(this.ride.cheatsOn ? [['CHEATS', () => { this.cheatNote = null; this.#go('cheats'); }]] : []),
+      // Always here, so it is easy to find: it turns the cheats on if they are off.
+      ['CHEATS', () => { this.cheatNote = null; if (!this.ride.cheatsOn) this.ride.setCheats(true); this.#go('cheats'); }],
       ['MAIN MENU', () => this.#toMainMenu()],
     ], y, 132);
   }
@@ -334,14 +335,19 @@ export class MenuScene extends Phaser.Scene {
     this.#label(cx, y, 'SETTINGS', WHITE, 2).setOrigin(0.5, 0);
     this.#menuWindow([
       [`SOUND: ${ride.engineSound.enabled ? 'ON' : 'OFF'}`, () => { ride.toggleSound(); this.#redraw(); }],
-      [`STEERING: ${retroText(STEERING_LABELS[ride.steeringMode])}`, () => { ride.toggleSteering(); this.#redraw(); }],
-      [`GEARS: ${ride.bike.autoShift ? 'AUTOMATIC' : 'MANUAL'}`, () => { ride.toggleAutoShift(); this.#redraw(); }],
       [`MAP: ${ride.showMap !== false ? 'ON' : 'OFF'}`, () => { ride.toggleMap(); this.#redraw(); }],
       // Test mode: to check the later levels, a new game starts at this level.
       [`TEST: NEW GAME AT LEVEL ${ride.testLevel ?? 1}`, () => { ride.cycleTestLevel(); this.#redraw(); }],
-      ...(ride.cheatsOn ? [['CHEATS: ON (SELECT TO TURN OFF)', () => { ride.setCheats(false); this.#redraw(); }]] : []),
+      // The cheat menu for tests: on here, then pause the ride (Esc) and choose CHEATS.
+      [`CHEATS: ${ride.cheatsOn ? 'ON' : 'OFF'}`, () => { ride.setCheats(!ride.cheatsOn); this.#sound(ride.cheatsOn ? 'select' : 'back'); this.#redraw(); }],
       ['BACK', () => this.#back()],
     ], y + 28, 240);
+    const hint = ride.cheatsOn ? 'CHEATS ARE ON: IN A RIDE, PAUSE (ESC) AND CHOOSE CHEATS.' : 'TURN CHEATS ON TO JUMP LEVELS, GET MONEY AND TEST EVENTS.';
+    let hy = y + 28 + 5 * ROW + 16; // under the window (5 lines)
+    for (const line of wrapRetro(hint, Math.floor((this.vw - 8) / RETRO_CELL.width))) {
+      this.#label(cx, hy, line, ride.cheatsOn ? GOLD : DIM).setOrigin(0.5, 0);
+      hy += 11;
+    }
   }
 
   /** New game: choose the difficulty mode (a year of the city). */

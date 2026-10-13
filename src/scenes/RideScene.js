@@ -11,7 +11,7 @@ import {
   BIKE_LOADS, drawWaitingPassenger, drawCargoPile,
 } from '../world/sprites.js';
 import { createBike, stepBike, forwardSpeed, shiftGear, bestGear, resetToRoad } from '../sim/bike.js';
-import { readControls, STEERING_MODES, STEERING_LABELS } from '../sim/controls.js';
+import { readControls } from '../sim/controls.js';
 import { EngineSound } from '../audio/engine-sound.js';
 import { createWallet, earn, spend, buyFuel, swapBattery, fuelFillCost, fuelChoices, repairCost, endDay, stranded, payGarage } from '../sim/economy.js';
 import { garageQuote, serviceDue } from '../sim/maintenance.js';
@@ -42,7 +42,7 @@ import { daylight } from '../sim/daylight.js';
 import { pickDayEvent, eventStage, eventBark, rainTint, parkTraffic, wakeTraffic } from '../sim/events.js';
 import { RainView } from './RainView.js';
 import { buyPart as shopBuy, partEffects, partsTip } from '../sim/shop.js';
-import { modeOf, forcedAutoShift, setHazardShare } from '../sim/modes.js';
+import { modeOf, setHazardShare } from '../sim/modes.js';
 import { createRider, stepRider, riderPower, canEat, eat } from '../sim/rider.js';
 import { pickLightJunctions, attachLights, redLightCheck } from '../sim/lights.js';
 import { TrafficLightView } from './TrafficLightView.js';
@@ -192,13 +192,11 @@ export class RideScene extends Phaser.Scene {
     this.showMap = true;
     this.testLevel = 1; // test mode: a new game starts at this level (Settings menu)
 
-    // Settings from an earlier visit (sound, steering, gears).
+    // Settings from an earlier visit (sound, map, test level, cheats). The steering is bike relative and
+    // the gears are manual: there is no option (Alp).
     const settings = loadSettings();
     if (settings) {
       this.engineSound.setEnabled(settings.sound !== false);
-      if (STEERING_MODES.includes(settings.steering)) this.steeringMode = settings.steering;
-      this.bike.autoShift = !!settings.autoShift;
-      this.autoChoice = !!settings.autoShift; // the player's choice (a mode can force automatic or manual)
       this.showMap = settings.map !== false;
       this.testLevel = settings.testLevel ?? 1;
       this.cheatsOn = !!settings.cheats;
@@ -287,7 +285,7 @@ export class RideScene extends Phaser.Scene {
   }
 
   #saveSettings() {
-    saveSettings({ sound: this.engineSound.enabled, steering: this.steeringMode, autoShift: !!this.bike.autoShift, map: this.showMap, testLevel: this.testLevel, cheats: !!this.cheatsOn });
+    saveSettings({ sound: this.engineSound.enabled, map: this.showMap, testLevel: this.testLevel, cheats: !!this.cheatsOn });
   }
 
   /** Behind the welcome menu: the camera moves slowly over Nyabugogo at dusk, and the traffic drives. */
@@ -328,7 +326,6 @@ export class RideScene extends Phaser.Scene {
       }
       switch (e.code) {
         case 'Escape': case 'KeyP': this.openPause(); break;
-        case 'KeyC': this.toggleSteering(); break;
         case 'KeyB': this.toggleBike(); break;
         case 'KeyR': this.resetBike(); break;
         case 'KeyM': this.toggleMap(); break;
@@ -336,7 +333,6 @@ export class RideScene extends Phaser.Scene {
         case 'KeyV': this.toggleSound(); break;
         case 'KeyE': case 'KeyX': this.shift(1); break;
         case 'KeyQ': case 'KeyZ': this.shift(-1); break;
-        case 'KeyG': this.toggleAutoShift(); break;
         case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': this.acceptJob(Number(e.code.slice(5)) - 1); break;
         case 'Backspace': this.cancelJob(); break;
         case 'KeyF': this.startRefuel(); break;
@@ -345,13 +341,6 @@ export class RideScene extends Phaser.Scene {
       }
     });
     this.input.on('pointerdown', () => this.engineSound.start());
-  }
-
-  toggleSteering() {
-    const i = STEERING_MODES.indexOf(this.steeringMode);
-    this.steeringMode = STEERING_MODES[(i + 1) % STEERING_MODES.length];
-    this.events.emit('bark', STEERING_LABELS[this.steeringMode]);
-    this.#saveSettings();
   }
 
   toggleBike() {
@@ -381,17 +370,6 @@ export class RideScene extends Phaser.Scene {
   /** M: show or hide the minimap. */
   toggleMap() {
     this.showMap = !this.showMap;
-    this.#saveSettings();
-  }
-
-  toggleAutoShift() {
-    if (this.mode && this.mode.gears !== 'choice') {
-      this.events.emit('bark', `${this.mode.name}: ${this.mode.gears === 'auto' ? 'automatic' : 'manual'} gears only`);
-      return;
-    }
-    this.bike.autoShift = !this.bike.autoShift;
-    this.autoChoice = this.bike.autoShift;
-    this.events.emit('bark', this.bike.autoShift ? 'Auto shift on' : 'Manual shift');
     this.#saveSettings();
   }
 
@@ -852,9 +830,9 @@ export class RideScene extends Phaser.Scene {
   /** The level's settings, traffic, people and job board. Called at the start and at each new day. */
   #applyLevel() {
     const L = (this.level = levelSettings(this.wallet));
-    // The difficulty mode (sim/modes.js): gears, fuel use, wear, potholes, traffic.
+    // The difficulty mode (sim/modes.js): fuel use, wear, potholes, traffic. The gears are always manual.
     const mode = (this.mode = modeOf(this.wallet));
-    this.bike.autoShift = forcedAutoShift(mode, this.autoChoice ?? this.bike.autoShift);
+    this.bike.autoShift = false;
     // Parts and upgrades from the garage, and the fuel use and wear of the mode.
     this.bike.mods = this.#bikeMods();
     if (setHazardShare(this.world, mode.hazards)) this.chunks?.reload();
@@ -1679,7 +1657,9 @@ export class RideScene extends Phaser.Scene {
       oneWay: 'the wrong way on a one-way street', noMoto: 'on a street with no motos', overload: 'an overloaded moto',
     };
     // Kigali 2010 (easy): the officers only stand on the corners (no whistle, no chase, no fines).
-    if (!this.mode.police && illegal !== 'umuganda') illegal = null;
+    // Kigali 2015 (medium): they chase (and fine) only a moto on the pavement or off the road.
+    const chased = this.mode.police || illegal === 'umuganda' || (this.mode.pavementChase && (illegal === 'pavement' || illegal === 'offRoad'));
+    if (!chased) illegal = null;
     const seen = this.mode.police ? kmh : 0;
     for (const e of this.police.update(this.time.now, dt, b, { speedKmh: seen, limitKmh: this.speedLimit.limitKmh, illegal })) {
       const o = e.officer;

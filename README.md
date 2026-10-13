@@ -4,7 +4,7 @@ Moto Inziza is an isometric open city driving game (until 8 October 2026 its wor
 
 This repository holds the web game (version 1.0 RC1: the full story, from level 1 to the ending and free play). The game spec is the doc "Moto Inziza: Game Spec v0.1". The game will be published on the web with Vercel.
 
-## Status: v1.0 RC1 — the full game is playable
+## Status: v1.0 RC2 — the full game is playable
 
 All 10 levels, the three modes, the story arc (smog, the yellow battery, the swap network) and the ending are in the game. The list below shows each part.
 
@@ -18,8 +18,8 @@ All 10 levels, the three modes, the story arc (smog, the yellow battery, the swa
 | Roundabout, buildings and trees (solid) | Done |
 | Petrol and electric moto with the spec values | Done |
 | Energy bar, uphill and downhill cost, electric regen | Done (placeholder values) |
-| Bike relative steering (default) and screen relative steering | Done |
-| Petrol 4-speed manual gearbox, engine braking, auto shift option | Done |
+| Bike relative steering (the only steering; the screen relative option is gone, Alp 13 October 2026) | Done |
+| Petrol 4-speed manual gearbox and engine braking. Manual gears in all modes: no automatic option (Alp 13 October 2026) | Done |
 | Brake wear (part of the moto service meter); electric regen braking | Done |
 | Hills hide things: buildings fade, bike outline shows | Done |
 | Camera that looks ahead in the direction of travel | Done |
@@ -61,7 +61,7 @@ All 10 levels, the three modes, the story arc (smog, the yellow battery, the swa
 | Rough murram: wheel ruts, patches of loose rocks (−18% speed above 22 km/h), potholes, and small bumps at speed for the bike and the traffic. On a rainy day the murram is dark and wet, with puddles, and the potholes are full of water (SPLASH!) | Done |
 | A garage in every district (6 in all); the nearest garage always shows on the minimap (an orange mark at the edge when it is out of the window) | Done |
 | Garage shop: F at a garage opens a retro garage screen with the service and 11 parts and upgrades (speaker and phone charger: extra tips; chain kit, ceramic pads, wheel bearings: a slower service meter; better tyres, cargo net, crash bars, air filter, seat cushion, Ampersand regen tune). Parts come level by level; petrol engine parts do not move to the electric moto | Done |
-| Difficulty modes at a new game: Kigali 2010 (easy), 2015 (medium), 2020 (hard). The mode sets the gears, fuel use, wear, cameras, police, potholes, traffic, crash repairs and traffic lights. Since 13 October 2026 (Alp: medium was far too hard): all the fines (speed cameras, police chases, red lights, crossings, hitting a person, helmet checks) are only on hard; medium has the FOOD bar | Done |
+| Difficulty modes at a new game: Kigali 2010 (easy), 2015 (medium), 2020 (hard). The mode sets the gears, fuel use, wear, cameras, police, potholes, traffic, crash repairs and traffic lights. Since 13 October 2026 (Alp: medium was far too hard): all the fines (speed cameras, police chases, red lights, crossings, hitting a person, helmet checks) are only on hard; medium has the FOOD bar. Correction (Alp, 13 October 2026, version 53): on medium too, an officer chases a moto on the pavement or off the road, and fines it 5,000 RWF if the officer catches it; no other fines on medium | Done |
 | Medium and hard modes: rider energy (a FOOD bar; on medium it goes down 30% slower). Eat a buffet lunch (11:00–16:00), ikivuguto at an Inyange Milk Zone, bananas from a market seller or an energy drink at an MTN MoMo kiosk; a hungry rider has less power | Done |
 | Traffic lights at up to 2 big junctions in each district (medium and hard): traffic stops on red; through a red light on hard mode, a 10,000 RWF fine from a red light camera or a police officer near the junction; on medium only a warning | Done |
 | Hard mode: police helmet checks (4 each day). With a passenger, stop beside the officer; no spare passenger helmet (the level 2 milestone), or ride on: a 10,000 RWF fine | Done |
@@ -143,7 +143,7 @@ npm run balance  # prints the balance table: money per day and days to pass each
 
 ## Cheats (for tests)
 
-Type `INZIZA` in any menu (or tap the version label on the main menu 5 times on a phone). The label shows CHEATS ON. Then the pause menu (Esc, or the pause button) has CHEATS:
+Main menu → SETTINGS → CHEATS: ON. Then, in a ride, pause (Esc, or the pause button) and choose CHEATS. (CHEATS in the pause menu also turns them on. The old ways still work: type `INZIZA` in any menu, or tap the version label 5 times.) The cheat menu has:
 
 | Cheat | What it does |
 | --- | --- |
@@ -164,7 +164,7 @@ Settings → CHEATS: ON turns the cheats off.
 
 ## Controls
 
-The game opens with the welcome menu: Continue (your saved game), New game, How to play and Settings (sound, steering, gears).
+The game opens with the welcome menu: Continue (your saved game), New game, How to play and Settings (sound, map, test level, cheats).
 In the game, Esc, P or the II button opens the pause menu: Resume, Restart shift, How to play, Settings and Main menu.
 
 | Action | Keyboard | Touch |
@@ -174,10 +174,8 @@ In the game, Esc, P or the II button opens the pause menu: Resume, Restart shift
 | Brake | S or ↓ (also Shift) | STOP button |
 | Turn left and right | A and D, or ← and → | Left side: virtual stick |
 | Shift up and down (petrol) | E and Q (also X and Z) | + and − buttons |
-| Auto shift on or off | G | G button |
 | Horn | H | H button |
-| Change steering model | C | C button |
-| Change bike (petrol or electric) | B | B button |
+| Change bike (petrol or electric; only with `?debug` in the address) | B | — |
 | Put a stuck bike back on the nearest road (fuel, wear and the job stay) | R | R button |
 | Show or hide the minimap | M | Settings menu |
 | Sound on or off | V | — |
@@ -186,9 +184,7 @@ In the game, Esc, P or the II button opens the pause menu: Resume, Restart shift
 | Cancel the job (no pay) | Backspace | — |
 | Fill up or swap the battery (stop at the station) | F | Tap the station prompt |
 
-**Bike relative steering (default, GTA 1 style).** Left and right turn the bike. Up is throttle. Down is brake. Hold down when the bike is stopped to push it backwards.
-
-**Screen relative steering (C).** Push a direction and the bike goes that way on the screen. The diagonal keys (for example up and right together) follow the roads exactly.
+**Steering (GTA 1 style).** Left and right turn the bike. Up is throttle. Down is brake. Hold down when the bike is stopped to push it backwards. There is no other steering option.
 
 ## Gears and brakes
 
@@ -330,7 +326,7 @@ src/
     bicycle-sprites.js   The game over pictures: a bicycle taxi (side view) and the evening hills; the jail cell
   sim/
     bike.js              Arcade bike physics and energy (no Phaser)
-    controls.js          The two steering models
+    controls.js          The steering (bike relative; the screen relative model is still in the code, but the game does not use it)
     economy.js           Wallet, fuel and swaps, repairs, day end bill, out of cash (stranded)
     jobs.js              Job offers, pickup and drop off, fares and tips
     law.js               Speed limit zones and speed cameras

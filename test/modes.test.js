@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { MODES } from '../src/config.js';
-import { modeOf, forcedAutoShift, setHazardShare } from '../src/sim/modes.js';
+import { modeOf, setHazardShare } from '../src/sim/modes.js';
 import { createWallet } from '../src/sim/economy.js';
 import { World } from '../src/world/world.js';
 import { buildKigaliMap } from '../src/world/maps/kigali.js';
@@ -37,11 +37,11 @@ describe('difficulty modes', () => {
     expect(hard.fines && hard.cameras && hard.police && hard.helmetChecks).toBe(true);
   });
 
-  it('easy forces automatic gears, hard forces manual, medium keeps your choice', () => {
-    expect(forcedAutoShift(MODES.easy, false)).toBe(true);
-    expect(forcedAutoShift(MODES.hard, true)).toBe(false);
-    expect(forcedAutoShift(MODES.medium, true)).toBe(true);
-    expect(forcedAutoShift(MODES.medium, false)).toBe(false);
+  it('no gear option in any mode (always manual); the police chase on the pavement on medium and hard', () => {
+    for (const m of Object.values(MODES)) expect(m.gears).toBeUndefined();
+    expect(MODES.easy.pavementChase).toBe(false);
+    expect(MODES.medium.pavementChase && !MODES.medium.fines && !MODES.medium.police).toBe(true);
+    expect(MODES.hard.pavementChase && MODES.hard.police).toBe(true);
   });
 
   it('easy has about half the potholes and rocks, and never removes speed bumps', () => {

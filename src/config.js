@@ -6,7 +6,7 @@
 // World scale and projection
 // ---------------------------------------------------------------------------
 // The game version (the menu shows it).
-export const VERSION = '1.0 RC1';
+export const VERSION = '1.0 RC2';
 
 export const WORLD = {
   tileMetres: 4, // one map tile is a 4 m × 4 m square (about one road lane plus margin) — guess
@@ -693,21 +693,23 @@ export const FLEET = {
 // All values are guesses, to tune in play.
 export const MODES = {
   // fines: fines from speed cameras, the police, red lights, crossings and accidents (Alp: only on hard).
+  // pavementChase: officers chase a moto on the pavement or off the road, and fine it when they catch
+  // it (Alp, 13 October 2026: medium too). All modes have manual gears (Alp: no automatic option).
   // riderEnergy: false, or how fast the rider gets hungry (1 = the RIDER values).
   easy: {
-    name: 'Kigali 2010', short: 'EASY', gears: 'auto', fuelUse: 0.8, wear: 0, cameras: false, police: false, fines: false,
+    name: 'Kigali 2010', short: 'EASY', fuelUse: 0.8, wear: 0, cameras: false, police: false, fines: false, pavementChase: false,
     hazards: 0.5, traffic: 0.7, crashRepair: 0.5, lights: 'none', riderEnergy: false, helmetChecks: false, crossers: 0.5, crossStepOut: 0, rushExtra: 0,
-    text: 'Automatic gears, low fuel use, no wear, no fines, light traffic.',
+    text: 'Low fuel use, no wear, no fines, light traffic.',
   },
   medium: {
-    name: 'Kigali 2015', short: 'MEDIUM', gears: 'choice', fuelUse: 1, wear: 1, cameras: false, police: false, fines: false,
+    name: 'Kigali 2015', short: 'MEDIUM', fuelUse: 1, wear: 1, cameras: false, police: false, fines: false, pavementChase: true,
     hazards: 1, traffic: 1, crashRepair: 1, lights: 'lights', riderEnergy: 0.7, helmetChecks: false, crossers: 1, crossStepOut: 0.1, rushExtra: 0.5,
-    text: 'The normal game: gears of your choice, wear, traffic lights, and you eat to keep your energy. No fines.',
+    text: 'The normal game: wear, traffic lights, and you eat to keep your energy. Only the police fine you, if they catch you on the pavement or off the road.',
   },
   hard: {
-    name: 'Kigali 2020', short: 'HARD', gears: 'manual', fuelUse: 1.15, wear: 1.3, cameras: true, police: true, fines: true,
+    name: 'Kigali 2020', short: 'HARD', fuelUse: 1.15, wear: 1.3, cameras: true, police: true, fines: true, pavementChase: true,
     hazards: 1, traffic: 1.25, crashRepair: 1, lights: 'cameras', riderEnergy: 1, helmetChecks: true, crossers: 1.8, crossStepOut: 0.5, rushExtra: 0.9, bladder: true,
-    text: 'Manual gears, more fuel and wear, heavy traffic, all the fines (speed and red light cameras, police, helmet checks), and you must eat.',
+    text: 'More fuel and wear, heavy traffic, all the fines (speed and red light cameras, police, helmet checks), and you must eat.',
   },
 };
 export const DEFAULT_MODE = 'medium'; // a saved game from before the modes plays as medium

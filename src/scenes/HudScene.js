@@ -547,11 +547,9 @@ export class HudScene extends Phaser.Scene {
     this.stickGfx = this.add.graphics();
     this.goBtn = this.#button('GO', () => (this.ride.touch.throttle = true), () => (this.ride.touch.throttle = false));
     this.stopBtn = this.#button('STOP', () => (this.ride.touch.brake = true), () => (this.ride.touch.brake = false));
-    this.modeBtn = this.#button('C', () => this.ride.toggleSteering(), null, 22);
     this.bikeBtn = this.#button('T', () => this.ride.callFuelMoto(), null, 22); // phone the fuel moto
     this.resetBtn = this.#button('R', () => this.ride.resetBike(), null, 22);
     this.hornBtn = this.#button('H', () => this.ride.horn(), null, 22);
-    this.autoBtn = this.#button('G', () => this.ride.toggleAutoShift(), null, 22);
     this.upBtn = this.#button('+', () => this.ride.shift(1), null, 26);
     this.downBtn = this.#button('−', () => this.ride.shift(-1), null, 26);
     this.stickPointer = null;
@@ -595,7 +593,7 @@ export class HudScene extends Phaser.Scene {
     // The small buttons and the gear buttons: in one row at the bottom, between the minimap and STOP,
     // so that they cover neither the minimap nor the jobs window. If the row has no room, the old
     // places: under the left window, and above GO and STOP.
-    const small = [this.hornBtn, this.autoBtn, this.modeBtn, this.bikeBtn, this.resetBtn];
+    const small = [this.hornBtn, this.bikeBtn, this.resetBtn];
     const mapRight = this.ride.showMap !== false ? (this.minimap.box.x + this.minimap.box.w) * this.k : 0;
     const x0 = mapRight + 28, x1 = width - 140 - 34 - 32;
     const step = (x1 - x0) / (small.length + 1.5);
