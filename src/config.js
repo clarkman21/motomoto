@@ -752,7 +752,7 @@ export const SHOPS = {
   brandShare: 0.2,
   doors: [0x2f5f9a, 0x3f8f4a, 0xc0392b], // steel double doors
   bandLevels: 0.6, // the darker band: up to this height above the floor (levels)
-  muralLevel: 0.62, // the bottom of a wall picture (levels above the floor)
+  muralLevel: 0.2, // the bottom of a wall picture (levels above the floor): it is painted over the band
   porchLevel: 1.08, // the porch roof meets the wall here (levels above the floor)
   porchDepthMetres: 0.8, // a narrow porch: a deeper one hides the shop front from the camera
   porchDropMetres: 0.2, // the porch slopes down to the front

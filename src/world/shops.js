@@ -65,25 +65,26 @@ export function shearOnWall(src, face) {
   return { canvas: c, groundX: mid, groundY: h - 1 + shift(mid) };
 }
 
-// The hand-painted wall pictures (Alp, design canvas "Rwandan shop fronts"): 20 × 14 pixels, flat
-// colours, a dark outline. Letters are colours; '.' is clear.
+// The hand-painted wall pictures (Alp, design canvas "Rwandan shop fronts"; larger after Alp's review):
+// 28 × 20 pixels, flat colours, a dark outline. They fill a side wall of 1 tile. Letters are colours;
+// '.' is clear. Made with a small shape script (circles, boxes, lines), then checked by eye.
 const MURAL_PAL = {
   k: 0x161616, h: 0x1a1210, s: 0x7a4a2a, d: 0x5a3420, w: 0xf6f6f0, g: 0xa8aeb6, G: 0x5a6068, r: 0xc0302a,
-  m: 0xa82a2a, n: 0x2f6fb0, o: 0xe07a2a, y: 0xd89a20, b: 0x6b4226, v: 0x8a3a8a, c: 0x7fd0ff, f: 0xf2e8c8,
+  m: 0xa82a2a, n: 0x2f6fb0, o: 0xe07a2a, y: 0xd89a20, b: 0x6b4226, v: 0x8a3a8a, c: 0x7fd0ff, f: 0xf2e8c8, p: 0xd86a6a,
 };
 const MURALS = {
-  barber: ['....................', '......hhhhhh........', '.....hhhhhhhh...gg..', '....hhhhhhhhhh..gGg.', '....dhhhhhhhss..gGg.', '....ddssssssksk..g..', '....dsssssssssss....', '....dssssssssss.....', '.....sssssssss......', '......ssssssss......', '.......ssss.........', '...wwwwwwwwwwwww....', '..wwwwwwwwwwwwwwww..', '.wwwwwwwwwwwwwwwwww.'],
-  saloon: ['......hhhhhhhh......', '....hhhhhhhhhhhh....', '...hhsssssssssshh...', '...hhsksssssksshh...', '...hhsssssssssshh...', '...hhsssrrrsssshh...', '...h.hssssssssh.h...', '...h.h.ssssss.h.h...', '...h.h..ssss..h.h...', '...h.hvvvvvvvvh.h...', '...hvvvvvvvvvvvvh...', '...vvvvvvvvvvvvvv...', '..vvvvvvvvvvvvvvvv..', '..vvvvvvvvvvvvvvvv..'],
-  butcher: ['....................', '...gggggggggggk.....', '..ggggggggggggbbbb..', '...gggggggggggbbbb..', '....................', '....mmmmmmmmmm......', '..mmmmmmmmmmmmmm....', '.mmmwwmmmmmmmmmmm...', '.mmwwwwmmmmmmmmmmm..', '.mmmwwmmmmmmwwmmmm..', '..mmmmmmmmmwwwwmmm..', '...mmmmmmmmmmmmmm...', '....mmmmmmmmmmm.....', '....................'],
-  buffet: ['....rr..............', '...rrrr.............', '..wwwwww............', '.wwkwwww............', 'oowwwwwww...........', '..rwwwwww......www..', '...wwwwwwwwwwwwwww..', '...wwwwwwwwwwwwwww..', '....wwwwwwwgwwwww...', '.....wwwwwwwwwww....', '......wwwwwwwww.....', '.........o..o.......', '.........o..o.......', '........oo.oo.......'],
-  bar: ['....bb..............', '....bb..............', '....bb..............', '...bbbb.............', '..bbbbbb.....ffffff.', '..bbbbbb....fffffff.', '..bwwwwb....yyyyyy..', '..bwrrwb....yyyyyy..', '..bwwwwb....yyyyyy..', '..bbbbbb....yyyyyy..', '..bbbbbb....yyyyyy..', '..bbbbbb....yyyyyy..', '..bbbbbb.....yyyy...', '....................'],
-  phones: ['...kkkkkkkkk........', '...kcccccccck..n.....', '...kcccccccck...n....', '...kcwwwwccck.n..n...', '...kcccccccck..n..n..', '...kcwwccccck...n..n.', '...kcccccccck..n..n..', '...kcccccccck.n..n...', '...kcccccccck...n....', '...kcccccccck..n.....', '...kkkkkkkkkk........', '...kkkkkwkkkk........', '...kkkkkkkkkk........', '....................'],
-  boutique: ['......k....k........', '......vv..vv........', '......vvvvvv........', '.....vvovvvov.......', '......vvvvvv........', '.......vvvv.........', '......vvovvv........', '.....vvvvvvov.......', '....vvovvvvvvv......', '...vvvvvvvovvvv.....', '..vvvvovvvvvvvvv....', '..vvvvvvvvovvvvv....', '..oooooooooooooo....', '....................'],
-  shoes: ['....................', '...........GGGG.....', '...........GGGG.....', '.............b......', '.............b......', '..bbb........b......', '..bbbb..............', '..bbbbb.............', '..bbbbbbbbb.........', '..bbbbbbbbbbbb......', '..bbbbbbbbbbbbbb....', '..kkkkkkkkkkkkkkk...', '....................', '....................'],
+  barber: ['............................', '.........hhhhhhh.......ggg..', '.......hhhhhhhhhhh.....GGG..', '......hhhhhhhhhhhhh....GgG..', '......hhhhhhhhhhhhh....GgG..', '.....hhhhhhhhhhhhhhh...GgG..', '......hhhhhhhhhhhhhs...GgG..', '......ddhhhhhhhhhhhs...GGG..', '......ddddhhhhhhkkss....k...', '......dddshhhhhhsssss...k...', '......ddsdsssssssssss..k....', '......ddssssssssssss...k....', '.......sssssssssrrr...k.....', '.......ssssssssssss...k.....', '........ssssssssss..........', '..........ssssss............', '........wwwwwwwwww..........', '....wwwwwwwwwwwwwwwwww......', '..wwwwwwwwwwwwwwwwwwwwww....', '.wwwwwwwwwwwwwwwwwwwwwwww...'],
+  saloon: ['...........hhhhhh...........', '.........hhhhhhhhhh.........', '.......hhhhhhhhhhhhhh.......', '......hhhhhhhhhhhhhhhh......', '......hhhhhsssssshhhhh......', '......hhhhsssssssshhhh......', '.....hhhhsssssssssshhhh.....', '.....bbhhsssssssssshbbh.....', '.....hbbhsskssssksshhbb.....', '.....hhhsssssssssssshhh.....', '.....bbhhssssddsssshbbh.....', '.....hbbossssddssssohbb.....', '.....hhh.ssssssssss.hhh.....', '.....bbh..ssrrrrss..bbh.....', '.....hbb...ssssss...hbb.....', '.....hhh....ssss....hhh.....', '.....b.h....ssss....b.h.....', '.....h.bvvvvvvvvvvvvh.b.....', '.......vvovvovvovvovv.......', '......vvvvvvvvvvvvvvvv......'],
+  butcher: ['............................', '............................', '............................', '...wwwwwwwwwwwwwwwwwbbbbbb..', '...gggggggggggggggggbbfbfb..', '....ggggggggggggggggbbbbbb..', '............................', '............................', '.........mmmmmmmmmm.........', '......mmmmmmmmmmmmmmmm......', '....mwwwwmmmmmmmmmmmmmmm....', '...mmwwwwmmmmmppmmmmmmmmm...', '..mmwwffwwmmmmmmppppmmmmmm..', '..mmmwwwwmmmmmmmmmmmppmmmm..', '..mmmwwwwpppmmmmmmmmmmmmmm..', '...mmmmmmmmmpmmmmmmmmmmmm...', '....mmwwwwwwwwwwwwwwwwpm....', '...wwwwwwwwwwwwwwwwwwwwww...', '......wwwwwwwwwwwwwwww......', '............................'],
+  buffet: ['............................', '.....rr.....................', '.....rrrr...................', '.....rrrr............w......', '....wwwwww...........ww.....', '....wwwwww...........www....', '..oowwkwwwwwwwwwwww..wwww...', '..oowwwwwwwwwwwwwwwwwwwwww..', '....rwwwwwwwwwwwwwwwwwwww...', '....rwwwwwwwwffffffwwww.....', '....r.wwwwwwffffffffwww.....', '......wwwwwffffffffffwww....', '.......wwwwwffffffffwww.....', '.......wwwwwwffffffwwww.....', '........wwwwwwwwwwwwww......', '.........wwwwwwwwwwww.......', '...........wwwwwwww.........', '............o....o..........', '............o....o..........', '...........ooo..ooo.........'],
+  bar: ['......yy....................', '......bb....................', '......bb....................', '......bb...........f........', '......bb.......fffffffff....', '......bb......fffffffffff...', '.....bbbb.....fffffffffff...', '....bbbbbb.....fffffffffg...', '....bdbbbb.....gyyyfyyffg...', '....bdbbbb.....gyyyyyyffg...', '....wdwwww.....gyyyyyyffg...', '....wdwwww.....gyyyyyyfyg...', '....rdrrrr.....gyfyyyyyyg...', '....wdwwww.....gyyyyyyyyg...', '....wdwwww.....gyyyyyyyyg...', '....bdbbbb.....gyyyyfyyyg...', '....bdbbbb.....gyyyyyyyyg...', '....bdbbbb.....gyyfyyyyyg...', '....bdbbbb.....gyyyyyyyyg...', '....bbbbbb.....gggggggggg...'],
+  phones: ['............................', '...kkkkkkkkkk...............', '...kkkkkkkkkk.........n.....', '...kcccccccck..........n....', '...kcccccccck.......n..nn...', '...kcwwwwwwck.......nn..n...', '...kcccccccck.....n..nn..n..', '...kcwwwwccck.....nn..n..n..', '...kcccccccck......n..n..n..', '...kcwwwwwcck......n..n.....', '...kcccccccck......n..n..n..', '...kcwwwcccck.....nn..n..n..', '...kcccccccck.....n..nn..n..', '...kcccccccck.......nn..n...', '...kcccccccck.......n..nn...', '...kkkkkkkkkk..........n....', '...kkkkGGkkkk.........n.....', '...kkkkkkkkkk...............', '...kkkkkkkkkk...............', '............................'],
+  boutique: ['.............GG.............', '..............G.............', '........GGGGGGGGGGGG........', '..........vv....vv..........', '..........vv....vv..........', '..........vvvvvvvv..........', '..........vvoyvoyv..........', '..........vvvvvvvv..........', '..........vvvvvvvv..........', '..........oooooooo..........', '..........vvvvvvvv..........', '.........vvvvvvvvv..........', '........vvvoyvvvoyv.........', '.......vvvvvvvvvvvvv........', '......vvvvvvvvvvvvvvv.......', '.....vvvoyvvvoyvvvvoyv......', '....vvvvvvvvvvvvvvvvvvv.....', '...vvvvvvvvvvvvvvvvvvvvv....', '..vvvvoyvvvoyvvvoyvvvoyvv...', '.vvvvvvvvvvvvvvvvvvvvvvvvv..'],
+  shoes: ['............................', '..................gggggggg..', '..................GGGGGGGG..', '..................GGGGGGGG..', '..................GGGGGGGG..', '.....................bb.....', '.....................bb.....', '.......bbbb..........bb.....', '......bbbbbb.........bb.....', '.....bbbbbbbb........bb.....', '....bbbbbbbbbb.......bb.....', '....bbbbbbbbbb.......bb.....', '....bbbbbbbwbw.w............', '....bbbbbbbbwbwbwbbbbbbb....', '....bbbbbbbbbbbbbbbbbbbbb...', '....bbbbbbbbbbbbbbbbbbbbb...', '.....bbbbbbbbbbbbbbbbbbb....', '....kkkkkkkkkkkkkkkkkkkkkk..', '....kkkkkkkkkkkkkkkkkkkkkk..', '....kkkkk...................'],
 };
-export const MURAL_CANVAS = { width: 22, height: 16 }; // with the outline
+export const MURAL_CANVAS = { width: 30, height: 22 }; // with the outline
 
-/** The wall picture of a shop kind: 22 × 16 with a 1 px dark outline. */
+/** The wall picture of a shop kind: 30 × 22 with a 1 px dark outline. */
 export function drawMural(kind) {
   const c = new PixelCanvas(MURAL_CANVAS.width, MURAL_CANVAS.height);
   (MURALS[kind] ?? []).forEach((row, y) => [...row].forEach((ch, x) => ch !== '.' && MURAL_PAL[ch] !== undefined && c.setPixel(1 + x, 1 + y, MURAL_PAL[ch])));
@@ -188,7 +189,8 @@ export function shopFronts(world) {
     const t = world.tile(b.tx, b.ty);
     if (t.landmark) continue;
     if (buildingLook(b, world).style !== 'shop') continue;
-    const g = groups.get(b.groupId) ?? { id: b.groupId, x0: b.tx, x1: b.tx, y0: b.ty, y1: b.ty, top: 0, district: t.district };
+    const g = groups.get(b.groupId) ?? { id: b.groupId, x0: b.tx, x1: b.tx, y0: b.ty, y1: b.ty, top: 0, roof: Infinity, district: t.district };
+    g.roof = Math.min(g.roof, b.topLevel); // the lowest roof of the shop (a wall picture must fit under it)
     g.x0 = Math.min(g.x0, b.tx); g.x1 = Math.max(g.x1, b.tx); g.y0 = Math.min(g.y0, b.ty); g.y1 = Math.max(g.y1, b.ty);
     g.top = Math.max(g.top, b.floorLevel ?? b.baseLevel);
     groups.set(b.groupId, g);
@@ -218,7 +220,8 @@ export function shopFronts(world) {
       const n = sideFace === 'east' ? world.blockAt(g.x1 + 1, g.y0 + i) : world.blockAt(g.x0 + i, g.y1 + 1);
       if (n && n.kind === 'building') sideOpen = false;
     }
-    const muralFace = sideOpen ? sideFace : null;
+    const fits = (g.roof - g.top) * 16 >= SHOPS.muralLevel * 16 + MURAL_CANVAS.height; // 16 screen pixels a level
+    const muralFace = sideOpen && fits ? sideFace : null;
     const muralMid = sideFace === 'east' ? { x: (g.x1 + 1) * T, y: ((g.y0 + g.y1 + 1) / 2) * T } : { x: ((g.x0 + g.x1 + 1) / 2) * T, y: (g.y1 + 1) * T };
     // Where customers stand: the nearest road or pavement in front (up to 3 tiles out), or none.
     let stand = null;
