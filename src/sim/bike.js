@@ -298,7 +298,7 @@ export function stepBike(bike, input, world, dt) {
   // Parts: wear (the whole meter) and rough (murram, potholes and off road: better tyres).
   const rough = mods && (surface.wearFactor ?? 1) > 1 ? mods.rough : 1;
   let wearKm = rideWearKm(bike, spec, surface, moved) * rough + brakeWearKm;
-  for (const e of events) wearKm += hitWearKm(e) * (mods && ['pothole', 'puddle', 'rocksHard'].includes(e.type) ? mods.rough : 1);
+  for (const e of events) wearKm += hitWearKm(e, bike.type) * (mods && ['pothole', 'puddle', 'rocksHard'].includes(e.type) ? mods.rough : mods && e.type === 'crash' ? mods.crash : 1);
   if (mods) wearKm *= mods.wear;
   events.push(...addWear(bike, wearKm));
 

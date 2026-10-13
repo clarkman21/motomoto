@@ -413,7 +413,10 @@ export const MAINTENANCE = {
   intervalKm: { petrol: 150, electric: 600 }, // game km of tarmac riding between services
   // Each km counts × the surface wearFactor (SURFACES) × this factor when the petrol engine is in the red zone.
   redlineWearFactor: 3,
-  hazardWearKm: { pothole: 2, puddle: 2, rocksHard: 1, bumpHard: 1.5, wall: 4, crash: 8 }, // extra km on the service meter for each hit
+  hazardWearKm: { pothole: 2, puddle: 2, rocksHard: 1, bumpHard: 1.5, wall: 4 }, // extra km on the service meter for each hit
+  // A crash (Alp: it must show on the service meter): a part of the whole meter, more for a harder hit.
+  // share = base + perKmh × (impact km/h − COLLISION.crashSpeedKmh), up to max. Crash bars make it smaller. Guesses.
+  crashWear: { base: 0.1, perKmh: 0.006, max: 0.3 },
   warnAt: 0.8, // "Service soon"
   breakdownAt: 1.5, // the engine stops; push the bike to the garage
   // Between 100% and the breakdown, the bike loses power and uses more energy (up to these values).
@@ -860,7 +863,7 @@ export const SHOP = {
     { id: 'filter', name: 'Air filter and tune up', price: 2000, level: 2, only: 'petrol', effect: { fuel: 0.92 }, text: 'Fuel use 8% lower. Petrol moto only.' },
     { id: 'tyres', name: 'Better tyres', price: 4500, level: 3, effect: { rough: 0.7, wetGrip: 0.1 }, text: '30% less wear on murram, potholes and off road, and more grip on wet murram.' },
     { id: 'net', name: 'Cargo net and straps', price: 1000, level: 3, effect: { fragile: 0.5 }, text: 'Bananas and ikivuguto get 50% less damage.' },
-    { id: 'crashbars', name: 'Crash bars', price: 2500, level: 3, effect: { crash: 0.6 }, text: 'Crash repairs cost 40% less.' },
+    { id: 'crashbars', name: 'Crash bars', price: 2500, level: 3, effect: { crash: 0.6 }, text: 'Crash repairs cost 40% less, and a crash wears the moto 40% less.' },
     { id: 'charger', name: 'Phone charger for passengers', price: 1500, level: 3, effect: { longTripTip: 0.05 }, text: 'An extra tip of up to 5% on trips longer than 5 km.' },
     { id: 'pads', name: 'Ceramic brake pads', price: 2500, level: 4, effect: { wear: 0.9 }, text: 'The brake pads last longer: the service meter fills 10% slower.' },
     { id: 'bearings', name: 'Sealed wheel bearings', price: 4000, level: 5, effect: { wear: 0.85 }, text: 'The service meter fills 15% slower.' },

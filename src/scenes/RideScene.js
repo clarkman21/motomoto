@@ -14,7 +14,7 @@ import { createBike, stepBike, forwardSpeed, shiftGear, bestGear, resetToRoad } 
 import { readControls } from '../sim/controls.js';
 import { EngineSound } from '../audio/engine-sound.js';
 import { createWallet, earn, spend, buyFuel, swapBattery, fuelFillCost, fuelChoices, repairCost, endDay, stranded, payGarage } from '../sim/economy.js';
-import { garageQuote, serviceDue } from '../sim/maintenance.js';
+import { garageQuote, serviceDue, crashWearShare } from '../sim/maintenance.js';
 import { createJobBoard, updateBoard, acceptOffer, cancelJob, updateJob, jobTarget, acceptHail, tripMetres, passengerWaits, loseJobWhenEmpty } from '../sim/jobs.js';
 import { createCameraState, checkCameras, speedLimitAt } from '../sim/law.js';
 import { buildRoadGraph, openRoads } from '../sim/roads.js';
@@ -1486,7 +1486,9 @@ export class RideScene extends Phaser.Scene {
     const what = !e.hit ? 'a wall' : e.hit.officer ? 'a police officer' : e.hit.kind === 'pole' ? 'a pole' : e.hit.kind === 'person' ? 'a person' : e.hit.kind === 'bus' ? 'a minibus' : `a ${e.hit.kind}`;
     this.cameras.main.shake(300, 0.008);
     this.engineSound.crash(e.speed / 12);
-    this.events.emit('bark', `Crash! You hit ${what} at ${kmh} km/h and fell off`);
+    // The crash also fills the service meter (sim/maintenance.js); crash bars make it smaller.
+    const wear = Math.round(crashWearShare(e.speed) * (this.bike.mods?.crash ?? 1) * 100);
+    this.events.emit('bark', `Crash! You hit ${what} at ${kmh} km/h and fell off. Service +${wear}%`);
     for (let i = 0; i < 4; i++) this.#spawnPuff(this.bike.x + (this.rng() - 0.5) * 1.5, this.bike.y + (this.rng() - 0.5) * 1.5, 0.1);
   }
 

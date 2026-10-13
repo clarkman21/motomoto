@@ -127,6 +127,7 @@ All 10 levels, the three modes, the story arc (smog, the yellow battery, the swa
 | Hard mode challenges: mobile speed checks (a parked patrol car with a radar, 3 each day from level 3), one-way streets (Town north and south streets: ONE WAY boards; the traffic keeps to them in all modes), no motos on Embassy road south (a round sign), overloaded cargo (some cargo offers are heavy: more pay, but over 80 kg the police chase you), no stopping at a bus stop near an officer, and the bathroom need (a WC bar; drinks fill it faster; when it is full, less power; stop at a station, a buffet or the bus park, 200 RWF). On easy and medium the street rules give only a warning | Done |
 | Garden walls around the Kimihurura villas: one compound for each villa, a painted wall with a top and a foot band, one steel gate on the road side; the walls are solid | Done |
 | Design system step 2: the player moto, the trees, the road signs, the HUD icons and the menus use only colour tokens (`PALETTE` with the light rule for the world, `UI_PALETTE` for the HUD and the menus); a test checks it | Done |
+| A crash fills the service meter (Alp, 13 October 2026): 10% of the meter, plus 0.6% for each km/h over 18 km/h, up to 30%; the same share for the petrol and the electric moto; crash bars make it 40% smaller. The crash message shows it ("Service +14%") | Done |
 | The moto shop look (a container shop) | Later (after v1.0) |
 
 ## Run the game

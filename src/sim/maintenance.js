@@ -1,4 +1,6 @@
-import { MAINTENANCE, JOBS, GEARBOX, BRAKES } from '../config.js';
+import { MAINTENANCE, JOBS, GEARBOX, BRAKES, COLLISION } from '../config.js';
+
+const CRASH_KMH = COLLISION.crashSpeedKmh;
 
 // Maintenance: the service meter. No Phaser here.
 // bike.serviceWear counts game km since the last service, weighted by how hard the ride was.
@@ -35,9 +37,16 @@ export function rideWearKm(bike, spec, surface, metres) {
   return (metres / JOBS.gameKmMetres) * (surface.wearFactor ?? 1) * redline;
 }
 
-/** Wear in game km for a hit (pothole, hard speed bump, crash), or 0. */
-export function hitWearKm(event) {
+/** The part of the service meter (0..1) that a crash at this speed (m/s) fills. */
+export function crashWearShare(speed) {
+  const c = MAINTENANCE.crashWear;
+  return Math.min(c.max, c.base + c.perKmh * Math.max(0, speed * 3.6 - CRASH_KMH));
+}
+
+/** Wear in game km for a hit (pothole, hard speed bump, crash), or 0. type: the bike type (for a crash). */
+export function hitWearKm(event, type = 'petrol') {
   if (event.type === 'wall' && event.speed < 4) return 0;
+  if (event.type === 'crash') return crashWearShare(event.speed) * MAINTENANCE.intervalKm[type];
   return MAINTENANCE.hazardWearKm[event.type] ?? 0;
 }
 
