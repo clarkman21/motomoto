@@ -82,6 +82,10 @@ const BARKS = {
 };
 const REPAIR_LABELS = { wall: 'Crash damage' };
 const STATION_RANGE_METRES = 6;
+// You may also stop anywhere beside the building of a fuel station, a swap station or a garage (Alp:
+// F at the garage did nothing, because the bike was not near the one stop point).
+const STATION_BUILDING_METRES = 3.5;
+const STATION_BLOCK_KINDS = { fuel: 'fuel', swap: 'swap', garage: 'garage' };
 
 export class RideScene extends Phaser.Scene {
   constructor() {
@@ -471,7 +475,10 @@ export class RideScene extends Phaser.Scene {
 
   startRefuel() {
     const offer = this.stationOffer();
-    if (!offer) return;
+    if (!offer) {
+      this.events.emit('bark', this.refuel ? `Wait: ${Math.ceil(this.refuel.timeLeft)} s more at this stop` : this.#stationHint());
+      return;
+    }
     if (!offer.ok) {
       this.events.emit('bark', offer.text);
       return;
@@ -818,13 +825,43 @@ export class RideScene extends Phaser.Scene {
     }
     for (const kind of ['fuel', 'swap', 'garage', 'office']) {
       for (const p of this.world.placesWithTag(kind)) {
-        if (Math.hypot(b.x - p.x * WORLD.tileMetres, b.y - p.y * WORLD.tileMetres) < STATION_RANGE_METRES) {
+        if (this.#atStation(kind, p)) {
           this.station = kind;
           this.stationPlace = p;
         }
       }
     }
     if (this.station !== 'fuel') this.fuelChoice = null;
+  }
+
+  /** Is the bike at this station: near its stop point, or beside its building? */
+  #atStation(kind, p) {
+    const b = this.bike, T = WORLD.tileMetres;
+    if (Math.hypot(b.x - p.x * T, b.y - p.y * T) < STATION_RANGE_METRES) return true;
+    const blockKind = STATION_BLOCK_KINDS[kind];
+    if (!blockKind) return false;
+    if (!this.stationBlocks) this.stationBlocks = new Map();
+    const key = `${kind}:${p.id ?? p.name}`;
+    if (!this.stationBlocks.has(key)) {
+      // The building tiles of this station: blocks of its kind within 4 tiles of the stop point.
+      this.stationBlocks.set(key, this.world.blocks.filter((k) => k.kind === blockKind && Math.abs(k.tx + 0.5 - p.x) < 4 && Math.abs(k.ty + 0.5 - p.y) < 4));
+    }
+    return this.stationBlocks.get(key).some((k) => {
+      const dx = Math.max(k.tx * T - b.x, 0, b.x - (k.tx + 1) * T), dy = Math.max(k.ty * T - b.y, 0, b.y - (k.ty + 1) * T);
+      return Math.hypot(dx, dy) < STATION_BUILDING_METRES;
+    });
+  }
+
+  /** F with no station here: say why, so that the key never seems to do nothing. */
+  #stationHint() {
+    const b = this.bike, T = WORLD.tileMetres;
+    const near = ['garage', 'swap', 'fuel', 'office']
+      .flatMap((kind) => this.world.placesWithTag(kind).map((p) => ({ p, d: Math.hypot(b.x - p.x * T, b.y - p.y * T) })))
+      .sort((a, c) => a.d - c.d)[0];
+    if (near && near.d < 25) {
+      return Math.abs(forwardSpeed(b)) * 3.6 >= 3 ? `Stop at ${near.p.name} first, then press F` : `Ride closer to ${near.p.name} and stop, then press F`;
+    }
+    return 'F works when you stop at a station, a garage, the showroom or a food stop. Garages are orange on the minimap';
   }
 
   /** The level's settings, traffic, people and job board. Called at the start and at each new day. */

@@ -128,6 +128,7 @@ All 10 levels, the three modes, the story arc (smog, the yellow battery, the swa
 | Garden walls around the Kimihurura villas: one compound for each villa, a painted wall with a top and a foot band, one steel gate on the road side; the walls are solid | Done |
 | Design system step 2: the player moto, the trees, the road signs, the HUD icons and the menus use only colour tokens (`PALETTE` with the light rule for the world, `UI_PALETTE` for the HUD and the menus); a test checks it | Done |
 | A crash fills the service meter (Alp, 13 October 2026): 10% of the meter, plus 0.6% for each km/h over 18 km/h, up to 30%; the same share for the petrol and the electric moto; crash bars make it 40% smaller. The crash message shows it ("Service +14%") | Done |
+| Stations and garages are easier to use (Alp, 13 October 2026): you can stop anywhere beside the building of a fuel station, a swap station or a garage (before: only within 6 m of one stop point). F never does nothing: it says why (stop first, ride closer, wait for the stop to end, or where F works) | Done |
 | The moto shop look (a container shop) | Later (after v1.0) |
 
 ## Run the game
