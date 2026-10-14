@@ -45,7 +45,7 @@ const HELP = [
   {
     title: 'The HUD and the map',
     lines: [
-      'Top left: your speed, the gear, the RPM strip (petrol) and the fuel or battery bar. The SERVICE bar (a wrench) shows only from 60%, the FOOD bar only when you get hungry, the WC bar only when it gets urgent.',
+      'Top left: your speed, the gear, the RPM strip (petrol) and the fuel or battery bar. Under them: the SERVICE bar (a wrench) and, in medium and hard modes, the FOOD bar. The WC bar (hard mode) shows only when it gets urgent.',
       'Top right: your cash and the clock, with the streak (a flame) after clean rides. The thin bar under it is your savings goal; the pause menu shows the level, the goal and the quests. The speed limit sign shows when the limit changes and when you ride too fast.',
       'With no job, a small list shows the job offers: the number key, where to, how far and the pay. Gold = a special job or a muzungu. A red distance = not enough fuel for the job. With a job, one line at the top shows where to go and how far.',
       'The minimap: SP = a fuel station (blue), yellow squares = swap stations, orange = garages, numbered squares = the pickups of the job offers. A green dot = the pickup of your job, a white dot = the drop off.',

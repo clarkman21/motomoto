@@ -198,15 +198,15 @@ export class HudScene extends Phaser.Scene {
     const electric = bike.type === 'electric';
     const blinkOn = Math.floor(this.time.now / 300) % 2 === 0;
     const kmh = Math.abs(forwardSpeed(bike)) * 3.6;
-    // Which bars show: the fuel or battery always; the others only when they need you.
+    // Which bars show (Alp, 14 October 2026): the fuel or battery and the service always; the food bar
+    // always in the modes with rider energy (medium and hard); the WC bar only when it is urgent.
     const due = serviceDue(bike);
     const food = ride.rider ? ride.rider.energy : 1;
     const wc = this.ride.mode?.bladder && ride.rider ? ride.rider.bladder ?? 0 : 0;
-    const eating = ride.refuel?.kind === 'food';
     const show = {
       energy: true,
-      service: bike.brokenDown || due >= HUD_RULES.serviceFrom,
-      food: !!ride.rider && (food < HUD_RULES.foodBelow || eating),
+      service: true,
+      food: !!ride.rider,
       wc: !!this.ride.mode?.bladder && !!ride.rider && wc >= HUD_RULES.wcFrom,
     };
     const rowsTop = L.y + (spec.gears ? 33 : 27);
