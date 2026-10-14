@@ -2,8 +2,10 @@ import { PEOPLE, WORLD, JOBS } from '../config.js';
 import { tripMetres } from './jobs.js';
 
 // People: walkers and customers who wave for a ride (street hails). No Phaser here.
-// Walkers move between points on pavements and in the market area, in straight lines that
-// do not go through buildings, so some cross roads. They step aside from a fast bike.
+// Walkers move between points on pavements, road verges (grass beside a road) and the market
+// squares, in straight lines that do not go through buildings and do not go across a road
+// (Alp, 14 October 2026: people keep off the road). They cross only on the zebra crossings
+// (see crossers.js). They step aside from a fast bike.
 
 const T = WORLD.tileMetres;
 
@@ -37,29 +39,44 @@ export function newPerson(people, x, y) {
   };
 }
 
+const ROAD_SURFACES = ['tarmac', 'murram', 'murramWet', 'cobble'];
+const inCrowdArea = (world, tx, ty) => (world.crowdAreas ?? []).some((a) => tx >= a.x0 && tx < a.x1 && ty >= a.y0 && ty < a.y1);
+
 function isWalkTile(world, t) {
   if (t.block || t.solid) return false;
   if (t.surface === 'pavement') return true;
+  // A road verge: grass beside a road (where a road has no pavement, people walk alongside it).
+  if (t.surface === 'grass' && nextToRoad(world, t)) return true;
   // Markets and the bus park (the map's crowd areas): people walk everywhere there.
-  return (world.crowdAreas ?? []).some((a) => t.tx >= a.x0 && t.tx < a.x1 && t.ty >= a.y0 && t.ty < a.y1);
+  return inCrowdArea(world, t.tx, t.ty);
 }
 
 function nextToRoad(world, t) {
   return [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => {
     const n = world.tile(t.tx + dx, t.ty + dy);
-    return n && !n.block && (n.surface === 'tarmac' || n.surface === 'murram' || n.surface === 'cobble');
+    return n && !n.block && ROAD_SURFACES.includes(n.surface);
   });
 }
 
-/** A clear straight line (no buildings, water or trees) between two points. */
+/**
+ * A clear straight line between two points: no buildings, water or trees, and no road (except in a
+ * market square, and the tile where the walker stands now).
+ */
 function clearLine(world, x0, y0, x1, y1) {
   const steps = Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 0.5);
+  const sx = Math.floor(x0 / T), sy = Math.floor(y0 / T);
   for (let i = 1; i <= steps; i++) {
     const t = i / steps;
-    if (world.isSolidAt(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, false)) return false;
+    const x = x0 + (x1 - x0) * t, y = y0 + (y1 - y0) * t;
+    if (world.isSolidAt(x, y, false)) return false;
+    const tx = Math.floor(x / T), ty = Math.floor(y / T);
+    if (tx === sx && ty === sy) continue;
+    const tile = world.tile(tx, ty);
+    if (tile && ROAD_SURFACES.includes(tile.surface) && !inCrowdArea(world, tx, ty)) return false;
   }
   return true;
 }
+export { clearLine as clearWalkLine };
 
 function pickTarget(people, world, p) {
   const rng = people.rng;

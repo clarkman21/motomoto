@@ -556,6 +556,41 @@ export function drawWaver(look, left = false) {
   return finishFigure(c, left);
 }
 
+/** A city road sweeper (a guess: a green work coat with a reflective band). */
+export const CITY_SWEEPER_LOOK = { shirt: C.green, legs: C.green, skin: C.skin };
+
+/**
+ * A worker at the road side (sim/crews.js). task 'hoe': frame 0 = the hoe up, 1 = the hoe in the ground.
+ * task 'sweep': a short twig broom, frame 0 = to the right, 1 = to the left. look: a PERSON_LOOKS entry
+ * or CITY_SWEEPER_LOOK (with a reflective band).
+ */
+export function drawWorker(look, task, frame, left = false) {
+  const c = new PixelCanvas(PERSON_CANVAS.width, PERSON_CANVAS.height);
+  const gx = PERSON_CANVAS.groundX, gy = PERSON_CANVAS.groundY;
+  if (look.kitenge !== undefined) drawMama(c, look, gx, gy, 0, 0, false);
+  else drawBody(c, look, gx, gy, 0, 0, false);
+  if (look === CITY_SWEEPER_LOOK) for (let x = gx - 2; x <= gx + 2; x++) c.plot(x, gy - 12, C.reflect);
+  const skin = look.skin;
+  if (task === 'hoe') {
+    if (frame === 0) {
+      c.line(gx + 1.5, gy - 14, gx + 3, gy - 20, 1.6, skin); // the arms up
+      c.line(gx + 2, gy - 17, gx + 4, gy - 26, 1.2, C.wood); // the handle over the head
+      for (let x = gx + 3; x <= gx + 6; x++) for (let y = gy - 27; y <= gy - 26; y++) c.plot(x, y, C.hub); // the iron blade
+    } else {
+      c.line(gx + 1.5, gy - 14, gx + 3, gy - 10, 1.6, skin); // the arms down
+      c.line(gx + 2, gy - 12, gx + 5, gy - 2, 1.2, C.wood);
+      for (let x = gx + 3; x <= gx + 6; x++) for (let y = gy - 2; y <= gy - 1; y++) c.plot(x, y, C.hub);
+    }
+  } else {
+    const bx = frame === 0 ? gx + 4 : gx - 3; // where the broom sweeps
+    c.line(gx + 1.5, gy - 14, gx + 1.5, gy - 10, 1.6, skin);
+    c.line(gx + 1, gy - 11, bx, gy - 4, 1.2, C.woodDark); // the short stick
+    for (let x = bx - 3; x <= bx + 2; x++) for (let y = gy - 4; y <= gy - 1; y++) c.plot(x, y, (x + y) % 2 ? C.basket : C.basketDark); // the twig broom
+    for (const [dx, dy] of [[-5, -1], [4, -2], [-4, -3]]) c.plot(bx + (frame === 0 ? dx : -dx), gy + dy, C.concrete); // dust
+  }
+  return finishFigure(c, left);
+}
+
 /** The muzungu who waves for a moto at the roadside (a street hail). */
 export const VISITOR_LOOK = { shirt: C.teal, legs: C.khaki, skin: C.visitorSkin, visitor: true };
 

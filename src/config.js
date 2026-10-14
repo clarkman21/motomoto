@@ -938,13 +938,23 @@ export const SHOP = {
   talk: ['Muraho! A good speaker brings good tips.', 'Good tyres love murram.', 'Service on time, and the moto lives long.', 'Ceramic pads, smooth stops.', 'Bite the road, not the dust!'],
 };
 
+// Work crews (sim/crews.js). On an Umuganda morning nobody walks in the streets (Alp, 14 October 2026):
+// everybody does community work at the road sides: crews with hoes in the fields beside the roads, and
+// crews who sweep the roads. On a normal day, city road sweepers sweep the road sides in the early morning.
+export const CREWS = {
+  umuganda: { perDistrict: 36, groupSize: [3, 6], hoeShare: 0.55 }, // the share of the groups with hoes; the others sweep
+  sweepers: { perDistrict: 4, groupSize: [1, 2], hours: [6, 9] }, // city sweepers on a normal day (guess: 06:00 to 09:00)
+  siteCrew: 6, // people at the work site of an Umuganda run
+  frameMs: [380, 520], // the time of one work stroke (each worker has its own speed)
+};
+
 // Day events (from level 6). A level's `events` gives the chance of each event on a day; one event at most.
 // The numbers are guesses, to tune in play.
 export const EVENTS = {
-  // Umuganda: the community work morning. No customers and almost no traffic until endHour, then a rush.
+  // Umuganda: the community work morning. No customers, no traffic (only police patrols) and nobody in the streets until endHour, then a rush.
   umuganda: {
     endHour: 11, rushEndHour: 13,
-    trafficShare: 0.15, // the share of the traffic on the road in the morning
+    trafficShare: 0, // the share of the traffic on the road in the morning (Alp: no cars; only the police patrols)
     rushFare: 1.3, rushExtraOffers: 1, rushHailEvery: 0.5, // extra offers up to JOBS.maxOffersShown; twice the street hails
     wakeMetres: 70, // vehicles come back on the road only this far from you (they do not pop up in view)
   },

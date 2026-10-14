@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS, FLEET, RIDER, TRAFFIC_LIGHTS, HELMET_CHECKS, CROSSINGS, STORY, MODES, RUSH, ROAD_EVENTS, HARD_RULES, MUZUNGU } from '../config.js';
+import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS, FLEET, RIDER, TRAFFIC_LIGHTS, HELMET_CHECKS, CROSSINGS, STORY, MODES, RUSH, ROAD_EVENTS, HARD_RULES, MUZUNGU, CREWS } from '../config.js';
 import { World } from '../world/world.js';
 import { buildKigaliMap } from '../world/maps/kigali.js';
 import { ChunkStreamer, groupKey } from './chunks.js';
@@ -24,6 +24,8 @@ import { TrafficView, isDiesel } from './TrafficView.js';
 import { createPeople, stepPeople, hailInReach, insidePerson, busArrivalHails, honkAt, newPerson } from '../sim/people.js';
 import { startRace, chaseHail, stepRivals, cancelMission } from '../sim/rivals.js';
 import { PeopleView } from './PeopleView.js';
+import { CrewView } from './CrewView.js';
+import { placeCrews, crewAt, sweepersOut, stepCrews } from '../sim/crews.js';
 import { PERSON_LOOKS } from '../world/vehicle-sprites.js';
 import { trafficHonks } from '../sim/honk.js';
 import { levelSettings, milestoneReady, buyMilestone, startAtLevel, setLevel, streakMultiplier, updateStreak, savingsTarget } from '../sim/levels.js';
@@ -63,6 +65,7 @@ import { maybeVisitor, maybeVisitorHail, stepVisitor, greeting, dropOffLines, si
 import { dayStats, pickQuests, recordDelivery, recordFine, checkQuests, maybeMission, stepMission, missionResult, findSecret } from '../sim/missions.js';
 
 const FIXED_DT = 1 / 120; // physics step in seconds
+const CREW_LOOKS = PERSON_LOOKS.map((l, i) => (l.basket ? -1 : i)).filter((i) => i >= 0); // no basket on the head at work
 const BARKS = {
   bumpHard: 'Speed bump too fast!',
   wall: 'Bang!',
@@ -963,6 +966,7 @@ export class RideScene extends Phaser.Scene {
     this.traffic.slowZones = works.map((w) => w.zone);
     this.roadEventsView.setWorks(works);
     this.convoy = { plan: planConvoy(this.roadGraph, districtAt, L.districts, this.wallet.day, L.n, L.shift), started: false, warned: false, fined: false };
+    if (dayEvent === 'umuganda' && this.convoy.plan?.hour < EVENTS.umuganda.endHour) this.convoy.plan = null; // no convoy on the empty Umuganda roads
     const roads = carFreeRoads(this.world.roads).filter((r) => L.districts.includes(districtAt(((r.x0 ?? r.x) + 1) * T, ((r.y ?? r.y0) + 1) * T)));
     this.carFree = { day: (this.cheatCarFree ?? isCarFreeDay(this.wallet.day, L.n, dayEvent)) && roads.length > 0, roads, active: false, warned: false };
     this.roadEventsView.setCarFree(roads, false);
@@ -979,6 +983,16 @@ export class RideScene extends Phaser.Scene {
     this.lights.setTraffic(this.traffic);
     this.people = createPeople(this.world, this.rng, { hailEvery: L.hailEvery, districts: L.districts, walkers: PEOPLE.walkersPerDistrict * L.districts.length });
     this.peopleView = new PeopleView(this, this.people);
+    // Work crews (sim/crews.js): on an Umuganda morning everybody works at the road sides (hoes in the
+    // fields, brooms on the roads); on a normal day a few city sweepers work in the early morning.
+    this.crewView ??= new CrewView(this);
+    this.crewView.setCrews([]);
+    this.crewKey = '';
+    this.crews = {
+      umuganda: dayEvent === 'umuganda' ? placeCrews(this.world, mulberry32(this.wallet.day * 53 + 7), 'umuganda', { districts: L.districts, looks: CREW_LOOKS }) : [],
+      sweepers: placeCrews(this.world, mulberry32(this.wallet.day * 59 + 3), 'sweepers', { districts: L.districts }),
+      site: [],
+    };
     this.crossState = { timers: new Map(), seen: new Set() };
     // Side missions: some new offers become special jobs (sim/missions.js).
     // Hard mode: some cargo is too heavy for a moto (overloading: more pay, but the police fine it).
@@ -1023,6 +1037,15 @@ export class RideScene extends Phaser.Scene {
     if (st.trafficFull && this.traffic.dormant?.length && (this.wakeTimer = (this.wakeTimer ?? 0) - dt) <= 0) {
       this.wakeTimer = 1;
       wakeTraffic(this.traffic, this.bike.x, this.bike.y, EVENTS.umuganda.wakeMetres);
+    }
+    // The Umuganda morning: nobody walks in the streets (they work with the crews); they come back after it.
+    const quiet = this.dayEvent === 'umuganda' && st.stage === 'morning';
+    if (quiet && !this.people.away) {
+      this.people.away = this.people.walkers.filter((p) => !p.crosser);
+      this.people.walkers = [];
+    } else if (!quiet && this.people.away) {
+      this.people.walkers.push(...this.people.away);
+      this.people.away = null;
     }
     if (st.stage === this.eventStage) return;
     const bark = eventBark(this.dayEvent, this.eventStage, st.stage);
@@ -1457,6 +1480,7 @@ export class RideScene extends Phaser.Scene {
     this.chunks.cull(this.cameras.main.worldView);
     this.trafficView.update(this.world, this.cameras.main.worldView);
     this.peopleView.update(this.world, this.cameras.main.worldView, this.time.now);
+    this.#updateCrews(dt);
     this.garages.update(this.time.now);
     this.markets.update(this.time.now);
     this.attendant.update(this, dt, this.time.now);
@@ -1572,6 +1596,24 @@ export class RideScene extends Phaser.Scene {
     const pitch = (look.kitenge !== undefined ? 1.2 : 0.9) + ((person.id * 37) % 10) / 40;
     this.engineSound.yell(pitch);
     this.#bubble(person.x, person.y, 34, word, 0xfff2c8);
+  }
+
+  /** The work crews that are out now: the Umuganda crews in the morning, else the city sweepers in their hours. */
+  #activeCrews() {
+    if (!this.crews) return [];
+    if (this.dayEvent === 'umuganda' && this.eventStage === 'morning') return [...this.crews.umuganda, ...this.crews.site];
+    return sweepersOut(this.clockHours) ? this.crews.sweepers : [];
+  }
+
+  #updateCrews(dt) {
+    const list = this.#activeCrews();
+    const key = list === this.crews?.sweepers ? 'sweepers' : list.length ? `umuganda-${this.crews.site.length}` : '';
+    if (key !== this.crewKey) {
+      this.crewKey = key;
+      this.crewView.setCrews(list);
+    }
+    stepCrews(this.crewView.crews, dt);
+    this.crewView.update(this.world, this.cameras.main.worldView, this.time.now);
   }
 
   /** The muzungu on the bike: lines, photo stops (sim/muzungu.js). */
@@ -2006,6 +2048,7 @@ export class RideScene extends Phaser.Scene {
       const offer = umugandaOffer(this.world, this.board.rng, this.board.nextId++, this.board.opts);
       if (offer) {
         this.board.offers.unshift(offer);
+        this.crews.site = crewAt(this.world, this.rng, offer.to.x, offer.to.y, CREWS.siteCrew, 10000 + offer.id * 10, CREW_LOOKS); // the people at the work site
         this.events.emit('bark', offer.type === 'passenger'
           ? `Bonus: UMUGANDA RUN! A passenger is late for Umuganda. Motos may not ride now: keep off the main roads, away from the police patrols`
           : `Bonus: UMUGANDA RUN! Take hoes and water to the Umuganda work site. Motos may not ride now: keep off the main roads, away from the police patrols`);
@@ -2104,7 +2147,8 @@ export class RideScene extends Phaser.Scene {
     for (const e of stepRivals(this.traffic, dt)) this.#rivalArrived(e);
     // People cross the road on the zebra crossings; you must stop for them.
     const movers = [b, ...this.traffic.vehicles.filter((v) => Math.abs(v.x - b.x) < 110 && Math.abs(v.y - b.y) < 110)];
-    for (const e of stepCrossers(this.crossState, this.people, this.crossPaths ?? [], { bike: b, movers, mode: this.mode, districts: this.level.districts }, dt)) {
+    const crossPaths = this.people.away ? [] : this.crossPaths ?? []; // nobody crosses on the Umuganda morning
+    for (const e of stepCrossers(this.crossState, this.people, crossPaths, { bike: b, movers, mode: this.mode, districts: this.level.districts }, dt)) {
       const p = e.person;
       const officer = this.mode.fines && this.mode.police && this.police.police.officers.some((o) => Math.hypot(o.x - p.x, o.y - p.y) < CROSSINGS.officerRangeMetres);
       this.#yell(p, 'HEY!');
@@ -2115,7 +2159,7 @@ export class RideScene extends Phaser.Scene {
       } else this.events.emit('bark', 'Stop for people on the zebra crossing!');
     }
     const near = (p) => Math.abs(p.x - b.x) < 12 && Math.abs(p.y - b.y) < 12;
-    this.nearPeople = this.people.walkers.filter(near).concat(this.people.hails.filter(near));
+    this.nearPeople = this.people.walkers.filter(near).concat(this.people.hails.filter(near), (this.crewView?.crews ?? []).filter(near));
     this.world.dynamicAgents = [...this.nearAgents, ...this.nearPeople, ...this.world.poles.filter((p) => !p.off && near(p))]; // p.off: a traffic light pole not in use
     // A waving muzungu calls you when you are near.
     for (const h of this.people.hails) {
@@ -2250,7 +2294,7 @@ export class RideScene extends Phaser.Scene {
     addCanvasTexture(this, 'waiting-passenger', drawWaitingPassenger());
     addCanvasTexture(this, 'waiting-bananas', drawCargoPile('bananas'));
     addCanvasTexture(this, 'waiting-rice', drawCargoPile('rice'));
-    addCanvasTexture(this, 'waiting-ikivuguto', drawCargoPile('ikivuguto'));
+    for (const goods of ['ikivuguto', 'tools', 'batteries']) addCanvasTexture(this, `waiting-${goods}`, drawCargoPile(goods));
     this.waiting = this.add.image(0, 0, 'waiting-passenger').setOrigin(ox, oy).setVisible(false);
     this.markerRing = this.add.image(0, 0, 'ring-pickup').setVisible(false);
     this.markerPin = this.add.image(0, 0, 'pin-pickup').setOrigin(0.5, 1).setDepth(1e5).setVisible(false);
@@ -2290,7 +2334,8 @@ export class RideScene extends Phaser.Scene {
     this.markerRing.setTexture(`ring-${kind}`).setPosition(s.x, s.y).setScale(pulse).setDepth((wx + wy) / WORLD.tileMetres - 0.5);
     this.markerPin.setTexture(`pin-${kind}`).setPosition(s.x, s.y - 30 - 3 * Math.sin(this.time.now / 220));
     // The passenger (or the cargo) waits beside the marker.
-    this.waiting.setTexture(job.type === 'passenger' ? 'waiting-passenger' : `waiting-${job.goods ?? 'rice'}`)
+    const pile = `waiting-${job.goods ?? 'rice'}`;
+    this.waiting.setTexture(job.type === 'passenger' ? 'waiting-passenger' : this.textures.exists(pile) ? pile : 'waiting-rice')
       .setPosition(s.x + 12, s.y - 2).setDepth((wx + wy) / WORLD.tileMetres + 0.3);
     const dx = s.x - this.bikeScreen.x, dy = s.y - this.bikeScreen.y;
     const d = Math.hypot(dx, dy);

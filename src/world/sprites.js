@@ -1350,6 +1350,27 @@ export function drawCargoPile(goods = 'rice') {
     c.outline(P.ink);
     return c;
   }
+  if (goods === 'tools') {
+    // Umuganda tools: two hoes (isuka) and a broom against a jerrycan of water.
+    c.line(gx - 6, gy - 1, gx - 2, gy - 22, 1.2, P.wood); // hoe handles
+    c.line(gx - 1, gy - 1, gx + 2, gy - 21, 1.2, P.woodDark);
+    for (const [hx, hy] of [[gx - 3, gy - 22], [gx + 1, gy - 21]]) for (let x = hx - 1; x <= hx + 2; x++) for (let y = hy; y <= hy + 2; y++) c.setPixel(x, y, P.hub); // the iron blades
+    c.line(gx + 6, gy - 1, gx + 4, gy - 20, 1, P.wood); // broom stick
+    for (let y = gy - 6; y <= gy - 1; y++) for (let x = gx + 4 - (gy - y) * 0.3; x <= gx + 8 + (gy - y) * 0.1; x++) c.setPixel(x, y, P.basket); // the twig broom
+    for (let y = gy - 9; y <= gy - 1; y++) for (let x = gx - 4; x <= gx + 2; x++) c.setPixel(x, y, x === gx + 2 ? tone(P.kGold, 'right') : P.kGold); // the jerrycan
+    c.setPixel(gx - 3, gy - 10, P.cream);
+    c.outline(P.ink);
+    return c;
+  }
+  if (goods === 'batteries') {
+    // Two Ampersand batteries (the only things in Surge Yellow), with black tops and handles.
+    for (const [x0, y0] of [[gx - 7, gy - 11], [gx + 1, gy - 11]]) {
+      for (let y = y0; y < y0 + 11; y++) for (let x = x0; x < x0 + 6; x++) c.setPixel(x, y, y < y0 + 2 ? P.ink : x === x0 + 5 ? tone(COLOURS.ampersandYellow, 'right') : COLOURS.ampersandYellow);
+      for (let x = x0 + 1; x < x0 + 5; x++) c.setPixel(x, y0 - 1, P.ink); // the handle
+    }
+    c.outline(P.ink);
+    return c;
+  }
   if (goods === 'bananas') {
     const greens = [PALETTE.banana, PALETTE.bananaDark, PALETTE.tarp];
     for (const [bx, top] of [[gx - 3, gy - 12], [gx + 4, gy - 9]]) {

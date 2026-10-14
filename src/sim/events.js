@@ -60,7 +60,7 @@ export function eventLine(event, hour) {
 /** The bark when the stage of the event changes (from: the stage before, or undefined at the start of the day). */
 export function eventBark(event, from, to) {
   const u = EVENTS.umuganda;
-  if (to === 'morning') return `Umuganda today: everybody does community work until ${u.endHour}:00. No customers, and the roads are almost empty.`;
+  if (to === 'morning') return `Umuganda today: everybody does community work until ${u.endHour}:00. No customers, no cars and nobody in the streets: people work with hoes and brooms at the road sides.`;
   if (to === 'rush') return `Umuganda is over! Everybody wants a moto now: more jobs, and fares +${pct(u.rushFare)}% until ${u.rushEndHour}:00.`;
   if (to === null && from === 'rush') return 'The Umuganda rush is over. Fares are normal again.';
   if (to === 'rain' && from === undefined) return `Rain today: the murram roads are wet and slippery. More people want a moto, and fares are +${pct(EVENTS.rain.fare)}%.`;
