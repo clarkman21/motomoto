@@ -187,12 +187,12 @@ export class SignView {
     for (const img of this.sprays) img.setVisible(on).setTexture(`spray-${sf}`);
   }
 
-  /** The building of a sign fades when it hides the bike: the sign fades too. hiding: a Set of building keys. */
-  fade(hiding) {
+  /** The building of a sign fades when it hides the bike or the road: the sign fades too. fade: building key -> alpha. */
+  fade(fade) {
     for (const { img, keys } of this.items) {
-      let hidden = false;
-      for (const k of keys) if (hiding.has(k)) { hidden = true; break; }
-      img.setAlpha(hidden ? 0.45 : 1);
+      let alpha = 1;
+      for (const k of keys) alpha = Math.min(alpha, fade.get(k) ?? 1);
+      img.setAlpha(alpha);
     }
   }
 }

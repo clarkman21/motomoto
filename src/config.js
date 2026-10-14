@@ -27,6 +27,14 @@ export const VIEW = {
   cameraLerp: 0.12, // 0..1 per frame at 60 fps. Higher = camera follows tighter.
   lookAheadSeconds: 0.55, // camera aims at where the bike will be in this time
   lookAheadMaxPx: 70, // in internal pixels
+  // Buildings that hide things fade (Alp, 14 October 2026: "behind big buildings you cannot see the road"):
+  // the buildings in front of the bike, of the road ahead (points every seeAheadStep metres up to
+  // seeAheadMetres, in the direction you ride) and of the job pin (when it is this near).
+  seeAheadMetres: 24,
+  seeAheadStep: 6,
+  seePinMetres: 70,
+  fadeAlpha: 0.25, // a building that hides the bike or the road ahead (before: 0.45)
+  fadeSeconds: 0.2, // the time to fade out or back in
 };
 
 // ---------------------------------------------------------------------------

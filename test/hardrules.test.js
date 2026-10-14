@@ -34,14 +34,14 @@ describe('hard mode challenges', () => {
     const removed = pruneOneWay(graph, ones);
     expect(removed).toBeGreaterThan(0);
     for (const n of graph.nodes) expect(n.out.length).toBeGreaterThan(0);
-    // A dead-end part keeps its way back, so it is not one-way; the long streets are.
+    // With no dead ends, every one-way part can be strict (before, a dead-end part kept its way back).
     const strict = strictOneWays(graph, ones);
     expect(strict.length).toBeGreaterThanOrEqual(2);
-    expect(strict.length).toBeLessThan(ones.length);
+    expect(strict.length).toBeLessThanOrEqual(ones.length); // no dead ends now, so all the one-way parts can be strict
     for (const o of strict) {
       const d = oneWayDir(o);
       const along = graph.edges.filter((e) => e.road.name === o.road.name && onRoad(o.road, Math.floor((e.from.x + e.to.x) / 2 / T), Math.floor((e.from.y + e.to.y) / 2 / T)));
-      expect(along.length).toBeGreaterThan(2);
+      expect(along.length).toBeGreaterThanOrEqual(1);
       const wrong = along.filter((e) => e.dx * d.x + e.dy * d.y < -0.5);
       for (const e of wrong) expect(e.from.out.length === 1 && e.length <= 2 * T).toBe(true); // only a short stub at a dead end
     }

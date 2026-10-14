@@ -79,25 +79,28 @@ const ROADS = [
   { name: 'Kacyiru–Kimihurura road', x: 100, y0: KCC_RING.cy + 6, y1: 127, surface: '#' },
   { name: 'Remera road', x: 160, y0: 0, y1: 127, surface: '#' },
   // Nyabugogo
-  { name: 'River road', y: 5, x0: 0, x1: 63, surface: '#' },
+  { name: 'River road', y: 5, x0: 0, x1: 62, surface: '#' }, // ends at Kinamba road (no dead end)
   { name: 'Gakinjiro road', x: 18, y0: 5, y1: 63, surface: '#' },
   { name: 'Bus park lane', y: 12, x0: 18, x1: 40, surface: '#' },
-  { name: 'Gakinjiro murram', y: 32, x0: 18, x1: 63, surface: 'm' },
-  { name: 'Valley road', y: 44, x0: 18, x1: 63, surface: '#' },
+  { name: 'Gakinjiro murram', y: 32, x0: 18, x1: 62, surface: 'm' },
+  { name: 'Valley road', y: 44, x0: 18, x1: 62, surface: '#' },
   { name: 'Kimisagara lane', y: 38, x0: 0, x1: 18, surface: 'm' },
-  { name: 'Kimisagara steep lane', x: 4, y0: 24, y1: 62, surface: 'm' },
+  { name: 'Kimisagara steep lane', x: 4, y0: 20, y1: 63, surface: 'm' },
   { name: 'Kimisagara cobble', y: 54, x0: 4, x1: 40, surface: 'c' },
-  { name: 'Kinamba road', x: 61, y0: 20, y1: 63, surface: '#' },
+  { name: 'Kinamba road', x: 61, y0: 5, y1: 63, surface: '#' },
+  // The link along the south of Nyabugogo (Alp, 14 October 2026: no dead ends): it joins the Kimisagara
+  // lane, Gakinjiro road, Nyamirambo road, Town avenue, Muhima road and Kinamba road at the town border.
+  { name: 'Nyabugogo–town link', y: 62, x0: 0, x1: 62, surface: '#' },
   // Kigali town
   ring('Town roundabout', TOWN_RING.cx, TOWN_RING.cy, TOWN_RING.r, 'garden'),
   ring('MTN roundabout', MTN_RING.cx, MTN_RING.cy, MTN_RING.r, 'fountain'),
-  { name: 'Town avenue', x: TOWN_RING.cx, y0: 78, y1: TOWN_RING.cy - 5, surface: '#' },
+  { name: 'Town avenue', x: TOWN_RING.cx, y0: 62, y1: TOWN_RING.cy - 5, surface: '#' },
   { name: 'Town avenue', x: TOWN_RING.cx, y0: TOWN_RING.cy + 6, y1: 127, surface: '#' },
-  { name: 'Nyamirambo road', x: 10, y0: 64, y1: 127, surface: '#' },
+  { name: 'Nyamirambo road', x: 10, y0: 62, y1: 127, surface: '#' },
   { name: 'Town north street', y: 84, x0: 10, x1: MTN_RING.cx - MTN_RING.r, surface: '#' },
-  { name: 'Town north street', y: 84, x0: MTN_RING.cx + MTN_RING.r + 1, x1: 50, surface: '#' },
-  { name: 'Town south street', y: 110, x0: 10, x1: 50, surface: '#' },
-  { name: 'Kiyovu cobble', y: 120, x0: 10, x1: 63, surface: 'c' },
+  { name: 'Town north street', y: 84, x0: MTN_RING.cx + MTN_RING.r + 1, x1: 62, surface: '#' },
+  { name: 'Town south street', y: 110, x0: 10, x1: 62, surface: '#' },
+  { name: 'Kiyovu cobble', y: 120, x0: 10, x1: 62, surface: 'c' },
   { name: 'Rugando valley murram', x: 61, y0: 64, y1: 127, surface: 'm' },
   // Kacyiru
   { name: 'Kacyiru boulevard', y: BOULEVARD.y, x0: BOULEVARD.x0, x1: BOULEVARD.x1, surface: '#', width: 6, median: true, laneOffset: 8 },
@@ -105,23 +108,35 @@ const ROADS = [
   { name: 'Embassy road north', x: EMBASSY_RING.cx, y0: 20, y1: EMBASSY_RING.cy - EMBASSY_RING.r, surface: '#' },
   { name: 'Embassy road south', x: EMBASSY_RING.cx, y0: EMBASSY_RING.cy + EMBASSY_RING.r + 1, y1: 49, surface: '#' },
   { name: 'Nyarutarama link', y: EMBASSY_RING.cy, x0: EMBASSY_RING.cx + EMBASSY_RING.r + 1, x1: 142, surface: '#' },
-  { name: 'Kacyiru street', x: 84, y0: 0, y1: 54, surface: '#' },
+  { name: 'Kacyiru street', x: 84, y0: 0, y1: 71, surface: '#' }, // it goes on south as the Kimihurura west lane
   { name: 'Embassy lane', y: 48, x0: 84, x1: EMBASSY_RING.cx, surface: 'c' },
   // Kimihurura
   ring('KCC roundabout', KCC_RING.cx, KCC_RING.cy, KCC_RING.r, 'garden'),
-  { name: 'Kimihurura upper lane', y: 80, x0: 64, x1: 127, surface: 'c' },
-  { name: 'Kimihurura lower lane', y: 114, x0: 64, x1: 127, surface: 'c' },
-  { name: 'Kimihurura west lane', x: 86, y0: 72, y1: 127, surface: 'c' },
-  { name: 'Kimihurura east lane', x: 114, y0: 72, y1: 127, surface: 'c' },
+  { name: 'Kimihurura upper lane', y: 80, x0: 61, x1: 127, surface: 'c' }, // a bridge over the stream to the Rugando road
+  { name: 'Kimihurura lower lane', y: 114, x0: 61, x1: 127, surface: 'c' },
+  { name: 'Kimihurura west lane', x: 84, y0: 72, y1: 127, surface: 'c' },
+  { name: 'Kimihurura east lane', x: 114, y0: 80, y1: 127, surface: 'c' },
+  // Short links to the Kicukiro murram roads, which start 2 to 4 tiles to the side.
+  { name: 'Kimihurura–Kicukiro link', x: 126, y0: 80, y1: 85, surface: 'm' },
+  { name: 'Kimihurura–Kicukiro link', x: 126, y0: 114, y1: 117, surface: 'm' },
   // Nyarutarama
-  { name: 'Nyarutarama cobble', y: 48, x0: 128, x1: 191, surface: 'c' },
+  { name: 'Nyarutarama cobble', y: 48, x0: 121, x1: 191, surface: 'c' }, // it goes on from Embassy lane
   { name: 'Nyarutarama east street', x: 176, y0: 0, y1: 63, surface: 'c' },
-  { name: 'Golf murram track', x: 142, y0: 20, y1: 48, surface: 'm' },
+  { name: 'Golf murram track', x: 142, y0: 20, y1: 63, surface: 'm' },
+  { name: 'Golf–Gikondo link', y: 62, x0: 142, x1: 145, surface: 'm' },
+  { name: 'Nyarutarama–Kicukiro link', y: 62, x0: 176, x1: 179, surface: '#' },
   // Kicukiro
-  { name: 'Kicukiro north murram', y: 84, x0: 128, x1: 191, surface: 'm' },
-  { name: 'Kicukiro south murram', y: 116, x0: 128, x1: 191, surface: 'm' },
-  { name: 'Gikondo murram', x: 144, y0: 64, y1: 127, surface: 'm' },
-  { name: 'Kicukiro avenue', x: 178, y0: 64, y1: 127, surface: '#' },
+  { name: 'Kicukiro north murram', y: 84, x0: 126, x1: 191, surface: 'm' },
+  { name: 'Kicukiro south murram', y: 116, x0: 126, x1: 191, surface: 'm' },
+  { name: 'Gikondo murram', x: 144, y0: 62, y1: 127, surface: 'm' },
+  { name: 'Kicukiro avenue', x: 178, y0: 62, y1: 127, surface: '#' },
+  // The ring road round the edge of the map (Alp, 14 October 2026), like the Kigali ring road: the roads
+  // that went off the map join it, so you never have to turn back. Not on the river (north of Nyabugogo)
+  // or over Mount Kigali (west of town): there it ends on a road.
+  { name: 'Ring road', y: 0, x0: 84, x1: 191, surface: '#' },
+  { name: 'Ring road', x: 190, y0: 0, y1: 127, surface: '#' },
+  { name: 'Ring road', y: 126, x0: 10, x1: 191, surface: '#' },
+  { name: 'Ring road', x: 0, y0: 5, y1: 63, surface: '#' },
   { name: 'Kicukiro centre street', y: 106, x0: 160, x1: 191, surface: '#' },
 ];
 
@@ -295,7 +310,7 @@ export function buildKigaliMap(seed = 7) {
   // The US Embassy (Alp): a big concrete building like a castle, with an American flag that waves.
   landmark(123, 23, 127, 28, '5', 'e', { sign: 'EMBASSY OF THE', sign2: 'UNITED STATES' });
   landmark(112, 51, 118, 53, '2', 'c', { sign: 'G.S. KACYIRU', sign2: 'WE STRIVE FOR SUCCESS' });
-  landmark(89, 104, 94, 109, '4', 'g', { sign: 'INTEKO ISHINGA AMATEGEKO', sign2: 'PARLIAMENT' });
+  landmark(87, 104, 94, 109, '4', 'g', { sign: 'INTEKO ISHINGA AMATEGEKO', sign2: 'PARLIAMENT' });
   landmark(116, 84, 119, 88, '9', 't', { levels: 11, sign: 'KIGALI HEIGHTS' });
   // The Ampersand HQ in Gikondo (Alp): a warehouse with a blue roof in a fenced tarmac yard, with rows of
   // new Alphas, a test track and a swap station. You get your Alpha here at the start of level 5 (sim/hq.js).
@@ -307,7 +322,7 @@ export function buildKigaliMap(seed = 7) {
   landmark(140, 8, 143, 12, '7', 't', { levels: 10 }); // MTN Centre
   landmark(136, 27, 139, 29, '2', 'v'); // golf club house
   landmark(181, 87, 187, 93, '4', 'g', { sign: "IBIRO BY'AKARERE", sign2: 'KA KICUKIRO' });
-  landmark(184, 109, 190, 111, '2', 'c', { sign: 'G.S. KICUKIRO', sign2: 'WE STRIVE FOR SUCCESS' });
+  landmark(182, 109, 188, 111, '2', 'c', { sign: 'G.S. KICUKIRO', sign2: 'WE STRIVE FOR SUCCESS' });
   landmark(7, 41, 13, 42, '2', 'c', { sign: 'G.S. KIMISAGARA', sign2: 'WE STRIVE FOR SUCCESS' });
   rect(7, 43, 13, 45, 'm'); // the school yard (murram)
   reserve(7, 43, 13, 45);
@@ -480,7 +495,7 @@ export function buildKigaliMap(seed = 7) {
   P('radisson', 'Radisson Blu Hotel', 101.5, 85, ['hotel'], 2);
   P('embassies', 'Embassy lane', 100, 49, []);
   P('kcc', 'Kigali Convention Centre', 114.5, 86, [], 2);
-  P('parliament', 'Parliament', 87, 106, []);
+  P('parliament', 'Parliament', 85.6, 106.5, []);
   P('kimihururaVillas', 'Kimihurura villas', 114.5, 108, []);
   P('rugando', 'Rugando valley', 62, 100, []);
   P('mtn', 'MTN Centre', 144.5, 13, ['buffet'], 2);

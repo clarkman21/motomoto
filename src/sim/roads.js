@@ -66,6 +66,24 @@ export function buildRoadGraph(roads) {
       }
     }
   }
+  // A road drawn up to the outer side of a crossing road leaves a stub of 1 tile past the junction (no
+  // road shows there, but traffic turned back on it). Remove these stubs.
+  const degree = (n) => new Set([...n.out.map((e) => e.to), ...edges.filter((e) => e.to === n).map((e) => e.from)]).size;
+  for (const n of nodes) {
+    if (n.out.length !== 1 || degree(n) !== 1) continue;
+    const e = n.out[0];
+    if (e.length > T + 0.01 || degree(e.to) < 3) continue;
+    n.stub = true;
+  }
+  if (nodes.some((n) => n.stub)) {
+    const keepEdges = edges.filter((e) => !e.from.stub && !e.to.stub);
+    for (const n of nodes) n.out = n.out.filter((e) => !e.to.stub);
+    edges.length = 0;
+    keepEdges.forEach((e, i) => { e.id = i; edges.push(e); });
+    const keepNodes = nodes.filter((n) => !n.stub);
+    nodes.length = 0;
+    keepNodes.forEach((n, i) => { n.id = i; nodes.push(n); });
+  }
   // The rings: nodes on a circle, one edge each way round (anticlockwise on the screen = the angle
   // gets smaller, because y goes down). No reverse edges: you cannot drive the wrong way round.
   for (const R of rings) {

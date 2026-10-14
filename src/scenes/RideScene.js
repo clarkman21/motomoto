@@ -1783,7 +1783,7 @@ export class RideScene extends Phaser.Scene {
     this.hqView.update(this.hq, this, dt, this.time.now);
     this.#updatePartFx(dt);
     this.#updateSmoke(dt);
-    this.#updateOcclusion();
+    this.#updateOcclusion(dt);
     this.#updateCamera(dt);
     this.chunks.cull(this.cameras.main.worldView);
     this.trafficView.update(this.world, this.cameras.main.worldView);
@@ -2680,7 +2680,10 @@ export class RideScene extends Phaser.Scene {
     this.markerPin.setVisible(visible);
     this.arrow.setVisible(visible);
     this.waiting.setVisible(!!job && job.stage === 'toPickup');
-    if (!visible) return;
+    if (!visible) {
+      this.markerWorld = null;
+      return;
+    }
     const kind = !job || job.stage === 'toPickup' ? 'pickup' : 'dropoff';
     const t = job ? jobTarget(job) : { x: goal.x / WORLD.tileMetres, y: goal.y / WORLD.tileMetres };
     const wx = t.x * WORLD.tileMetres, wy = t.y * WORLD.tileMetres;
@@ -2698,6 +2701,7 @@ export class RideScene extends Phaser.Scene {
     this.arrow.setVisible(d > 40);
     this.arrow.setPosition(from.x + (dx / d) * 24, from.y - 10 + (dy / d) * 16).setRotation(Math.atan2(dy, dx));
     if (job) this.targetDistance = Math.hypot(this.bike.x - wx, this.bike.y - wy);
+    this.markerWorld = { x: wx, y: wy };
   }
 
   #placeBike() {
@@ -2784,31 +2788,61 @@ export class RideScene extends Phaser.Scene {
     }
   }
 
-  // Hills hide things: fade blocks in front of the bike and show the bike outline.
-  #updateOcclusion() {
-    const s = this.bikeScreen;
-    const samples = [[0, -3], [0, -10], [0, -18], [0, -24], [-7, -3], [7, -3]];
-    // Fade the whole building (all its tiles), not only the tiles that cover the bike.
+  // Hills and buildings hide things: fade the buildings in front of the bike, of the road ahead and of the
+  // job pin, and show the bike outline when the bike itself is hidden.
+  #updateOcclusion(dt) {
+    const s = this.bikeScreen, b = this.bike, T = WORLD.tileMetres;
+    const bikeSamples = [[0, -3], [0, -10], [0, -18], [0, -24], [-7, -3], [7, -3]].map(([dx, dy]) => ({ x: s.x + dx, y: s.y + dy, depth: this.bikeDepth, bike: true }));
+    const points = [...bikeSamples];
+    // The road ahead: in the direction you ride (or face, when you stand still).
+    const sp = Math.hypot(b.vx, b.vy), dir = sp > 1 ? Math.atan2(b.vy, b.vx) : b.heading;
+    for (let d = VIEW.seeAheadStep; d <= VIEW.seeAheadMetres; d += VIEW.seeAheadStep) {
+      const x = b.x + Math.cos(dir) * d, y = b.y + Math.sin(dir) * d;
+      const p = toScreen(x, y, this.world.heightAt(x, y));
+      points.push({ x: p.x, y: p.y - 4, depth: (x + y) / T });
+    }
+    // The job pin, when it is near.
+    const m = this.markerWorld;
+    if (m && Math.hypot(m.x - b.x, m.y - b.y) < VIEW.seePinMetres) {
+      const p = toScreen(m.x, m.y, this.world.heightAt(m.x, m.y));
+      for (const dy of [-2, -16, -30]) points.push({ x: p.x, y: p.y + dy, depth: (m.x + m.y) / T });
+    }
+    // Fade the whole building (all its tiles), not only the tiles that cover a point.
     const hidingGroups = new Set();
+    let bikeHidden = false;
     const blockSprites = this.chunks.blockSprites;
     for (const bs of blockSprites) {
-      if (!bs.img.visible || bs.depth <= this.bikeDepth || Math.abs(bs.block.tx + bs.block.ty - this.bikeDepth) > 8) continue;
-      const c = bs.canvas;
-      if (samples.some(([dx, dy]) => c.alphaAt(Math.floor(s.x + dx - c.ox), Math.floor(s.y + dy - c.oy)) > 0)) {
-        hidingGroups.add(groupKey(bs.block));
+      if (!bs.img.visible) continue;
+      const c = bs.canvas, key = groupKey(bs.block);
+      for (const pt of points) {
+        if (bs.depth <= pt.depth || bs.block.tx + bs.block.ty - pt.depth > 10) continue;
+        if (pt.bike ? bikeHidden && hidingGroups.has(key) : hidingGroups.has(key)) continue;
+        if (c.alphaAt(Math.floor(pt.x - c.ox), Math.floor(pt.y - c.oy)) > 0) {
+          hidingGroups.add(key);
+          if (pt.bike) bikeHidden = true;
+        }
       }
     }
+    // A smooth fade: each building goes to its target alpha in VIEW.fadeSeconds.
+    const fade = (this.fade ??= new Map());
+    const step = Math.min(1, (dt ?? 0.016) / VIEW.fadeSeconds) * (1 - VIEW.fadeAlpha);
+    for (const key of hidingGroups) if (!fade.has(key)) fade.set(key, 1);
+    for (const [key, a] of fade) {
+      const target = hidingGroups.has(key) ? VIEW.fadeAlpha : 1;
+      const next = a < target ? Math.min(target, a + step) : Math.max(target, a - step);
+      if (next >= 1) fade.delete(key);
+      else fade.set(key, next);
+    }
     for (const bs of blockSprites) {
-      const alpha = hidingGroups.has(groupKey(bs.block)) ? 0.45 : 1;
+      const alpha = fade.get(groupKey(bs.block)) ?? 1;
       bs.img.setAlpha(alpha);
       bs.glow?.setAlpha(alpha * this.chunks.night); // lit windows fade with the building
     }
-    this.signs.fade(hidingGroups); // the names on the buildings fade with them
+    this.signs.fade(fade); // the names on the buildings fade with them
     this.signs.update(this.time.now); // flags in the wind, the fountain spray
     this.#checkSecrets();
-    const occluded = hidingGroups.size > 0;
-    this.occluded = occluded;
-    this.ghost.setVisible(occluded);
+    this.occluded = bikeHidden;
+    this.ghost.setVisible(bikeHidden);
   }
 
   #updateCamera(dt) {
