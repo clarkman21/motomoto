@@ -24,7 +24,7 @@ const HELP = [
     title: 'The goal',
     lines: [
       'You are a moto taxi rider in Kigali. Carry passengers and cargo, and make money.',
-      'Each level has a savings goal: school fees, a phone, an electric moto and more. Save the goal plus 5,000 RWF of working money. Then buy the milestone at the end of a day. The next level starts, and a new part of the city opens.',
+      'Each level has a savings goal: school fees, a phone, an electric moto and more. Save the goal plus 5,000 RWF of working money. Then buy the milestone at the end of a day. The next level starts, and a new part of the city opens. Your Alpha (the level 4 milestone) waits at the Ampersand HQ in Gikondo: at the start of level 5, ride there, get off (F), hand in the old moto at the desk and ride the Alpha out.',
       'Each shift ends at a fixed hour. Until you own your electric moto (level 5), you then pay the rent for the bike. If your cash is below zero at the end of the day, the game is over. If the tank is empty and you have no cash for fuel, the game is over too. Then you ride a bicycle taxi again, and you start again at level 1.',
     ],
   },
@@ -38,7 +38,7 @@ const HELP = [
       'F: buy fuel (then 1, 2 or 3: 25% of a tank, 50% of a tank, or a full tank), swap the battery, open the garage (service, parts and upgrades), or eat (hard mode).',
       'T: phone a moto that brings you 1 litre of fuel (or a charged battery), for 20% more than at a station. You can call at any time.',
       'Cheats (for tests): Settings, then CHEATS: ON. In a ride, pause (Esc) and choose CHEATS.',
-      'H: horn.   V: sound.   R: put the bike back on the nearest road (your fuel and the bike wear stay as they are).   M: map on or off.   Esc or P: pause menu.',
+      'H: horn.   V: sound.   N: the next radio station (with the Bluetooth speaker).   R: put the bike back on the nearest road (your fuel and the bike wear stay as they are).   M: map on or off.   Esc or P: pause menu.',
       'Touch: the stick on the left steers. GO and STOP are on the right, + and − shift, T calls the fuel moto. Tap a job line to take it.',
     ],
   },
@@ -64,7 +64,7 @@ const HELP = [
   {
     title: 'Garages and modes',
     lines: [
-      'Each district has a garage (orange on the minimap; the nearest one shows at the edge). Press F there: service the moto, or buy parts and upgrades. A speaker and a phone charger bring extra tips; a chain kit, brake pads and wheel bearings make the service meter fill slower. New parts come at the higher levels.',
+      'Each district has a garage (orange on the minimap; the nearest one shows at the edge). Press F there: service the moto, or buy parts and upgrades. A Bluetooth speaker (it plays Radio Inziza: N or the note button changes the station) and a phone charger bring extra tips; a chain kit, brake pads and wheel bearings make the service meter fill slower. New parts come at the higher levels.',
       'At a new game you choose your Kigali. 2010 (easy): no wear, no fines. 2015 (medium): the normal game, with traffic lights and the FOOD bar. The only fines: ride on the pavement or off the road near an officer, and the officer chases you; if you are caught, you pay 5,000 RWF. 2020 (hard): heavy traffic and all the fines: speed and red light cameras, police chases and helmet checks. All modes have manual gears.',
       'Medium and hard modes: watch the FOOD bar. Eat a buffet lunch (11:00 to 16:00), ikivuguto at an Inyange Milk Zone, bananas from a market seller, or an energy drink at an MTN MoMo kiosk. A hungry rider has less power.',
       'Traffic lights: stop on red. On hard mode, a red light camera or a police officer near the junction gives a 10,000 RWF fine.',
@@ -351,6 +351,8 @@ export class MenuScene extends Phaser.Scene {
     this.#menuWindow([
       [`SOUND: ${ride.engineSound.enabled ? 'ON' : 'OFF'}`, () => { ride.toggleSound(); this.#redraw(); }],
       [`MAP: ${ride.showMap !== false ? 'ON' : 'OFF'}`, () => { ride.toggleMap(); this.#redraw(); }],
+      // Radio Inziza: the music volume (the radio plays on a bike with the Bluetooth speaker).
+      [`MUSIC: ${Math.round(ride.radio.volume * 100)}%`, () => { ride.cycleMusic(); this.#redraw(); }],
       // Test mode: to check the later levels, a new game starts at this level.
       [`TEST: NEW GAME AT LEVEL ${ride.testLevel ?? 1}`, () => { ride.cycleTestLevel(); this.#redraw(); }],
       // The cheat menu for tests: on here, then pause the ride (Esc) and choose CHEATS.
@@ -358,7 +360,7 @@ export class MenuScene extends Phaser.Scene {
       ['BACK', () => this.#back()],
     ], y + 28, 240);
     const hint = ride.cheatsOn ? 'CHEATS ARE ON: IN A RIDE, PAUSE (ESC) AND CHOOSE CHEATS.' : 'TURN CHEATS ON TO JUMP LEVELS, GET MONEY AND TEST EVENTS.';
-    let hy = y + 28 + 5 * ROW + 16; // under the window (5 lines)
+    let hy = y + 28 + 6 * ROW + 16; // under the window (6 lines)
     for (const line of wrapRetro(hint, Math.floor((this.vw - 8) / RETRO_CELL.width))) {
       this.#label(cx, hy, line, ride.cheatsOn ? GOLD : DIM).setOrigin(0.5, 0);
       hy += 11;

@@ -520,7 +520,9 @@ function drawBody(c, look, gx, gy, facing, step, armUp = false) {
   c.plot(gx + 2 * sw + 1, gy - 1, C.shoe);
   for (let y = gy - 15; y <= hip; y++) for (let x = gx - 2; x <= gx + 2; x++) c.plot(x, y, look.shirt);
   if (look.dress) for (let y = hip; y <= gy - 5; y++) for (let x = gx - 2 - (y - hip) * 0.4; x <= gx + 2 + (y - hip) * 0.4; x++) c.plot(x, y, look.shirt);
-  if (armUp) {
+  if (armUp === 'none') {
+    // The caller draws the front arm (drawPosed).
+  } else if (armUp) {
     c.line(gx + 1.5, gy - 14, gx + 4, gy - 21, 1.6, look.skin);
     c.plot(gx + 2, gy - 14, look.shirt); // the sleeve
   } else {
@@ -537,6 +539,39 @@ export function drawPerson(look, facing, step, left = false) {
   const gx = PERSON_CANVAS.groundX, gy = PERSON_CANVAS.groundY;
   if (look.kitenge !== undefined) drawMama(c, look, gx, gy, facing, step, false);
   else drawBody(c, look, gx, gy, facing, step);
+  return finishFigure(c, left);
+}
+
+/**
+ * A person in a pose, for the Ampersand HQ (sim/hq.js). look: { shirt, legs, skin } and maybe trim (a band
+ * across the chest), cap (a cap with a peak), helmet (a moto helmet with a visor). pose: 'walk' (step 0 or
+ * 1, facing 0 or 1), 'wave' (one arm up), 'clap0' and 'clap1' (the hands apart and together), 'point'.
+ */
+export function drawPosed(look, pose = 'walk', step = 0, facing = 0, left = false) {
+  const c = new PixelCanvas(PERSON_CANVAS.width, PERSON_CANVAS.height);
+  const gx = PERSON_CANVAS.groundX, gy = PERSON_CANVAS.groundY;
+  const walk = pose === 'walk';
+  const arms = pose === 'wave' ? true : walk ? false : 'none';
+  drawBody(c, look, gx, gy, walk ? facing : 0, walk ? step : 0, arms);
+  if (look.trim) for (let x = gx - 2; x <= gx + 2; x++) c.plot(x, gy - 12, look.trim);
+  if (pose === 'clap0' || pose === 'clap1') {
+    const hx = pose === 'clap1' ? gx + 3.5 : gx + 4.5;
+    c.line(gx + 1.5, gy - 14, hx, gy - 16, 1.6, look.skin);
+    c.line(gx - 1, gy - 14, hx - (pose === 'clap1' ? 0.5 : 2.5), gy - 16.5, 1.6, look.skin);
+  } else if (pose === 'point') {
+    c.line(gx + 1.5, gy - 14, gx + 6, gy - 15.5, 1.6, look.skin);
+    c.plot(gx + 2, gy - 14, look.shirt);
+  }
+  const back = walk && facing === 1;
+  if (look.cap) {
+    for (let x = gx - 2; x <= gx + 3; x++) c.plot(x, gy - 21, look.cap);
+    for (let x = gx - 1; x <= gx + 2; x++) c.plot(x, gy - 22, look.cap);
+    if (!back) c.plot(gx + 4, gy - 20, look.cap); // the peak
+  }
+  if (look.helmet) {
+    c.fillDisc(gx + 0.5, gy - 19, 3, look.helmet);
+    if (!back) for (const [dx, dy] of [[2, -19], [3, -19], [2.5, -18]]) c.plot(gx + dx, gy + dy, C.visor);
+  }
   return finishFigure(c, left);
 }
 

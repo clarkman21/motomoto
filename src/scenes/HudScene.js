@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BIKES, COLOURS, GEARBOX, LAW, SAVINGS_FLOAT, DISTRICTS, RIDER, HARD_RULES, MUZUNGU, HUD_RULES } from '../config.js';
+import { BIKES, COLOURS, GEARBOX, LAW, SAVINGS_FLOAT, DISTRICTS, RIDER, HARD_RULES, MUZUNGU, HUD_RULES, RADIO } from '../config.js';
 import { forwardSpeed } from '../sim/bike.js';
 import { serviceDue } from '../sim/maintenance.js';
 import { wrapRetro, retroText, RETRO_CELL } from '../world/retro-font.js';
@@ -46,6 +46,7 @@ export class HudScene extends Phaser.Scene {
       bark: (text) => this.#bark(text),
       money: (amount, label) => this.#popup(amount, label),
       camera: (e) => this.flash.setAlpha(e.fine ? 0.75 : 0.2),
+      radio: (station, track) => (this.radioChip = { station, track, left: RADIO.chipSeconds * 1000 }),
     };
     for (const [name, fn] of Object.entries(listeners)) this.ride.events.on(name, fn);
     this.events.once('shutdown', () => {
@@ -66,6 +67,11 @@ export class HudScene extends Phaser.Scene {
     this.unitText = label(UI.dim);
     this.gearText = label(UI.white, 2);
     this.rows = ['energy', 'service', 'food', 'wc'].map((key) => ({ key, icon: icon({ energy: 'fuel', service: 'spanner', food: 'food', wc: 'wc' }[key]), text: small(UI.red) }));
+    // Radio Inziza: a chip under the left window for a few seconds after a change (tap: the next station).
+    this.radioIcon = icon('note');
+    this.radioName = small();
+    this.radioTrack = small(UI.dim);
+    this.#zone(() => this.ride.nextStation(), (z) => (this.radioZone = z));
     // The pause button.
     this.pauseIcon = icon('pause');
     this.#zone(() => this.ride.openPause(), (z) => (this.pauseZone = z));
@@ -156,6 +162,7 @@ export class HudScene extends Phaser.Scene {
     const g = this.fg.clear();
     this.helpText.setVisible(this.helpFits && this.time.now < this.helpUntil);
     this.#updateLeft(g);
+    this.#updateRadio(g, deltaMs);
     this.minimap.update(this.time.now);
     this.#updateMoney(g);
     this.#updateJobs(g);
@@ -164,6 +171,25 @@ export class HudScene extends Phaser.Scene {
     this.#updateMessages(o, deltaMs, promptTop);
     if (this.flash.alpha > 0) this.flash.setAlpha(Math.max(0, this.flash.alpha - deltaMs / 300));
     if (this.isTouch) this.#drawStick();
+  }
+
+  /** The radio chip (Radio Inziza): the station and the track, for RADIO.chipSeconds after a change. */
+  #updateRadio(g, deltaMs) {
+    const c = this.radioChip;
+    const on = !!c && (c.left -= deltaMs) > 0;
+    for (const o of [this.radioIcon, this.radioName, this.radioTrack]) o.setVisible(on);
+    this.radioZone.input.enabled = on;
+    if (!on) return;
+    const st = RADIO.stations[c.station];
+    this.radioName.setText(st ? st.name : 'RADIO OFF');
+    this.radioTrack.setText(st ? retroText(st.tracks[c.track % st.tracks.length].toUpperCase()) : '').setVisible(!!st);
+    const L = this.left, x = L.x, y = L.y + L.h + 3;
+    const w = Math.max(this.radioName.width, st ? this.radioTrack.width : 0) + 22, h = st ? 20 : 13;
+    drawWindow(g, x, y, w, h);
+    this.radioIcon.setPosition(x + 4, y + 2);
+    this.radioName.setPosition(x + 16, y + 4);
+    this.radioTrack.setPosition(x + 16, y + 12);
+    this.radioZone.setPosition(x, y).setSize(w, h);
   }
 
   /** The left window: speed, gear, revs (petrol), and the bars that show now. */
@@ -481,6 +507,11 @@ export class HudScene extends Phaser.Scene {
     this.bikeBtn = this.#button('T', () => this.ride.callFuelMoto(), null, 22); // phone the fuel moto
     this.resetBtn = this.#button('R', () => this.ride.resetBike(), null, 22);
     this.hornBtn = this.#button('H', () => this.ride.horn(), null, 22);
+    // Radio Inziza: the ♪ button (the next station). The note is a HUD icon, at a whole number scale.
+    this.radioBtn = this.#button('', () => this.ride.nextStation(), null, 22);
+    const note = this.add.image(0, 0, 'hud-icons', 'note').setScale(3);
+    const place = this.radioBtn.setPosition;
+    this.radioBtn.setPosition = (x, y) => { place(x, y); note.setPosition(x, y); };
     this.upBtn = this.#button('+', () => this.ride.shift(1), null, 26);
     this.downBtn = this.#button('−', () => this.ride.shift(-1), null, 26);
     this.stickPointer = null;
@@ -524,7 +555,7 @@ export class HudScene extends Phaser.Scene {
     // The small buttons and the gear buttons: in one row at the bottom, between the minimap and STOP,
     // so that they cover neither the minimap nor the jobs window. If the row has no room, the old
     // places: under the left window, and above GO and STOP.
-    const small = [this.hornBtn, this.bikeBtn, this.resetBtn];
+    const small = [this.hornBtn, this.radioBtn, this.bikeBtn, this.resetBtn];
     const mapRight = this.ride.showMap !== false ? (this.minimap.box.x + this.minimap.box.w) * this.k : 0;
     const x0 = mapRight + 28, x1 = width - 140 - 34 - 32;
     const step = (x1 - x0) / (small.length + 1.5);

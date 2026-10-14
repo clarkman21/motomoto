@@ -1,4 +1,4 @@
-import { LIGHTS, DISTRICTS, HAZARDS } from '../../config.js';
+import { LIGHTS, DISTRICTS, HAZARDS, HQ } from '../../config.js';
 
 // The Kigali map: 6 districts of 64 × 64 tiles (256 m × 256 m each), built in code.
 // The result has the same shape as TEST_MAP (rows, hills, places, zones, cameras, signs)
@@ -288,8 +288,13 @@ export function buildKigaliMap(seed = 7) {
   landmark(112, 51, 118, 53, '2', 'c', { sign: 'G.S. KACYIRU', sign2: 'WE STRIVE FOR SUCCESS' });
   landmark(89, 104, 94, 109, '4', 'g', { sign: 'INTEKO ISHINGA AMATEGEKO', sign2: 'PARLIAMENT' });
   landmark(116, 84, 119, 88, '9', 't', { levels: 11, sign: 'KIGALI HEIGHTS' });
-  // The Ampersand office and e-moto showroom on Kacyiru boulevard: you buy your electric moto here (level 4).
-  landmark(105, 30, 112, 32, '3', 'o', { sign: 'AMPERSAND', sign2: 'E-MOTO SHOWROOM', brand: true });
+  // The Ampersand HQ in Gikondo (Alp): a warehouse with a blue roof in a fenced tarmac yard, with rows of
+  // new Alphas, a test track and a swap station. You get your Alpha here at the start of level 5 (sim/hq.js).
+  { const y = HQ.yard, b = HQ.building;
+    rect(y.x0, y.y0, y.x1, y.y1, '#');
+    reserve(y.x0, y.y0, y.x1, y.y1);
+    landmark(b.x0, b.y0, b.x1, b.y1, String(b.levels), 'A', { sign: 'AMPERSAND', sign2: 'HQ GIKONDO', brand: true });
+    station(156, 86, 'S', 'south', 'Ampersand swap, HQ Gikondo'); }
   landmark(140, 8, 143, 12, '7', 't', { levels: 10 }); // MTN Centre
   landmark(136, 27, 139, 29, '2', 'v'); // golf club house
   landmark(181, 87, 187, 93, '4', 'g', { sign: "IBIRO BY'AKARERE", sign2: 'KA KICUKIRO' });
@@ -371,7 +376,7 @@ export function buildKigaliMap(seed = 7) {
   const isJunction = (x, y) => isRoad(get(x + 2, y)) && isRoad(get(x, y + 2)) && isRoad(get(x - 2, y)) && isRoad(get(x, y - 2));
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const d = districtOf(x, y);
-    if (g[y][x] === '#' && (d === 'nyabugogo' || d === 'kicukiro') && !isJunction(x, y) && hash(x, y, 18) < 0.012) set(x, y, 'o');
+    if (g[y][x] === '#' && (d === 'nyabugogo' || d === 'kicukiro') && !isJunction(x, y) && !reserved[y][x] && hash(x, y, 18) < 0.012) set(x, y, 'o'); // reserved: lots (the HQ yard) stay smooth
   }
   // Murram is rough: loose rocks and potholes (puddles when it rains). The tile stays murram; the World
   // puts the hazard on it (mapData.hazards).
@@ -429,14 +434,13 @@ export function buildKigaliMap(seed = 7) {
     }
   }
 
-  for (let x = 105; x <= 112; x++) set(x, 33, 'p'); // the Ampersand showroom: a paved forecourt, no trees
   const rows = g.map((r) => r.join(''));
   const styles = st.map((r) => r.join(''));
 
   // Job places. weight: how often jobs start here (the bus park makes many fares).
   const P = (id, name, x, y, tags = [], weight = 1) => places.push({ id, name, x, y, tags, weight });
   P('busPark', 'Nyabugogo bus park', 29, 15, ['market'], 5);
-  P('ampersandOffice', 'Ampersand showroom, Kacyiru boulevard', 108.5, 33.5, ['office']);
+  P('ampersandOffice', 'Ampersand HQ, Gikondo', 150.6, 94.6, ['office']); // inside the in gate
   P('market', 'Nyabugogo market', 52, 13.5, ['market'], 3);
   P('riverRoad', 'River road', 12, 6, []);
   // 'buffet': a small buffet restaurant here, the cheapest lunch (a food stop in hard mode).

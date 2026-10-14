@@ -105,11 +105,8 @@ export class DayEndScene extends Phaser.Scene {
     const notes = [`Cash now: ${money(summary.cash)}`];
     if (summary.network > 0) notes.push(`The swap network: you delivered Ampersand batteries ${summary.network} ${summary.network === 1 ? 'time' : 'times'}. More riders ride electric.`);
     if (summary.regenSaved > 0) notes.push(`Regen put back ${Math.round(summary.regenFraction * 100)}% of a battery (about ${money(summary.regenSaved)} saved)`);
-    const atOffice = summary.level.buyAt === 'office';
-    const ready = summary.milestoneReady && !atOffice; // the electric moto: you buy it at the showroom
-    notes.push(summary.milestoneReady && atOffice
-      ? `You saved enough for: ${summary.level.milestone}! Tomorrow, ride to the Ampersand showroom on Kacyiru boulevard and press F to buy it.`
-      : ready
+    const ready = summary.milestoneReady;
+    notes.push(ready
       ? `You saved enough for: ${summary.level.milestone} (${money(summary.level.goal)}).`
       : `Level ${summary.level.n} goal: ${summary.level.milestone}. Save ${money(summary.savingsTarget)} (goal + ${money(summary.savingsTarget - summary.level.goal)} working money).`);
     if (summary.cash < GAME_OVER.warnBelowCash) notes.push(`Be careful: if your cash is below zero at the end of the day, or the ${summary.bikeType === 'electric' ? 'battery is empty and you have no cash for a swap' : 'tank is empty and you have no cash for fuel'}, the game is over.`);
@@ -282,7 +279,8 @@ export class DayEndScene extends Phaser.Scene {
   }
 
   /** After a milestone: what you bought and what the new level brings. */
-  #levelUp({ bought, next }, onContinue) {
+  /** title: the small line at the top (the HQ mission shows 'AMPERSAND HQ'). */
+  #levelUp({ bought, next, title = 'MILESTONE REACHED' }, onContinue) {
     const W = Math.min(this.vw - 8, 300);
     const x = Math.floor((this.vw - W) / 2);
     const n = Math.floor((W - 20) / RETRO_CELL.width);
@@ -290,7 +288,7 @@ export class DayEndScene extends Phaser.Scene {
     const T = (dy, text, tint, scale = 1) => draw.push(() => this.#text(x + 10, dy, text, tint, scale));
     let y = 8;
     draw.push(() => this.#icon(x + 10, 8, 'star'));
-    draw.push(() => this.#text(x + 22, 8, 'MILESTONE REACHED', UI.dim));
+    draw.push(() => this.#text(x + 22, 8, title, UI.dim));
     y += LINE + 4;
     for (const l of wrapRetro(bought.milestone, Math.floor(n / 2))) { T(y, l, UI.green, 2); y += 20; }
     if (bought.story) { for (const l of wrapRetro(bought.story, n)) { T(y, l, UI.white); y += LINE; } }
@@ -300,7 +298,7 @@ export class DayEndScene extends Phaser.Scene {
     y += 4;
     const shift = `${String(next.shift.start).padStart(2, '0')}:00–${String(next.shift.end).padStart(2, '0')}:00`;
     const goal = next.freePlay ? 'Free play: the house is finished. Ride on and keep the fleet busy.' : `Next goal: ${next.milestone} (${money(next.goal)}).`;
-    for (const l of wrapRetro(`Shift ${shift} · ${next.rivals} rivals · fares ×${next.fare.toFixed(1)} · petrol ×${next.petrol.toFixed(1)}`, n)) { T(y, l, UI.grey); y += LINE; }
+    for (const l of wrapRetro(`Shift ${shift} · ${next.rivals} rivals · fares ×${next.fare.toFixed(1)}${next.bikeType === 'electric' ? '' : ` · petrol ×${next.petrol.toFixed(1)}`}`, n)) { T(y, l, UI.grey); y += LINE; }
     for (const l of wrapRetro(goal, n)) { T(y, l, UI.grey); y += LINE; }
     const H = y + 6;
     const top = Math.max(4, Math.floor((this.vh - H - 30) / 2));

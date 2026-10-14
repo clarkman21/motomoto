@@ -126,16 +126,26 @@ describe('block atlas packing', () => {
   });
 });
 
-describe('Ampersand showroom', () => {
-  it('stands on Kacyiru boulevard, and level 4 sells the electric moto there', async () => {
-    const { LEVELS } = await import('../src/config.js');
+describe('Ampersand HQ', () => {
+  it('stands in Gikondo (Kicukiro) in a tarmac yard, with a blue roof hall and a swap station', async () => {
+    const { LEVELS, HQ } = await import('../src/config.js');
     const office = world.placesWithTag('office');
     expect(office).toHaveLength(1);
-    expect(world.tile(Math.floor(office[0].x), Math.floor(office[0].y)).district).toBe('kacyiru');
+    expect(world.tile(Math.floor(office[0].x), Math.floor(office[0].y)).district).toBe('kicukiro');
     expect(world.tileAt(office[0].x * T, office[0].y * T).block).toBeNull();
-    const lv = LEVELS.find((l) => l.buyAt === 'office');
-    expect(lv.effect).toBe('electric');
-    expect(world.landmarks.find((l) => l.brand).sign).toBe('AMPERSAND');
+    const hq = world.landmarks.find((l) => l.brand);
+    expect(hq.sign).toBe('AMPERSAND');
+    expect(world.blocks.some((b) => b.style === 'hq')).toBe(true);
+    // The yard is smooth tarmac (no potholes), and no landmark is left on Kacyiru boulevard.
+    const y = HQ.yard;
+    for (let ty = y.y0; ty <= y.y1; ty++) for (let tx = y.x0; tx <= y.x1; tx++) {
+      const t = world.tile(tx, ty);
+      if (!t.block) expect(t.surface).toBe('tarmac');
+      expect(t.hazard ?? null).toBeNull();
+    }
+    expect(world.placesWithTag('swap').some((p) => p.name.includes('HQ'))).toBe(true);
+    expect(LEVELS.some((l) => l.buyAt === 'office')).toBe(false);
+    expect(LEVELS[3].effect).toBe('alphaReady');
   });
 
   it('named ministries fly the flag (other offices do not), and the hotels have their names', () => {

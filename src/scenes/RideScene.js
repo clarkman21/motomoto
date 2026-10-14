@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS, FLEET, RIDER, TRAFFIC_LIGHTS, HELMET_CHECKS, CROSSINGS, STORY, MODES, RUSH, ROAD_EVENTS, HARD_RULES, MUZUNGU, CREWS } from '../config.js';
+import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS, FLEET, RIDER, TRAFFIC_LIGHTS, HELMET_CHECKS, CROSSINGS, STORY, MODES, RUSH, ROAD_EVENTS, HARD_RULES, MUZUNGU, CREWS, HQ, RADIO, VISIBLE_PARTS } from '../config.js';
 import { World } from '../world/world.js';
 import { buildKigaliMap } from '../world/maps/kigali.js';
 import { ChunkStreamer, groupKey } from './chunks.js';
@@ -8,11 +8,12 @@ import { toScreen } from '../world/iso.js';
 import {
   drawBike, drawBlock, drawShadow, drawGlow, drawPuff, bikeFrameForHeading, BIKE_CANVAS, BIKE_DIRECTIONS,
   drawCamera, drawSpeedSign, drawRoadSign, drawMarkerRing, drawMarkerPin, drawArrow, PROP_CANVAS,
-  BIKE_LOADS, drawWaitingPassenger, drawCargoPile,
+  BIKE_LOADS, drawWaitingPassenger, drawCargoPile, drawMusicNote,
 } from '../world/sprites.js';
 import { createBike, stepBike, forwardSpeed, shiftGear, bestGear, resetToRoad } from '../sim/bike.js';
 import { readControls } from '../sim/controls.js';
 import { EngineSound } from '../audio/engine-sound.js';
+import { Radio } from '../audio/radio.js';
 import { createWallet, earn, spend, buyFuel, swapBattery, fuelFillCost, fuelChoices, repairCost, endDay, stranded, payGarage } from '../sim/economy.js';
 import { garageQuote, serviceDue, crashWearShare } from '../sim/maintenance.js';
 import { createJobBoard, makeOffer, updateBoard, acceptOffer, cancelJob, updateJob, jobTarget, acceptHail, tripMetres, passengerWaits, loseJobWhenEmpty } from '../sim/jobs.js';
@@ -62,6 +63,8 @@ import { isRushHour, rushCounts, markRush, stepRush } from '../sim/rush.js';
 import { pickCheckpoints, stepHelmetCheck } from '../sim/checks.js';
 import { fleetRiders, planFleetDay, attachFleet, stepFleet, waitingRider, fleetDayMoney } from '../sim/fleet.js';
 import { maybeVisitor, maybeVisitorHail, stepVisitor, greeting, dropOffLines, sightNear, quietNear, VISITOR_LINES } from '../sim/muzungu.js';
+import { hqMissionDue, createHq, hqAction, stepWalk, stepTrack, stepExit, skipTrack, inYard, hqGoal, deskSpot, ribbonAlpha } from '../sim/hq.js';
+import { HqView, parkedKey } from './HqView.js';
 import { dayStats, pickQuests, recordDelivery, recordFine, checkQuests, maybeMission, stepMission, missionResult, findSecret } from '../sim/missions.js';
 
 const FIXED_DT = 1 / 120; // physics step in seconds
@@ -143,6 +146,8 @@ export class RideScene extends Phaser.Scene {
     this.allSignals = pickLightJunctions(this.world, buildRoadGraph(this.world.roads));
     this.signalView = new TrafficLightView(this, this.world, this.allSignals);
     this.signs = new SignView(this, this.world); // names on landmark buildings
+    this.hq = null; // the Ampersand HQ mission (sim/hq.js), at the start of level 5
+    this.hqView = new HqView(this, this.world); // the HQ yard in Gikondo: Alphas, the track, the staff
     // Shops and street life (world/shops.js): painted shop signs, boutique mannequins, and shops as job places.
     this.shops = shopFronts(this.world);
     // The building painter draws the inside of each shop by its kind (world/sprites.js); the chunks are drawn later.
@@ -200,6 +205,12 @@ export class RideScene extends Phaser.Scene {
     this.touch = { stick: { x: 0, y: 0, active: false }, throttle: false, brake: false };
     this.accumulator = 0;
     this.engineSound = new EngineSound();
+    // Radio Inziza (audio/radio.js): on a bike with the Bluetooth speaker. N: the next station.
+    this.radio = new Radio(this.engineSound);
+    this.radio.onTrack = (station, track) => this.events.emit('radio', station, track);
+    this.radioStation = 0; // the station you listen to (-1: OFF); it stays after a reload (settings)
+    this.notes = []; // the music notes that float up from the speaker
+    this.noteTimer = 0;
     this.occluded = false;
     this.showMap = true;
     this.testLevel = 1; // test mode: a new game starts at this level (Settings menu)
@@ -212,6 +223,8 @@ export class RideScene extends Phaser.Scene {
       this.showMap = settings.map !== false;
       this.testLevel = settings.testLevel ?? 1;
       this.cheatsOn = !!settings.cheats;
+      this.radioStation = settings.radio ?? 0;
+      this.radio.setVolume(settings.music ?? RADIO.volume);
     }
 
     this.chunks.update(this.bike.x, this.bike.y);
@@ -297,7 +310,7 @@ export class RideScene extends Phaser.Scene {
   }
 
   #saveSettings() {
-    saveSettings({ sound: this.engineSound.enabled, map: this.showMap, testLevel: this.testLevel, cheats: !!this.cheatsOn });
+    saveSettings({ sound: this.engineSound.enabled, map: this.showMap, testLevel: this.testLevel, cheats: !!this.cheatsOn, radio: this.radioStation, music: this.radio.volume });
   }
 
   /** Behind the welcome menu: the camera moves slowly over Nyabugogo at dusk, and the traffic drives. */
@@ -343,10 +356,11 @@ export class RideScene extends Phaser.Scene {
         case 'KeyM': this.toggleMap(); break;
         case 'KeyH': this.horn(); break;
         case 'KeyV': this.toggleSound(); break;
+        case 'KeyN': this.nextStation(); break;
         case 'KeyE': case 'KeyX': this.shift(1); break;
         case 'KeyQ': case 'KeyZ': this.shift(-1); break;
         case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': this.acceptJob(Number(e.code.slice(5)) - 1); break;
-        case 'Backspace': this.cancelJob(); break;
+        case 'Backspace': if (this.hq?.stage === 'track') this.#hqF(); else this.cancelJob(); break;
         case 'KeyF': this.startRefuel(); break;
         case 'KeyT': this.callFuelMoto(); break;
         case 'KeyK': if (this.debug) this.dayTime = this.level.shift.realSeconds; break; // debug: end the shift now
@@ -358,7 +372,7 @@ export class RideScene extends Phaser.Scene {
   toggleBike() {
     // Your bike comes from the level (electric after the level 4 milestone). B works only with ?debug in the address.
     if (!this.debug) {
-      this.events.emit('bark', this.bike.type === 'petrol' ? 'Save for the electric moto: level 4 milestone' : 'You ride electric');
+      this.events.emit('bark', this.bike.type === 'petrol' ? 'Save for your Alpha: the level 4 milestone' : 'You ride electric');
       return;
     }
     const b = this.bike;
@@ -377,6 +391,69 @@ export class RideScene extends Phaser.Scene {
   cycleTestLevel() {
     this.testLevel = (this.testLevel % LEVELS.length) + 1;
     this.#saveSettings();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Radio Inziza (audio/radio.js, audio/songs.js)
+  // ---------------------------------------------------------------------------
+
+  /** True when your bike has the Bluetooth speaker (a garage part). */
+  get hasSpeaker() {
+    return (this.wallet.parts ?? []).includes('speaker');
+  }
+
+  /** N, the ♪ button or a tap on the radio chip: the next station; after the last one, OFF. */
+  nextStation() {
+    if (!this.hasSpeaker) {
+      this.events.emit('bark', 'No radio: buy a Bluetooth speaker at a garage');
+      return;
+    }
+    if (this.radio.station < 0 && this.radioStation >= 0) this.radio.tune(this.radioStation); // the first time in this visit
+    else this.radio.next();
+    this.radioStation = this.radio.station;
+    if (this.radioStation < 0) {
+      this.radio.stop();
+      this.events.emit('radio', -1, 0);
+    }
+    this.#saveSettings();
+  }
+
+  /** Settings: the music volume, in steps of 20%. */
+  cycleMusic() {
+    const v = Math.round(this.radio.volume * 5);
+    this.radio.setVolume(((v + 1) % 6) / 5);
+    this.#saveSettings();
+  }
+
+  /** Each frame: the radio plays on a bike with the speaker (not on foot); notes float up from the speaker. */
+  #updateRadio(dt) {
+    const on = this.hasSpeaker && this.radioStation >= 0 && !this.hq?.walker && !this.dayOver;
+    if (on && this.radio.station !== this.radioStation) this.radio.tune(this.radioStation);
+    if (on) this.radio.tick();
+    // The notes: one each 0.7 s, from the speaker box behind the seat.
+    this.noteTimer -= dt;
+    if (on && this.radio.playing && this.noteTimer <= 0) {
+      this.noteTimer = 0.7;
+      const b = this.bike, back = 0.8;
+      const s = toScreen(b.x - Math.cos(b.heading) * back, b.y - Math.sin(b.heading) * back, b.z + 1.2);
+      let n = this.notes.find((q) => !q.img.visible);
+      if (!n && this.notes.length < 6) {
+        n = { img: this.add.image(0, 0, 'note-0').setDepth(1e5) };
+        n.img.noAmbient = true;
+        this.notes.push(n);
+      }
+      if (n) {
+        Object.assign(n, { life: 1.6, drift: (Math.random() - 0.5) * 10 });
+        n.img.setTexture(`note-${Math.floor(Math.random() * 3)}`).setPosition(Math.round(s.x), Math.round(s.y)).setAlpha(1).setVisible(true);
+      }
+    }
+    for (const n of this.notes) {
+      if (!n.img.visible) continue;
+      if ((n.life -= dt) <= 0) { n.img.setVisible(false); continue; }
+      n.img.y -= 14 * dt;
+      n.img.x += n.drift * dt;
+      n.img.setAlpha(Math.min(1, n.life));
+    }
   }
 
   /** M: show or hide the minimap. */
@@ -419,6 +496,8 @@ export class RideScene extends Phaser.Scene {
 
   /** What a stop at this station would cost, or a reason why you cannot use it. */
   stationOffer() {
+    const hqOffer = this.#hqOffer();
+    if (hqOffer) return hqOffer;
     const kind = this.station;
     if (!kind || this.refuel) return null;
     const type = this.bike.type;
@@ -448,40 +527,153 @@ export class RideScene extends Phaser.Scene {
     return { ok: true, text: `F: Swap battery (${MONEY.swapFee.toLocaleString('en')} RWF, ${MONEY.swapSeconds} s)` };
   }
 
-  /** At the Ampersand showroom: buy the electric moto (the level 4 milestone) when you saved enough. */
+  /** At the Ampersand HQ in Gikondo, when no mission waits (the mission has its own prompts, see #hqOffer). */
   #officeOffer() {
-    const L = this.level, money = (n) => `${n.toLocaleString('en')} RWF`;
-    if (this.wallet.perks.electric) return { ok: false, text: 'Ampersand showroom. Murakaza neza! Swap your battery at any Ampersand station.' };
-    if (L.buyAt !== 'office') {
-      const e = LEVELS.find((l) => l.buyAt === 'office');
-      return { ok: false, text: `Ampersand showroom. Electric motos are for sale from level ${e.n}. Keep saving!` };
-    }
-    if (this.board.active) return { ok: false, text: 'Ampersand showroom. Finish your job first, then come back to buy your moto.' };
-    if (!milestoneReady(this.wallet)) return { ok: false, text: `Ampersand showroom. Save ${money(savingsTarget(this.wallet))} to buy your electric moto (you have ${money(this.wallet.cash)}).` };
-    return { ok: true, text: `F: Buy your Ampersand electric moto (${money(L.goal)} down payment)` };
+    if (this.wallet.perks.electric) return { ok: false, text: 'Ampersand HQ, Gikondo. Murakaza neza! The swap station is in the yard.' };
+    return { ok: false, text: 'Ampersand HQ, Gikondo. Save for the level 4 milestone: your own Alpha waits here.' };
   }
 
-  /** Buy the electric moto at the showroom: you ride away on it, and the next level starts now. */
-  #buyElectric() {
-    const offer = this.#officeOffer();
-    if (!offer.ok) return;
-    const bought = buyMilestone(this.wallet);
-    if (!bought) return;
-    const { x, y, heading, autoShift } = this.bike;
-    this.bike = createBike(this.world, levelSettings(this.wallet).bikeType);
-    Object.assign(this.bike, { x, y, heading, autoShift, z: this.world.heightAt(x, y) });
-    this.station = null;
-    const shift = this.level.shift; // today's shift goes on; the new level's shift starts tomorrow
-    this.#applyLevel();
-    this.level.shift = shift;
-    this.#placeBike();
-    this.#save();
+  // ---------------------------------------------------------------------------
+  // The Ampersand HQ mission (sim/hq.js): get off, hand in the old moto, get on your Alpha, the test
+  // track, ride out. Start of level 5 (Kicukiro opens).
+  // ---------------------------------------------------------------------------
+
+  /** The prompt at HQ during the mission, or null. */
+  #hqOffer() {
+    const hq = this.hq;
+    if (!hq || hq.stage === 'done') return null;
+    const near = (p) => hq.walker && Math.hypot(hq.walker.x - p.x, hq.walker.y - p.y) <= HQ.reachMetres;
+    switch (hq.stage) {
+      case 'ride':
+        if (!inYard(this.bike.x, this.bike.y)) return null;
+        if (this.board.active) return { ok: false, text: 'Ampersand HQ. Finish your job first, then come back for your Alpha.' };
+        if (Math.abs(forwardSpeed(this.bike)) * 3.6 > HQ.stopKmh) return { ok: false, text: 'Ampersand HQ! Stop, then press F to get off.' };
+        return { ok: true, text: 'F: Get off the old moto' };
+      case 'desk':
+        return near(deskSpot()) ? { ok: true, text: `F: Hand in the old moto (+${HQ.tradeIn.toLocaleString('en')} RWF)` } : { ok: false, text: 'Walk to the desk (arrow keys)' };
+      case 'alpha':
+        return near(ribbonAlpha()) ? { ok: true, text: `${HQ.staffLine} F: Get on your Alpha` } : { ok: false, text: 'Walk to your Alpha: the one with the teal bow' };
+      case 'track': {
+        const t = (hq.time + hq.penalty).toFixed(1);
+        return { ok: true, text: `TEST TRACK ${t} S · GATE ${Math.min(hq.gate + 1, 4)}/4${hq.penalty ? ` · CONES +${hq.penalty} S` : ''} · F: SKIP` };
+      }
+      case 'exit':
+        return { ok: false, text: 'Ride out of the yard under the MURAKAZA NEZA banner!' };
+      default:
+        return null;
+    }
+  }
+
+  /** F (or Backspace on the track) at HQ. Returns true when the mission used the key. */
+  #hqF() {
+    const hq = this.hq;
+    if (!hq || hq.stage === 'done' || hq.stage === 'exit') return false;
+    if (hq.stage === 'ride' && !inYard(this.bike.x, this.bike.y)) return false;
+    const r = hqAction(hq, this.bike, !!this.board.active);
+    if (r.type === 'no') {
+      const offer = this.#hqOffer();
+      if (offer) this.events.emit('bark', offer.text);
+      return true;
+    }
+    if (r.type === 'off') {
+      Object.assign(this.bike, { vx: 0, vy: 0 });
+      this.engineSound.silence();
+      this.events.emit('bark', 'Walk to the desk with the arrow keys, then press F');
+    } else if (r.type === 'tradeIn') {
+      earn(this.wallet, 'tradeIn', r.cash);
+      this.events.emit('money', r.cash, 'Trade-in: the old moto');
+      this.engineSound.jingle('reward');
+      // The Alpha is yours now: a shift that ends here starts tomorrow on the Alpha.
+      this.wallet.perks.electric = true;
+      this.hqView.startTrade(hq.oldBike);
+      this.#save();
+      this.time.delayedCall(1200, () => this.events.emit('bark', 'Murakoze! Now find your Alpha: the one with the teal bow'));
+    } else if (r.type === 'mount') {
+      const { autoShift } = this.bike;
+      this.bike = createBike(this.world, 'electric');
+      Object.assign(this.bike, { x: r.x, y: r.y, heading: r.heading, autoShift, z: this.world.heightAt(r.x, r.y), energy: 1 });
+      // Only the level settings and the parts change (the traffic, the jobs, the rider and today's shift stay).
+      const shift = this.level.shift;
+      this.level = levelSettings(this.wallet);
+      this.level.shift = shift;
+      this.bike.mods = this.#bikeMods();
+      this.bike.autoShift = false;
+      this.events.emit('bark', `${HQ.staffLine} Feel the power: ride the 4 gates in order (F: skip)`);
+      this.engineSound.jingle('reward');
+    } else if (r.type === 'trackDone') this.#hqTrackDone(r);
+    return true;
+  }
+
+  #hqTrackDone(r) {
+    if (r.skipped) this.events.emit('bark', 'Track skipped. Ride out of the gate!');
+    else {
+      this.events.emit('bark', `Track: ${r.seconds.toFixed(1)} s${r.cones ? ` (${r.cones} cones)` : ''}. ${r.bonus ? 'Under 45 s!' : 'Now ride out of the gate!'}`);
+      if (r.bonus) {
+        earn(this.wallet, 'tradeIn', r.bonus);
+        this.events.emit('money', r.bonus, 'Test track bonus');
+      }
+    }
+    this.engineSound.jingle('reward');
+  }
+
+  /** The mission each frame: walk, the track, the ride out. */
+  #updateHq(dt) {
+    const hq = this.hq;
+    if (!hq) return;
+    if (hq.stage === 'ride' && !this.hqAnnounced) {
+      this.hqAnnounced = true;
+      this.time.delayedCall(1500, () => this.events.emit('bark', 'Your Alpha is ready at the Ampersand HQ, Gikondo! Follow the yellow & on the map'));
+    }
+    if (hq.walker) {
+      const k = this.keys, st = this.touch.stick;
+      const dir = st.active ? { x: st.x, y: st.y } : {
+        x: (k.right.isDown || k.d.isDown ? 1 : 0) - (k.left.isDown || k.a.isDown ? 1 : 0),
+        y: (k.down.isDown || k.s.isDown ? 1 : 0) - (k.up.isDown || k.w.isDown ? 1 : 0),
+      };
+      stepWalk(hq, dir, dt);
+    }
+    if (hq.stage === 'track') {
+      for (const e of stepTrack(hq, this.bike, dt)) {
+        if (e.type === 'cone') {
+          this.events.emit('bark', `A cone! +${HQ.conePenalty} s`);
+          this.engineSound.crash(0.15);
+        } else if (e.type === 'gate' && e.n < 4) {
+          this.events.emit('bark', `Gate ${e.n}/4!`);
+          this.engineSound.blip('select');
+        } else if (e.type === 'trackDone') this.#hqTrackDone(e);
+      }
+    }
+    if (hq.stage === 'exit') {
+      const out = stepExit(hq, this.bike);
+      if (out) this.#hqDone();
+    }
+  }
+
+  /** You ride out of the yard: confetti, the family, the staff clap, a jingle, then the level 5 news. */
+  #hqDone() {
+    const b = this.bike;
+    this.hqView.celebrate(b.x, b.y);
     this.engineSound.jingle('levelUp');
-    this.scene.pause();
-    this.scene.launch('dayEnd', { levelUp: { bought, next: this.level }, onContinue: () => this.scene.resume() });
+    this.wallet.perks.electric = true;
+    this.#save();
+    this.events.emit('bark', 'MURAKAZA NEZA! The Alpha is yours');
+    this.time.delayedCall(3200, () => {
+      if (this.dayOver || this.scene.isPaused()) return;
+      const r = this.hq?.result;
+      const story = [
+        'You hand in the old petrol moto and ride your own Ampersand Alpha out of the factory. The family waves, the staff clap.',
+        r && !r.skipped ? `Test track: ${r.seconds.toFixed(1)} s.` : '',
+      ].filter(Boolean).join(' ');
+      this.scene.pause();
+      this.scene.launch('dayEnd', {
+        levelUp: { title: 'AMPERSAND HQ', bought: { milestone: 'Your new Alpha!', story }, next: { ...this.level, news: this.level.hqNews ?? this.level.news } },
+        onContinue: () => this.scene.resume(),
+      });
+    });
   }
 
   startRefuel() {
+    if (this.#hqF()) return;
     const offer = this.stationOffer();
     if (!offer) {
       this.events.emit('bark', this.refuel ? `Wait: ${Math.ceil(this.refuel.timeLeft)} s more at this stop` : this.#stationHint());
@@ -489,10 +681,6 @@ export class RideScene extends Phaser.Scene {
     }
     if (!offer.ok) {
       this.events.emit('bark', offer.text);
-      return;
-    }
-    if (this.station === 'office') {
-      this.#buyElectric();
       return;
     }
     if (this.station === 'garage') {
@@ -659,6 +847,12 @@ export class RideScene extends Phaser.Scene {
     if (res.ok) {
       this.bike.mods = this.#bikeMods();
       this.events.emit('money', -res.item.price, res.item.name);
+      // The speaker: the radio starts (it plays when you ride on).
+      if (id === 'speaker') {
+        this.radioStation = 0;
+        this.radio.tune(0);
+        this.#saveSettings();
+      }
       this.#save();
     }
     return res;
@@ -882,12 +1076,17 @@ export class RideScene extends Phaser.Scene {
     if (near && near.d < 25) {
       return Math.abs(forwardSpeed(b)) * 3.6 >= 3 ? `Stop at ${near.p.name} first, then press F` : `Ride closer to ${near.p.name} and stop, then press F`;
     }
-    return 'F works when you stop at a station, a garage, the showroom or a food stop. Garages are orange on the minimap';
+    return 'F works when you stop at a station, a garage or a food stop. Garages are orange on the minimap';
   }
 
   /** The level's settings, traffic, people and job board. Called at the start and at each new day. */
   #applyLevel() {
     const L = (this.level = levelSettings(this.wallet));
+    // The Ampersand HQ mission (sim/hq.js): while the Alpha waits and Kicukiro is open. A mission that has
+    // started goes on (after the trade-in the Alpha is yours, so the mission is not "due" any more).
+    if (hqMissionDue(this.wallet) && L.districts.includes('kicukiro')) {
+      if (!this.hq || this.hq.stage === 'done') this.hq = createHq();
+    } else if (this.hq && !['alpha', 'track', 'exit', 'done'].includes(this.hq.stage)) this.hq = null;
     // The difficulty mode (sim/modes.js): fuel use, wear, potholes, traffic. The gears are always manual.
     const mode = (this.mode = modeOf(this.wallet));
     this.bike.autoShift = false;
@@ -1129,7 +1328,8 @@ export class RideScene extends Phaser.Scene {
     }
     this.dayTime = 0;
     this.dayOver = false;
-    this.officeHint = false;
+    this.hqAnnounced = false;
+    this.hq = null; // a new day: the mission starts again if the Alpha still waits (see #applyLevel)
     this.honkBarked = false;
     this.strandedTime = null;
     this.debtTime = null;
@@ -1177,11 +1377,11 @@ export class RideScene extends Phaser.Scene {
   cheatItems() {
     const w = this.wallet, L = this.level, mode = this.mode;
     const ev = this.cheatEvent === undefined ? 'AUTO' : this.cheatEvent === null ? 'NONE' : this.cheatEvent.toUpperCase();
-    const office = L.buyAt === 'office';
     return [
       [`LEVEL ${w.level} ▶ ${w.level < LEVELS.length ? w.level + 1 : 1} (NOW)`, 'levelUp'],
       [`LEVEL ${w.level} ▶ ${w.level > 1 ? w.level - 1 : LEVELS.length} (NOW)`, 'levelDown'],
-      ...(L.freePlay ? [] : [[office ? 'SAVE THE GOAL, GO TO SHOWROOM' : 'SAVE THE GOAL, END THE SHIFT', office ? 'goalOffice' : 'goal']]),
+      ...(L.freePlay ? [] : [['SAVE THE GOAL, END THE SHIFT', 'goal']]),
+      ['AMPERSAND HQ MISSION NOW (LEVEL 5)', 'hqMission'],
       ['+50,000 RWF', 'cash'],
       ['FILL UP: FUEL, SERVICE, FOOD', 'fill'],
       ['CLOCK +1 HOUR', 'hour'],
@@ -1194,7 +1394,7 @@ export class RideScene extends Phaser.Scene {
       [`CAR FREE MORNING: ${this.carFree?.day ? 'ON' : 'OFF'}`, 'carFree'],
       ['VIP CONVOY NOW', 'convoy'],
       ['MUZUNGU ON THE BIKE NOW', 'muzungu'],
-      ['GO TO: AMPERSAND SHOWROOM', 'goOffice'],
+      ['GO TO: AMPERSAND HQ', 'goOffice'],
       ['GO TO: NEAREST GARAGE', 'goGarage'],
       [`GO TO: NEAREST ${this.bike.type === 'electric' ? 'SWAP' : 'FUEL'} STATION`, 'goStation'],
       ['GO TO: NYABUGOGO BUS PARK', 'goPark'],
@@ -1227,9 +1427,17 @@ export class RideScene extends Phaser.Scene {
         w.cash = Math.max(w.cash, savingsTarget(w) + 20000); // + the costs of the day
         this.dayTime = this.level.shift.realSeconds;
         return { text: 'GOAL SAVED: AT THE DAY END, PRESS M', close: 'resume' };
-      case 'goalOffice':
-        w.cash = Math.max(w.cash, savingsTarget(w) + 20000); // + the costs of the day
-        return goTo(this.world.placesWithTag('office')[0], 'AMPERSAND SHOWROOM (PRESS F)');
+      case 'hqMission': {
+        // The Alpha waits at HQ (as after the level 4 milestone): you are on the old moto at the in gate.
+        if (w.level < 5) setLevel(w, 5);
+        Object.assign(w.perks, { alphaReady: true, electric: false });
+        this.hq = null;
+        this.hqAnnounced = false;
+        this.#cheatBike();
+        this.#cheatRefresh();
+        this.teleport((HQ.gates.in[0] + HQ.gates.in[1]) / 2, HQ.yard.y1 + 2.4, -90);
+        return { text: 'AMPERSAND HQ: RIDE IN, STOP, PRESS F', close: 'resume' };
+      }
       case 'cash':
         w.cash += 50000;
         return { text: `CASH: ${money(w.cash)}` };
@@ -1295,7 +1503,7 @@ export class RideScene extends Phaser.Scene {
       case 'boost':
         b.boost = STORY.boostSeconds;
         return { text: `${STORY.boostSeconds} S OF ELECTRIC BOOST`, close: 'resume' };
-      case 'goOffice': return goTo(this.world.placesWithTag('office')[0], 'AMPERSAND SHOWROOM');
+      case 'goOffice': return goTo(this.world.placesWithTag('office')[0], 'AMPERSAND HQ');
       case 'goGarage': return goTo(nearest('garage'), 'GARAGE');
       case 'goStation': return goTo(nearest(b.type === 'electric' ? 'swap' : 'fuel'), 'STATION');
       case 'goPark': return goTo(this.parkStop, 'NYABUGOGO BUS PARK');
@@ -1400,7 +1608,8 @@ export class RideScene extends Phaser.Scene {
     this.#updateTraffic(dt);
     while (this.accumulator >= FIXED_DT) {
       // While you fill up or swap, the bike stands still.
-      this.controls = this.refuel ? { throttle: 0, brake: 1, steer: 0, hold: true } : readControls(this.steeringMode, raw, this.bike);
+      // On foot at HQ (sim/hq.js) the old moto stands still too.
+      this.controls = this.refuel || this.hq?.walker ? { throttle: 0, brake: 1, steer: 0, hold: true } : readControls(this.steeringMode, raw, this.bike);
       const events = stepBike(this.bike, this.controls, this.world, FIXED_DT);
       const crashed = events.some((e) => e.type === 'crash');
       for (const e of events) {
@@ -1459,6 +1668,8 @@ export class RideScene extends Phaser.Scene {
     }
     if (this.refuel || this.bike.engineDead) this.#passengerWaiting(dt);
     if (this.refuel && (this.refuel.timeLeft -= dt) <= 0) this.#finishRefuel();
+    this.#updateHq(dt);
+    this.#updateRadio(dt);
     this.#updateRescue(dt);
     this.#updateStation();
     this.#updateEvent(dt);
@@ -1475,6 +1686,7 @@ export class RideScene extends Phaser.Scene {
     this.#updateFuelGuide();
     this.chunks.update(this.bike.x, this.bike.y);
     this.#placeBike();
+    this.hqView.update(this.hq, this, dt, this.time.now);
     this.#updateSmoke(dt);
     this.#updateOcclusion();
     this.#updateCamera(dt);
@@ -1498,13 +1710,8 @@ export class RideScene extends Phaser.Scene {
     this.smogView.update(this.cameras.main.worldView, dt, smogAt(this.wallet.level));
     this.#updateRivalPin();
     this.#updateHonks(dt);
-    // Level 4: when you saved enough, the showroom waits for you (once a day is enough).
-    if (this.level.buyAt === 'office' && !this.officeHint && milestoneReady(this.wallet)) {
-      this.officeHint = true;
-      this.events.emit('bark', 'You saved enough! Ride to the Ampersand showroom on Kacyiru boulevard to buy your electric moto');
-      this.engineSound.jingle('reward');
-    }
-    if (this.bike.engineDead) {
+    if (this.hq?.walker) this.engineSound.silence(); // on foot at HQ
+    else if (this.bike.engineDead) {
       this.engineSound.silence(); // no engine sound: the bike rolls on, then you push it
       this.#updatePushing(dt);
       this.#loseJobWhenEmpty();
@@ -2293,6 +2500,7 @@ export class RideScene extends Phaser.Scene {
     addCanvasTexture(this, 'pin-pickup', drawMarkerPin(0x44bc9d));
     addCanvasTexture(this, 'pin-dropoff', drawMarkerPin(0xf6f5ec));
     addCanvasTexture(this, 'arrow', drawArrow());
+    [0xffc85a, 0x7fe0b8, 0x7fd0ff].forEach((rgb, i) => addCanvasTexture(this, `note-${i}`, drawMusicNote(rgb))); // Radio Inziza
     addCanvasTexture(this, 'waiting-passenger', drawWaitingPassenger());
     addCanvasTexture(this, 'waiting-bananas', drawCargoPile('bananas'));
     addCanvasTexture(this, 'waiting-rice', drawCargoPile('rice'));
@@ -2322,28 +2530,30 @@ export class RideScene extends Phaser.Scene {
   // Show where to go: a ring and a pin on the target place, and an arrow beside the bike.
   #updateMarker() {
     const job = this.board.active;
-    const visible = !!job;
+    const goal = job ? null : hqGoal(this.hq); // no job: the next step of the HQ mission (sim/hq.js)
+    const visible = !!job || !!goal;
     this.markerRing.setVisible(visible);
     this.markerPin.setVisible(visible);
     this.arrow.setVisible(visible);
     this.waiting.setVisible(!!job && job.stage === 'toPickup');
-    if (!job) return;
-    const kind = job.stage === 'toPickup' ? 'pickup' : 'dropoff';
-    const t = jobTarget(job);
+    if (!visible) return;
+    const kind = !job || job.stage === 'toPickup' ? 'pickup' : 'dropoff';
+    const t = job ? jobTarget(job) : { x: goal.x / WORLD.tileMetres, y: goal.y / WORLD.tileMetres };
     const wx = t.x * WORLD.tileMetres, wy = t.y * WORLD.tileMetres;
     const s = toScreen(wx, wy, this.world.heightAt(wx, wy));
     const pulse = 1 + 0.12 * Math.sin(this.time.now / 160);
     this.markerRing.setTexture(`ring-${kind}`).setPosition(s.x, s.y).setScale(pulse).setDepth((wx + wy) / WORLD.tileMetres - 0.5);
     this.markerPin.setTexture(`pin-${kind}`).setPosition(s.x, s.y - 30 - 3 * Math.sin(this.time.now / 220));
     // The passenger (or the cargo) waits beside the marker.
-    const pile = `waiting-${job.goods ?? 'rice'}`;
-    this.waiting.setTexture(job.type === 'passenger' ? 'waiting-passenger' : this.textures.exists(pile) ? pile : 'waiting-rice')
+    const pile = `waiting-${job?.goods ?? 'rice'}`;
+    if (job) this.waiting.setTexture(job.type === 'passenger' ? 'waiting-passenger' : this.textures.exists(pile) ? pile : 'waiting-rice')
       .setPosition(s.x + 12, s.y - 2).setDepth((wx + wy) / WORLD.tileMetres + 0.3);
-    const dx = s.x - this.bikeScreen.x, dy = s.y - this.bikeScreen.y;
+    const from = this.focusScreen ?? this.bikeScreen;
+    const dx = s.x - from.x, dy = s.y - from.y;
     const d = Math.hypot(dx, dy);
     this.arrow.setVisible(d > 40);
-    this.arrow.setPosition(this.bikeScreen.x + (dx / d) * 24, this.bikeScreen.y - 10 + (dy / d) * 16).setRotation(Math.atan2(dy, dx));
-    this.targetDistance = Math.hypot(this.bike.x - wx, this.bike.y - wy);
+    this.arrow.setPosition(from.x + (dx / d) * 24, from.y - 10 + (dy / d) * 16).setRotation(Math.atan2(dy, dx));
+    if (job) this.targetDistance = Math.hypot(this.bike.x - wx, this.bike.y - wy);
   }
 
   #placeBike() {
@@ -2355,19 +2565,39 @@ export class RideScene extends Phaser.Scene {
     // the rider gets off, walks beside the bike and pushes it.
     const load = b.loadType ?? 'none';
     const walking = (b.engineDead && Math.abs(forwardSpeed(b)) * 3.6 <= PHYSICS.rideOffKmh) || (b.reversing && forwardSpeed(b) < -0.05);
-    const key = walking && !(b.crashed > 0)
-      ? `push-${b.type}-${load}-${bikeFrameForHeading(b.heading)}-${Math.floor((this.pushMetres ?? 0) / 0.7) % 2}`
-      : `bike-${b.type}-${load}-${bikeFrameForHeading(b.heading)}`;
+    const push = walking && !(b.crashed > 0);
+    const step = Math.floor((this.pushMetres ?? 0) / 0.7) % 2;
+    const base = push ? `push-${b.type}-${load}-${bikeFrameForHeading(b.heading)}-${step}` : `bike-${b.type}-${load}-${bikeFrameForHeading(b.heading)}`;
+    // The garage parts you can see (a speaker box, crash bars ...): a texture for each set, made when first needed.
+    const parts = this.#visibleParts();
+    const key = parts.length ? `${base}-${parts.join('.')}` : base;
+    if (parts.length && !this.textures.exists(key)) addCanvasTexture(this, key, drawBike(b.type, bikeFrameForHeading(b.heading), load, true, push ? `push${step}` : 'ride', parts));
     this.bikeScreen = s;
     this.bikeDepth = depth;
     // After a crash the bike and the rider lie on the ground.
     const angle = b.crashed > 0 ? (Math.cos(b.heading - Math.PI / 4) >= 0 ? 80 : -80) : 0;
-    this.bikeSprite.setTexture(key).setPosition(s.x, s.y - bounce).setDepth(depth).setAngle(angle);
-    this.ghost.setTexture(key).setPosition(s.x, s.y - bounce).setAngle(angle);
-    this.shadow.setPosition(s.x, s.y).setDepth(depth - 0.002);
-    const electric = b.type === 'electric';
+    // On foot at HQ: the old moto stands without its rider; after the hand-in a staff member takes it (HqView).
+    const hq = this.hq, onFoot = !!hq?.walker;
+    const shown = !(onFoot && hq.stage !== 'desk');
+    const bikeKey = onFoot ? parkedKey(this, b.type, bikeFrameForHeading(b.heading), parts) : key;
+    this.bikeSprite.setTexture(bikeKey).setPosition(s.x, s.y - bounce).setDepth(depth).setAngle(angle).setVisible(shown);
+    this.ghost.setTexture(bikeKey).setPosition(s.x, s.y - bounce).setAngle(angle);
+    this.shadow.setPosition(s.x, s.y).setDepth(depth - 0.002).setVisible(shown);
+    // The camera and the guide arrow follow the rider on foot.
+    this.focusScreen = onFoot ? toScreen(hq.walker.x, hq.walker.y, this.world.heightAt(hq.walker.x, hq.walker.y)) : s;
+    const electric = b.type === 'electric' && shown;
     this.glow.setVisible(electric).setPosition(s.x, s.y).setDepth(depth - 0.003);
     if (electric) this.glow.setAlpha(0.75 + 0.25 * Math.sin(this.time.now / 180));
+  }
+
+  /** The garage parts that show on your bike (VISIBLE_PARTS), in a fixed order. */
+  #visibleParts() {
+    const owned = this.wallet.parts ?? [];
+    if (owned !== this.partsOwned) { // a new list after a purchase or a new game
+      this.partsOwned = owned;
+      this.partsShown = VISIBLE_PARTS.filter((id) => owned.includes(id));
+    }
+    return this.partsShown;
   }
 
   #updateSmoke(dt) {
@@ -2431,8 +2661,9 @@ export class RideScene extends Phaser.Scene {
       ay *= VIEW.lookAheadMaxPx / len;
     }
     const k = 1 - Math.pow(1 - VIEW.cameraLerp, dt * 60);
-    this.camPos.x += (this.bikeScreen.x + ax - this.camPos.x) * k;
-    this.camPos.y += (this.bikeScreen.y - 10 + ay - this.camPos.y) * k;
+    const f = this.focusScreen ?? this.bikeScreen;
+    this.camPos.x += (f.x + ax - this.camPos.x) * k;
+    this.camPos.y += (f.y - 10 + ay - this.camPos.y) * k;
     this.cameras.main.centerOn(this.camPos.x, this.camPos.y);
   }
 }

@@ -39,7 +39,7 @@ describe('levels', () => {
     expect(w.milestones).toHaveLength(1);
   });
 
-  it('level 2 gives a smartphone (one more job card), level 4 the electric moto', () => {
+  it('level 2 gives a smartphone (one more job card), level 4 the Alpha at HQ (a mission in level 5)', () => {
     const w = createWallet(0);
     w.level = 2;
     w.cash = 25000 + SAVINGS_FLOAT;
@@ -50,6 +50,10 @@ describe('levels', () => {
     w.cash = 60000 + SAVINGS_FLOAT;
     buyMilestone(w);
     expect(w.level).toBe(5);
+    // The Alpha waits at the Ampersand HQ: you still ride the petrol moto until the mission (sim/hq.js).
+    expect(w.perks.alphaReady).toBe(true);
+    expect(levelSettings(w).bikeType).toBe('petrol');
+    w.perks.electric = true;
     expect(levelSettings(w).bikeType).toBe('electric');
   });
 

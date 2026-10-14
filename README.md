@@ -100,7 +100,10 @@ All 10 levels, the three modes, the story arc (smog, the yellow battery, the swa
 | Welcome menu, How to play, Settings, pause menu with Restart shift | Done |
 | Retro 16-bit menus: pixel font, blue windows, ▶ cursor, scanlines, menu blips | Done |
 | Retro 16-bit HUD, minimap, end of day and level up screens: pixel font, pixel icons, segmented bars, blue windows, low resolution scaled by a whole number | Done |
-| Buy the electric moto at the Ampersand showroom on Kacyiru boulevard (level 4 mission) | Done |
+| The Ampersand HQ in Gikondo (Alp, 14 October 2026): a factory hall with a blue roof in a fenced tarmac yard, rows of new red Alphas, a trade-in row of old motos, a hand-in desk with staff, a test track (cones and 4 gates), a swap station and a MURAKAZA NEZA banner over the exit gate. The Kacyiru showroom is gone: you get your Alpha only at the factory | Done |
+| The HQ mission (start of level 5): the level 4 milestone (bought at the day end) makes the Alpha ready. Ride the old moto into the yard, stop, F: get off; walk with the arrow keys (only in the yard) to the desk, F: trade-in +15,000 RWF (guess); walk to your Alpha with the teal bow and the name tag ("IYI NI IYAWE!", guess), F: get on; the test track: 4 gates against the clock, a cone adds 2 s, under 45 s gives 3,000 RWF (guess), F skips it; ride out: confetti, the family waves, the staff clap, a jingle, then the level 5 news | Done |
+| Radio Inziza (on a bike with the Bluetooth speaker): IMPALA GOLD, RUMBA KIN, KIGALI COUNTRY, KINYATRAP FM, GOSPEL 7, KISS FM, then OFF. Each station has 3 or 4 tracks with new titles; all the music is made in code (Web Audio chiptune in the style of each kind of music; no real songs). N, the ♪ touch button or a tap on the chip changes the station; the chip shows the station and the track for 3 s; Settings has a music volume. The radio stops in the menus, at the garage screen and at the day end. KISS FM is the name of a real Kigali radio station (Alp asked for it) | Done |
+| Garage parts that you can see on your bike: the speaker box with a blue light (music notes float up when the radio plays), the phone on the handlebar, chrome crash bars, the orange cargo net, the thicker seat, bigger tyres. The other parts are inside the bike | Done |
 | Station attendants: an SP attendant with the fuel nozzle, an Ampersand attendant with the new battery; the bike stands still while you fill up | Done |
 | Family rewards: what the money means at home after each job, each shift and each milestone | Done |
 | Sounds: the engine stops at the end of a shift; short tunes for shift end, milestone, game over, delivery | Done |
@@ -156,7 +159,8 @@ Main menu → SETTINGS → CHEATS: ON. Then, in a ride, pause (Esc, or the pause
 | Cheat | What it does |
 | --- | --- |
 | LEVEL n ▶ n+1 / n−1 (NOW) | Go to the next or the last level at once. The milestones before the level, the bike type and the districts follow |
-| SAVE THE GOAL, END THE SHIFT | Gives the savings goal (and a margin for the costs of the day) and ends the shift; on the day end screen press M to buy the milestone. At level 4 it goes to the Ampersand showroom (press F) |
+| SAVE THE GOAL, END THE SHIFT | Gives the savings goal (and a margin for the costs of the day) and ends the shift; on the day end screen press M to buy the milestone |
+| AMPERSAND HQ MISSION NOW (LEVEL 5) | Your Alpha waits at the HQ: you are on the old petrol moto at the in gate of the HQ yard in Gikondo |
 | +50,000 RWF | More cash |
 | FILL UP | Full tank or battery, a new service, a full FOOD bar |
 | CLOCK +1 HOUR, END THE SHIFT NOW | Move the clock |
@@ -167,14 +171,14 @@ Main menu → SETTINGS → CHEATS: ON. Then, in a ride, pause (Esc, or the pause
 | YELLOW BATTERY: 25 S BOOST | 25 s of extra power on the moto you ride (not the electric moto) |
 | CAR FREE MORNING, VIP CONVOY NOW | Start a street event at once |
 | MUZUNGU ON THE BIKE NOW | A muzungu passenger gets on at once, at a hotel or a landmark (from level 2) |
-| GO TO | The Ampersand showroom, the nearest garage, the nearest station, the Nyabugogo bus park |
+| GO TO | The Ampersand HQ, the nearest garage, the nearest station, the Nyabugogo bus park |
 | SHOW THE ENDING | The ending screen |
 
 Settings → CHEATS: ON turns the cheats off.
 
 ## Controls
 
-The game opens with the welcome menu: Continue (your saved game), New game, How to play and Settings (sound, map, test level, cheats).
+The game opens with the welcome menu: Continue (your saved game), New game, How to play and Settings (sound, map, music volume, test level, cheats).
 In the game, Esc, P or the II button opens the pause menu: Resume, Restart shift, How to play, Settings and Main menu.
 
 | Action | Keyboard | Touch |
@@ -189,6 +193,8 @@ In the game, Esc, P or the II button opens the pause menu: Resume, Restart shift
 | Put a stuck bike back on the nearest road (fuel, wear and the job stay) | R | R button |
 | Show or hide the minimap | M | Settings menu |
 | Sound on or off | V | — |
+| Radio: the next station (with the Bluetooth speaker; after KISS FM, OFF) | N | ♪ button, or tap the radio chip |
+| At the HQ: get off, hand in the old moto, get on your Alpha, skip the test track | F (walk: the arrow keys) | Tap the prompt (walk: the stick) |
 | Take job 1, 2 or 3 | 1, 2, 3 | Tap the job card |
 | Take the street hail next to you (stop close to a waving customer) | 1 | Tap the prompt |
 | Cancel the job (no pay) | Backspace | — |
@@ -288,6 +294,9 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `FLEET` | Hired riders: rent, costs, bad days, calls for help (how often, how long you have, how near you must stop), their names, how long they carry a passenger |
 | `MODES` | The difficulty modes: gears, fuel use, wear, cameras, police, potholes, traffic, crash repairs, traffic lights, rider energy, helmet checks |
 | `SHOP` | The parts and upgrades at the garages: price, level, effect, petrol or electric only; the mechanic's lines |
+| `VISIBLE_PARTS` | The garage parts that you can see on the bike |
+| `HQ` | The Ampersand HQ: the yard, the hall, the gates, the rows of Alphas, the desk, the test track (cones, gates, the bonus time and money), the trade-in money, the walking speed, the confetti |
+| `RADIO` | Radio Inziza: the stations (name, kind, tempo, track titles), how long the chip shows, the default music volume |
 | `RIDER` | Rider energy (hard mode): how fast it goes down, the power when hungry or weak, and each food (price, energy, time, lunch hours) |
 | `TRAFFIC_LIGHTS` | How many lights in each district, the green, amber and all red times, the stop line, the fine |
 | `HELMET_CHECKS` | How many checks each day, how near, the time to stop and to check, the fine |
@@ -303,7 +312,7 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `CITY_ANIM` | The moving city details: flag frames and speed, how often and how long the MTN fountain sprays |
 | `ROOFS` | Pitched roofs: the pitch and the highest ridge of each house type, how many villas are new steep apartments, how many Nyabugogo houses are mud houses |
 
-The game map is built in code in [`src/world/maps/kigali.js`](src/world/maps/kigali.js): district rectangles, hills, roads, landmarks, stations and places. Each block has a building style (`h` house, `s` shop, `o` office, `t` tower, `g` government, `c` school, `w` warehouse, `v` villa, `e` embassy, `H` hotel; `P` makes a tree tile a palm). Roads can be roundabouts (`ring: true`, a centre and a radius) or double carriageways (`width: 6`, `median: true`, `laneOffset`). The district rules set the style, and a landmark sets the style, the height in levels and the sign text of its block. The small test map for the unit tests is an ASCII grid in [`src/world/map-data.js`](src/world/map-data.js). The legend is at the top of the file. Hills are plateaus with ramps; each hill has a height and a ramp length for each side. The same file has the job places, speed limit zones, cameras and signs.
+The game map is built in code in [`src/world/maps/kigali.js`](src/world/maps/kigali.js): district rectangles, hills, roads, landmarks, stations and places. Each block has a building style (`h` house, `s` shop, `o` office, `t` tower, `g` government, `c` school, `w` warehouse, `v` villa, `e` embassy, `H` hotel, `A` the Ampersand HQ hall with the blue roof; `P` makes a tree tile a palm). Roads can be roundabouts (`ring: true`, a centre and a radius) or double carriageways (`width: 6`, `median: true`, `laneOffset`). The district rules set the style, and a landmark sets the style, the height in levels and the sign text of its block. The small test map for the unit tests is an ASCII grid in [`src/world/map-data.js`](src/world/map-data.js). The legend is at the top of the file. Hills are plateaus with ramps; each hill has a height and a ramp length for each side. The same file has the job places, speed limit zones, cameras and signs.
 
 ## Code structure
 
@@ -337,6 +346,7 @@ src/
     roadevent-sprites.js Cones, boards, barriers, road workers, the NO MOTOS sign
     story-sprites.js     The yellow battery pickup and the ending picture (the house, the motos, the family)
     bicycle-sprites.js   The game over pictures: a bicycle taxi (side view) and the evening hills; the jail cell
+    hq-sprites.js        The Ampersand HQ: the fence, the track gates, the teal bow, the desk, the banner, the children
   sim/
     bike.js              Arcade bike physics and energy (no Phaser)
     controls.js          The steering (bike relative; the screen relative model is still in the code, but the game does not use it)
@@ -374,7 +384,11 @@ src/
     umuganda.js          The Umuganda run: the offer, the patrol cars, being seen on a main road
     roadevents.js        Street events: road works, VIP convoys, car free mornings
     hardrules.js         Hard mode challenges: speed checks, one-way and no-moto streets, overloading, the bathroom need
-  audio/engine-sound.js  Engine, horn, crash, yells, jingles and menu sounds (Web Audio)
+    hq.js                The Ampersand HQ mission: get off, walk, trade-in, your Alpha, the test track, ride out
+  audio/
+    engine-sound.js      Engine, horn, crash, yells, jingles and menu sounds (Web Audio)
+    songs.js             Radio Inziza: the songs of each station, made in code (no Web Audio; tested in Node)
+    radio.js             Radio Inziza: plays the songs with Web Audio (chiptune voices and drums)
   scenes/
     MenuScene.js         Welcome menu, pause menu, How to play, Settings
     RideScene.js         World, bike, camera, smoke, occlusion
@@ -398,6 +412,7 @@ src/
     KiteView.js          The brown kites and their shadows
     SmogView.js          The smog layer over the city (thinner at each level)
     BatteryView.js       The yellow batteries on the road (levels 3 and 4)
+    HqView.js            The Ampersand HQ yard: Alphas, the trade-in row, staff, the track, the walker, confetti
     save.js              Saves the game in the browser (localStorage)
 test/                    Unit tests (Vitest)
 ```

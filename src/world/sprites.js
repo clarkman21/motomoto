@@ -49,8 +49,12 @@ const PASSENGER = { shirt: PALETTE.blue, trousers: PALETTE.mud, helmet: PALETTE.
  * The bike in one of 16 directions. load: 'none', 'passenger', 'bananas' or 'rice'.
  * rider: false for a parked bike. pose: 'ride', or 'push0' / 'push1' (the two steps of a rider who
  * walks beside the bike and pushes it, when it is out of fuel or broken down).
+ * extras: the garage parts that show on the bike (VISIBLE_PARTS in config.js): 'speaker' (a black box
+ * with a blue light behind the seat), 'charger' (a phone on the handlebar), 'crashbars', 'net' (an
+ * orange cargo net), 'cushion' (a thicker seat) and 'tyres' (bigger tyres).
  */
-export function drawBike(type, frame, load = 'none', rider = true, pose = 'ride') {
+export function drawBike(type, frame, load = 'none', rider = true, pose = 'ride', extras = []) {
+  const has = (id) => extras.includes(id);
   const look = BIKE_LOOKS[type];
   const heading = (frame / BIKE_DIRECTIONS) * Math.PI * 2;
   const c = new PixelCanvas(BIKE_CANVAS.width, BIKE_CANVAS.height, -BIKE_CANVAS.groundX, -BIKE_CANVAS.groundY);
@@ -65,14 +69,19 @@ export function drawBike(type, frame, load = 'none', rider = true, pose = 'ride'
   };
 
   const parts = [];
+  const tyre = has('tyres') ? 0.35 : 0.3; // better tyres: bigger, with a deep tread
   const wheel = (fc) => {
     const pts = [];
     for (let i = 0; i < 16; i++) {
       const a = (i / 16) * Math.PI * 2;
-      pts.push(P(fc + 0.3 * Math.cos(a), 0, 0.3 + 0.3 * Math.sin(a)));
+      pts.push(P(fc + tyre * Math.cos(a), 0, tyre + tyre * Math.sin(a)));
     }
-    const hub = P(fc, 0, 0.3);
-    parts.push({ depth: hub.depth - 0.01, draw: () => { c.fillPoly(pts, PALETTE.tyre); c.fillDisc(hub.x, hub.y, 0.8, PALETTE.hub); } });
+    const hub = P(fc, 0, tyre);
+    parts.push({ depth: hub.depth - 0.01, draw: () => {
+      c.fillPoly(pts, PALETTE.tyre);
+      if (has('tyres')) for (let i = 0; i < 16; i += 2) c.plot(pts[i].x, pts[i].y, PALETTE.hub); // the tread
+      c.fillDisc(hub.x, hub.y, 0.8, PALETTE.hub);
+    } });
   };
   const seg = (a, b, thick, col, bias = 0) => {
     const pa = P(...a), pb = P(...b);
@@ -88,6 +97,7 @@ export function drawBike(type, frame, load = 'none', rider = true, pose = 'ride'
   seg([-0.72, 0, 0.55], [0.35, 0, 0.66], 3.2, look.body); // body and rear fender
   seg([0.62, 0, 0.3], [0.42, 0, 0.95], 1.5, PALETTE.silver); // fork
   seg([-0.45, 0, 0.8], [0.05, 0, 0.84], 3, look.seat); // seat
+  drawBikeParts(seg, blob, has, load);
   seg([0.42, -0.32, 0.98], [0.42, 0.32, 0.98], 1.5, PALETTE.bumper); // handlebar
   blob([0.52, 0, 0.84], 1.1, PALETTE.headlight, 0.05); // headlight
   if (look.battery) {
@@ -147,6 +157,37 @@ export function drawBike(type, frame, load = 'none', rider = true, pose = 'ride'
   return c;
 }
 
+/** The garage parts that you can see on your bike (see drawBike). */
+function drawBikeParts(seg, blob, has, load) {
+  if (has('cushion')) {
+    seg([-0.43, 0, 0.86], [0.03, 0, 0.9], 3.4, PALETTE.charcoal, 0.005); // a thicker seat
+    seg([-0.4, 0, 0.92], [0, 0, 0.95], 0.8, PALETTE.hub, 0.006); // the stitched top
+  }
+  if (has('speaker')) {
+    // A black speaker box on the rear rack, with a round speaker and a blue light.
+    seg([-0.84, 0, 0.98], [-0.64, 0, 0.98], 5.4, PALETTE.ink, -0.02);
+    blob([-0.74, 0.12, 0.98], 1.1, PALETTE.hub, -0.01);
+    blob([-0.7, 0, 1.12], 0.8, 0x4ab0ff, -0.015);
+  }
+  if (has('charger')) {
+    // A phone in a holder on the handlebar; its screen shines blue.
+    seg([0.42, 0, 0.98], [0.44, 0, 1.12], 1.4, PALETTE.ink, 0.06);
+    blob([0.45, 0, 1.12], 1, 0x7fd0ff, 0.07);
+  }
+  if (has('crashbars')) {
+    for (const side of [-1, 1]) {
+      seg([0.16, 0.24 * side, 0.32], [0.34, 0.27 * side, 0.68], 1.1, PALETTE.chrome, 0.02 * side); // the front bars
+      seg([-0.5, 0.24 * side, 0.42], [-0.72, 0.22 * side, 0.74], 1.1, PALETTE.chrome, 0.02 * side); // the rear bars
+    }
+  }
+  if (has('net')) {
+    // An orange net on the rear rack (over the cargo when you carry some).
+    const z = load === 'bananas' || load === 'rice' ? 1.3 : 0.94;
+    seg([-0.86, 0, z], [-0.42, 0, z], 1.4, PALETTE.kOrange, 0.04);
+    for (const f of [-0.8, -0.64, -0.48]) seg([f, -0.2, z - 0.14], [f + 0.06, 0.2, z], 0.9, PALETTE.kOrange, 0.04);
+  }
+}
+
 /**
  * The passenger on the back seat, with a helmet (the law in Kigali). holdRider: the arms go round the
  * rider; else (the rider walks beside the bike) the hands hold the seat.
@@ -190,6 +231,16 @@ function drawBikeLoad(c, parts, P, seg, blob, load) {
   parts.sort((a, b) => a.depth - b.depth);
   for (const p of parts) p.draw();
   finishFigure(c);
+  return c;
+}
+
+/** A music note (Radio Inziza): it floats up from the speaker box while the radio plays. 8 × 10 with the outline. */
+export function drawMusicNote(rgb) {
+  const c = new PixelCanvas(8, 10);
+  for (let y = 1; y <= 6; y++) c.setPixel(4, y, rgb); // the stem
+  for (const [x, y] of [[5, 1], [5, 2], [6, 3]]) c.setPixel(x, y, rgb); // the flag
+  for (const [x, y] of [[2, 6], [3, 6], [2, 7], [3, 7], [4, 7]]) c.setPixel(x, y, rgb); // the head
+  c.outline(PALETTE.ink);
   return c;
 }
 
@@ -317,6 +368,8 @@ const STYLE_LOOKS = {
   embassy: { walls: [P.concrete], roofs: [P.silver], flag: 'us', battlements: true },
   school: { walls: [0xf0efe6], roofs: [0x3f7f4a, 0x8a3b2a], corrugated: true },
   warehouse: { walls: [0xa0a4a8, 0x8f9aa0, 0xb0a890], roofs: [0x9a9a96, 0x8a8a86], corrugated: true },
+  // The Ampersand HQ in Gikondo (Alp): a light factory hall with a blue corrugated roof.
+  hq: { walls: [0xdcd8ce], roofs: [P.roofBlue], corrugated: true },
   villa: { walls: [P.cream, P.paintCream, P.paintPeach, P.paintSky, P.paintMint, P.paintPink], roofs: [P.clayTile, P.roofRed], tanks: 0.3 },
 };
 // Bright paint for shop fronts (not Surge Yellow: that colour is only for Ampersand).

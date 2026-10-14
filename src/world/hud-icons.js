@@ -109,6 +109,17 @@ export const ICONS = {
     '.kyk.kyk.',
     '.kk...kk.',
   ],
+  note: [ // Radio Inziza: a music note
+    '....kkkk.',
+    '....kyyyk',
+    '....kykkk',
+    '....kyk..',
+    '....kyk..',
+    '.kkkkyk..',
+    'kyyyyyk..',
+    'kyyyyk...',
+    '.kkkk....',
+  ],
   person: [
     '...kkk...',
     '..kwwwk..',

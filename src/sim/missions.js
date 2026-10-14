@@ -111,7 +111,7 @@ export function maybeMission(offer, board, world, level, rng) {
   const kinds = ['vip', 'rush'];
   if (milkBars.length) kinds.push('ikivuguto');
   if (hotels.length) kinds.push('hotel');
-  // The network (story arc): batteries to a swap station. Swap stations and the showroom are not job places.
+  // The network (story arc): batteries to a swap station. Swap stations and the Ampersand HQ are not job places.
   const open = (p) => !board.opts.districts || !p.district || board.opts.districts.includes(p.district);
   const swaps = world.placesWithTag('swap').filter(open);
   const depots = [...world.placesWithTag('office').filter(open), ...swaps];

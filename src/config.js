@@ -567,9 +567,10 @@ export const LEVELS = [
     news: 'Kacyiru opens: offices, the police headquarters and the hospital. Your phone now shows daily app quests and special jobs (gold). Speed cameras on, petrol +10%.',
   },
   {
-    n: 4, name: 'Rush hour', goal: 60000, milestone: 'Your own Ampersand electric moto', kind: 'asset', effect: 'electric',
-    buyAt: 'office', // you buy it at the Ampersand showroom, not at the end of the day
-    story: 'You sign for your own Ampersand electric moto at the showroom. No more petrol queues and no more smoke. The whole family comes to see it.',
+    n: 4, name: 'Rush hour', goal: 60000, milestone: 'Your own Ampersand electric moto', kind: 'asset', effect: 'alphaReady',
+    // Bought at the day end as the other milestones. The Alpha waits at the Ampersand HQ in Gikondo: you
+    // get it in a mission at the start of level 5 (sim/hq.js), then the moto is electric (perks.electric).
+    story: 'You sign for your own Ampersand Alpha. The factory in Gikondo gets it ready for you: tomorrow you trade in the old petrol moto and ride the Alpha home. The whole family will come to see it.',
     shift: { start: 6, end: 22, realSeconds: 420 }, rent: 5000,
     traffic: 1.0, rivals: 10, cyclists: 2, raceChance: 0.45, offerLife: [15, 40], hailEvery: 1,
     fare: 1.45, petrol: 1.2, cameras: true,
@@ -581,7 +582,8 @@ export const LEVELS = [
     shift: { start: 6, end: 22, realSeconds: 420 }, rent: 0, // the moto is yours: no more rent from level 5
     traffic: 1.0, rivals: 12, cyclists: 3, raceChance: 0.5, offerLife: [15, 40], hailEvery: 1,
     fare: 1.5, petrol: 1.3, cameras: true,
-    news: 'You ride electric now, and the moto is yours: no more rent. Kicukiro opens: busy junctions, workshops and trucks.',
+    news: 'Kicukiro opens: busy junctions, workshops and trucks. Your Alpha is ready at the Ampersand HQ in Gikondo: ride there, trade in the old moto and ride the Alpha out. The moto is yours: no more rent.',
+    hqNews: 'You ride electric now: no petrol, no smoke, and strong, quiet power from 0 km/h. Swap the battery at the yellow Ampersand stations.',
   },
   {
     n: 6, name: 'City rider', goal: 170000, milestone: 'A second moto, with a hired rider', kind: 'asset', effect: 'rider1',
@@ -674,7 +676,7 @@ export const MISSIONS = {
   vip: { payFactor: 2.2, bonusFactor: 0.8, minComfort: 85 }, // a VIP passenger: no fine, no crash, comfort ≥ 85%
   rush: { payFactor: 1.6, bonusFactor: 0.6, metresPerSecond: 7, extraSeconds: 25, latePayFactor: 0.5 }, // against the clock
   ikivuguto: { payFactor: 1.8, bonusFactor: 0.6, maxDamage: 0.1, kg: 20 }, // fermented milk in cans: do not spill it
-  // The network (story arc, from level 5): carry charged Ampersand batteries from the showroom or a swap station
+  // The network (story arc, from level 5): carry charged Ampersand batteries from the Ampersand HQ or a swap station
   // to another swap station. Do not drop them (damage under maxDamage). Each delivery grows the network.
   batteries: { fromLevel: 5, payFactor: 2.0, bonusFactor: 0.8, maxDamage: 0.15, kg: 40 },
   hotel: { payFactor: 2.5, bonusFactor: 0.7, metresPerSecond: 6.5, extraSeconds: 30 }, // a hotel guest in a hurry
@@ -936,6 +938,52 @@ export const SHOP = {
   ],
   // What the mechanic says when you come in (one line, chosen by the garage).
   talk: ['Muraho! A good speaker brings good tips.', 'Good tyres love murram.', 'Service on time, and the moto lives long.', 'Ceramic pads, smooth stops.', 'Bite the road, not the dust!'],
+};
+
+// Garage parts that show on your bike (Alp, 14 October 2026). The other parts are inside the bike.
+export const VISIBLE_PARTS = ['speaker', 'charger', 'crashbars', 'net', 'cushion', 'tyres'];
+
+// The Ampersand HQ in Gikondo (Alp, 14 October 2026: "a blue roof warehouse"): the factory where you
+// get your Alpha at the start of level 5 (sim/hq.js). Positions are in tiles (x, y), from the design
+// canvas "Moto Inziza: Ampersand HQ mission and radio". Money and times are guesses.
+export const HQ = {
+  yard: { x0: 148, y0: 86, x1: 159, y1: 95 }, // the fenced yard (tarmac); the fence is on its edge
+  building: { x0: 149, y0: 86, x1: 154, y1: 88, levels: 2 }, // the warehouse with the blue roof
+  gates: { in: [150, 152], out: [156, 159] }, // openings in the south fence (tiles x from, x to)
+  desk: { x: 152.6, y: 93.6 }, // the hand-in desk; the staff stand behind it (north)
+  alphaRows: { x0: 149.0, x1: 154.4, ys: [89.6, 91.0], step: 0.38 }, // rows of new Alphas, nose to the south
+  ribbon: { row: 1, index: 9 }, // your Alpha: the teal bow and the name tag
+  tradeRow: { x: 148.45, y0: 89.4, step: 0.5, count: 5 }, // the row of old petrol motos (trade-ins)
+  // The test track: a ring of cones round an ellipse, a lane between the outer and the inner ring.
+  track: { cx: 157.4, cy: 91.0, rx: 1.75, ry: 2.4, innerRx: 0.6, innerRy: 1.25, coneMetres: 2.6, openings: [Math.PI, Math.PI / 2] },
+  gateOrder: [Math.PI, Math.PI * 1.5, 0, Math.PI / 2], // the 4 gates (angles on the lane): west, north, east, south
+  gateMetres: 3, // ride this near the centre of a gate to pass it
+  coneMetres: 0.75, // a cone nearer than this to the bike falls over
+  conePenalty: 2, // seconds for each cone you hit
+  bonusSeconds: 45, // a time under this gives the bonus
+  bonus: 3000, // RWF (guess)
+  tradeIn: 15000, // RWF for your old petrol moto (guess)
+  walkMs: 1.4, // walking speed (m/s)
+  reachMetres: 2.4, // walk this near to the desk or the Alpha (its centre), then press F
+  stopKmh: 3, // stop (slower than this) to get off with F
+  confetti: { pieces: 120, seconds: 4 },
+  staffLine: 'IYI NI IYAWE!', // "this one is yours" (a guess)
+};
+
+// Radio Inziza (Alp, 14 October 2026): music made in code (audio/radio.js), on a bike with the Bluetooth
+// speaker. N or the ♪ button: the next station; the last one is OFF. The titles are new (not real songs).
+// KISS FM is the name of a real Kigali radio station (Alp asked for it); its music here is made in code.
+export const RADIO = {
+  chipSeconds: 3, // the station chip shows this long after a change
+  volume: 0.6, // the default music volume (0..1, Settings)
+  stations: [
+    { id: 'impala', name: 'IMPALA GOLD', kind: 'Rwandan band music', bpm: 118, tracks: ['Kigali by Night', 'Umutoni', 'Nyamirambo Twist', 'Sunday at Rebero'] },
+    { id: 'rumba', name: 'RUMBA KIN', kind: 'Congolese rumba', bpm: 128, tracks: ['Sebene ya Moto', 'Mama Kivu', 'Ndombolo Express'] },
+    { id: 'country', name: 'KIGALI COUNTRY', kind: 'Country music', bpm: 100, tracks: ['Murram Road Home', 'Red Dust Boots', 'Two Hills Waltz'] },
+    { id: 'trap', name: 'KINYATRAP FM', kind: 'Rwandan trap', bpm: 140, tracks: ['Gikondo Nights', 'Helmet On', 'Swap n Go', 'Boda Flex'] },
+    { id: 'gospel', name: 'GOSPEL 7', kind: 'Rwandan gospel', bpm: 96, tracks: ['Imana Ishimwe', 'Morning Light', 'Hallelujah Hill'] },
+    { id: 'kiss', name: 'KISS FM', kind: 'Pop hits', bpm: 120, tracks: ['Kigali Summer', 'Hold On Tight', 'Neon Hills', 'Dancefloor 250'] },
+  ],
 };
 
 // The minimal HUD (Alp, 14 October 2026): when a part shows (see HudScene.js).

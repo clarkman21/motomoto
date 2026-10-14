@@ -3,7 +3,7 @@ import { hash2 } from '../world/pixel-canvas.js';
 import { BUILDING_STYLES } from '../world/world.js';
 import { toScreen } from '../world/iso.js';
 import { drawBuildingSign, drawFuelSign } from '../world/garage-sprites.js';
-import { FUEL_BRAND, drawBike, BIKE_CANVAS, flagSpots, drawFlagCloth, fountainSpots, drawFountainSpray, SPRAY } from '../world/sprites.js';
+import { FUEL_BRAND, flagSpots, drawFlagCloth, fountainSpots, drawFountainSpray, SPRAY } from '../world/sprites.js';
 import { addCanvasTexture, placeOnPixels } from './textures.js';
 import { groupKey } from './chunks.js';
 import { shopSignArt, drawMannequin, drawMural, drawPorch, shearOnWall, MANNEQUIN_CANVAS } from '../world/shops.js';
@@ -23,7 +23,6 @@ export class SignView {
     this.#fountains(scene, world);
     for (const lm of world.landmarks) {
       if (!lm.sign) continue;
-      if (lm.brand) this.#showroomMoto(scene, world, lm);
       const blocks = world.blocks.filter((b) => b.tx >= lm.x0 && b.tx <= lm.x1 && b.ty >= lm.y0 && b.ty <= lm.y1);
       if (!blocks.length) continue;
       const top = Math.max(...blocks.map((b) => b.topLevel));
@@ -53,16 +52,6 @@ export class SignView {
         this.items.push({ img: doorImg, keys });
       }
     }
-  }
-
-  /** A new Ampersand electric moto on show in front of the showroom (you can bump into it). */
-  #showroomMoto(scene, world, lm) {
-    const T = WORLD.tileMetres;
-    if (!scene.textures.exists('showroom-moto')) addCanvasTexture(scene, 'showroom-moto', drawBike('electric', 2, 'none', false));
-    const x = (lm.x0 + 4.5) * T, y = (lm.y1 + 1.45) * T;
-    const p = toScreen(x, y, world.heightAt(x, y));
-    placeOnPixels(scene.add.image(0, 0, 'showroom-moto'), p, BIKE_CANVAS.groundX, BIKE_CANVAS.groundY).setDepth((x + y) / T);
-    world.poles.push({ kind: 'pole', x, y, radius: COLLISION.bikeRadius + 0.2 });
   }
 
   /** The SP price sign at the corner of each fuel station (the tile at the far end of the pumps). */

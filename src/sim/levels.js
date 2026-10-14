@@ -53,6 +53,8 @@ export function startAtLevel(wallet, n) {
   for (const def of LEVELS) {
     if (def.n >= target) break;
     if (def.effect) wallet.perks[def.effect] = true;
+    // Test mode skips the HQ mission (sim/hq.js): from level 5 you start on the Alpha.
+    if (def.effect === 'alphaReady') wallet.perks.electric = true;
     wallet.milestones.push({ level: def.n, milestone: def.milestone, day: 0 });
   }
   wallet.level = target;

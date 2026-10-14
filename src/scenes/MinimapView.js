@@ -1,7 +1,6 @@
 import { COLOURS, MINIMAP, WORLD } from '../config.js';
 import { drawMinimap, minimapPoint, minimapDirection, districtLabels } from '../world/minimap.js';
 import { jobTarget } from '../sim/jobs.js';
-import { milestoneReady } from '../sim/levels.js';
 import { textBit } from '../world/garage-sprites.js';
 import { FUEL_BRAND } from '../world/sprites.js';
 import { addCanvasTexture } from './textures.js';
@@ -12,7 +11,7 @@ import { UI, drawWindow, retroLabel } from './retro-ui.js';
 // It is part of the retro HUD: it lives in the HUD container, in virtual pixels, and one map
 // pixel is one virtual pixel (big, sharp pixels).
 // It shows the district names, the stations for your bike (SP fuel or swap), the garages, the
-// Ampersand showroom, the job target and you. Closed districts are striped, with padlocks.
+// Ampersand HQ, the job target and you. Closed districts are striped, with padlocks.
 // Key M (or the Settings menu) shows or hides it. No legend (the legend is in How to play). With no job,
 // the job offers show as numbered squares at their pickups (the numbers of the job list).
 
@@ -72,7 +71,7 @@ export class MinimapView {
     // District names in the pixel font: white when open, grey when closed (the map has padlocks there).
     for (const l of this.labels) l.destroy();
     this.labels = districtLabels(world, f).map((d) => retroLabel(this.scene, Math.round(d.x), Math.round(d.y), d.name, d.open ? UI.white : UI.grey).setOrigin(0.5));
-    // Stations for your bike (petrol: SP fuel; electric: swap), the garages and the showroom (open districts only).
+    // Stations for your bike (petrol: SP fuel; electric: swap), the garages and the Ampersand HQ (open districts only).
     const g = this.icons.clear();
     const electric = ride.bike.type === 'electric';
     for (const tag of [electric ? 'swap' : 'fuel', 'garage', 'office']) {
@@ -113,15 +112,15 @@ export class MinimapView {
       l.setVisible(l.x - hw >= ox && l.x + hw <= ox + v.w && l.y - hh >= oy && l.y + hh <= oy + v.h);
     }
     const g = this.marks.clear();
-    // The target: the job (green: pickup, white: drop off), or the showroom when you can buy the
-    // electric moto. Out of the window: at the edge, in its direction.
+    // The target: the job (green: pickup, white: drop off), or the Ampersand HQ when your Alpha waits
+    // there. Out of the window: at the edge, in its direction.
     const job = ride.board?.active;
     let target = null, colour = 0xffffff;
     if (job) {
       const t = jobTarget(job);
       target = minimapPoint(world, f, t.x * WORLD.tileMetres, t.y * WORLD.tileMetres);
       colour = job.stage === 'toPickup' ? JOB_PICKUP : 0xffffff;
-    } else if (ride.level?.buyAt === 'office' && milestoneReady(ride.wallet)) {
+    } else if (ride.hq && ride.hq.stage !== 'done') { // the Ampersand HQ mission (sim/hq.js): your Alpha waits
       const o = world.placesWithTag('office')[0];
       if (o) target = minimapPoint(world, f, o.x * WORLD.tileMetres, o.y * WORLD.tileMetres);
       colour = COLOURS.ampersandYellow;
@@ -186,7 +185,7 @@ function square(g, x, y, rgb) {
   g.fillStyle(0x000000, 1).fillRect(x - 2, y - 2, 5, 5).fillStyle(rgb, 1).fillRect(x - 1, y - 1, 3, 3);
 }
 
-/** The Ampersand showroom: a black badge with a yellow "&". (x, y): the centre. */
+/** The Ampersand HQ: a black badge with a yellow "&". (x, y): the centre. */
 function drawAmpersandBadge(g, x, y) {
   g.fillStyle(COLOURS.ampersandYellow, 1).fillRect(x - 3, y - 4, 7, 9).fillStyle(0x0a0a0a, 1).fillRect(x - 2, y - 3, 5, 7).fillStyle(COLOURS.ampersandYellow, 1);
   for (let py = 0; py < 5; py++) for (let px = 0; px < 3; px++) if (textBit('&', px, py)) g.fillRect(x - 1 + px, y - 2 + py, 1, 1);
