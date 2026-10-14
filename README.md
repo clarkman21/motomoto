@@ -155,7 +155,7 @@ npm run balance  # prints the balance table: money per day and days to pass each
 
 ## Cheats (for tests)
 
-Main menu → SETTINGS → CHEATS: ON. Then, in a ride, pause (Esc, or the pause button) and choose CHEATS. (CHEATS in the pause menu also turns them on. The old ways still work: type `INZIZA` in any menu, or tap the version label 5 times.) The cheat menu has:
+Main menu → SETTINGS → DEVELOPER FEATURES: ON. Then, in a ride, pause (Esc, or the pause button) and choose CHEATS; the pause menu shows CHEATS only while the developer features are on. (The old ways still work: type `INZIZA` in any menu, or tap the version label 5 times.) The cheat menu has:
 
 | Cheat | What it does |
 | --- | --- |
@@ -175,7 +175,9 @@ Main menu → SETTINGS → CHEATS: ON. Then, in a ride, pause (Esc, or the pause
 | GO TO | The Ampersand HQ, the nearest garage, the nearest station, the Nyabugogo bus park |
 | SHOW THE ENDING | The ending screen |
 
-Settings → CHEATS: ON turns the cheats off.
+Settings → DEVELOPER FEATURES: ON turns them off. The cheat menu has pages when the lines do not fit the screen: ◀ PAGE and PAGE ▶ under it, the left and right arrow keys, or the mouse wheel.
+
+Settings → TEST: NEW GAME AT LEVEL n shows only while the developer features are on, and it works only while they are on. With them off, a new game always starts at level 1 on the petrol moto. While it is on, the New game screen says "TEST: THE NEW GAME STARTS AT LEVEL n".
 
 ## Controls
 

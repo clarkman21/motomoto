@@ -393,6 +393,11 @@ export class RideScene extends Phaser.Scene {
     if (e && BARKS[e.type]) this.events.emit('bark', BARKS[e.type]);
   }
 
+  /** The level a new game starts at: the test level only while the cheats are on (else level 1, the petrol moto). */
+  get testStartLevel() {
+    return this.cheatsOn ? this.testLevel : 1;
+  }
+
   /** Test mode (Settings): the level that a new game starts at, 1 to 5. */
   cycleTestLevel() {
     this.testLevel = (this.testLevel % LEVELS.length) + 1;
@@ -1349,7 +1354,7 @@ export class RideScene extends Phaser.Scene {
       clearSave();
       this.wallet = createWallet();
       this.wallet.mode = this.newMode ?? this.wallet.mode;
-      if (this.testLevel > 1) startAtLevel(this.wallet, this.testLevel); // test mode (Settings)
+      if (this.testStartLevel > 1) startAtLevel(this.wallet, this.testStartLevel); // test mode (Settings, only with the cheats on)
     }
     const type = levelSettings(this.wallet).bikeType;
     this.bike = createBike(this.world, type);

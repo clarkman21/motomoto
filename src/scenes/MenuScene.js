@@ -37,7 +37,7 @@ const HELP = [
       '1 to 4: take a job. Stop next to a person who waves and press 1 to take a street hail.   Backspace: cancel the job.',
       'F: buy fuel (then 1, 2 or 3: 25% of a tank, 50% of a tank, or a full tank), swap the battery, open the garage (service, parts and upgrades), or eat (hard mode).',
       'T: phone a moto that brings you 1 litre of fuel (or a charged battery), for 20% more than at a station. You can call at any time.',
-      'Cheats (for tests): Settings, then CHEATS: ON. In a ride, pause (Esc) and choose CHEATS.',
+      'Developer features (for tests): Settings, then DEVELOPER FEATURES: ON. In a ride, pause (Esc) and choose CHEATS. With them off, a new game starts at level 1.',
       'H: horn.   V: sound.   N: the next radio station (with the Bluetooth speaker).   R: put the bike back on the nearest road (your fuel and the bike wear stay as they are).   M: map on or off.   Esc or P: pause menu.',
       'Touch: the stick on the left steers. GO and STOP are on the right, + and − shift, T calls the fuel moto. Tap a job line to take it.',
     ],
@@ -109,6 +109,12 @@ export class MenuScene extends Phaser.Scene {
     this.focus = 0;
     this.confirm = null;
     this.input.keyboard.on('keydown', (e) => this.#key(e));
+    // The mouse wheel turns the pages of the cheat menu (one page for each wheel move, not faster).
+    this.input.on('wheel', (_p, _o, _dx, dy) => {
+      if (this.screen !== 'cheats' || !(this.cheatPages > 1) || this.time.now < (this.wheelAt ?? 0)) return;
+      this.wheelAt = this.time.now + 250;
+      this.#cheatTurn(dy > 0 ? 1 : -1);
+    });
     this.scale.on('resize', this.#redraw, this);
     this.events.once('shutdown', () => this.scale.off('resize', this.#redraw, this));
     this.screen = mode === 'pause' ? 'pause' : 'main';
@@ -194,7 +200,7 @@ export class MenuScene extends Phaser.Scene {
     this.#menuWindow(lines, y + 4, 120);
     const hint = this.sys.game.device.input.touch ? 'TAP A LINE' : '↑↓ CHOOSE   ENTER SELECT';
     this.blink = this.#label(cx, this.vh - 22, hint, WHITE).setOrigin(0.5, 0);
-    const version = this.#label(cx, this.vh - 11, `V${VERSION}${this.ride?.cheatsOn ? ' · CHEATS ON' : ''}`, this.ride?.cheatsOn ? GOLD : DIM).setOrigin(0.5, 0);
+    const version = this.#label(cx, this.vh - 11, `V${VERSION}${this.ride?.cheatsOn ? ' · DEVELOPER' : ''}`, this.ride?.cheatsOn ? GOLD : DIM).setOrigin(0.5, 0);
     // Tap the version label 5 times to turn the cheat menu on (for tests on a phone).
     version.setInteractive({ useHandCursor: false }).on('pointerdown', () => {
       this.versionTaps = (this.versionTaps ?? 0) + 1;
@@ -235,18 +241,38 @@ export class MenuScene extends Phaser.Scene {
       this.cheatNote = res.text;
       this.#redraw();
     };
-    const items = [...this.ride.cheatItems().map(([label, id]) => [label, () => run(id)]), ['BACK', () => this.#back()]];
-    // Two columns when the screen is wide enough, else one column.
+    const items = this.ride.cheatItems().map(([label, id]) => [label, () => run(id)]);
+    // Two columns when the screen is wide enough, else one column. The lines that do not fit go on
+    // more pages (◀ PAGE ▶ under the window), so the menu never runs off the screen.
     const colW = Math.max(...items.map(([l]) => retroText(l).length * RETRO_CELL.width + 26));
     const cols = this.vw >= colW * 2 + 12 ? 2 : 1;
-    const perCol = Math.ceil(items.length / cols);
+    const rows = Math.max(3, Math.floor((this.vh - y - 8 - (ROW + 10) - 8) / ROW));
+    const perPage = rows * cols;
+    const pages = Math.max(1, Math.ceil(items.length / perPage));
+    this.cheatPage = Math.min(this.cheatPage ?? 0, pages - 1);
+    const shown = items.slice(this.cheatPage * perPage, (this.cheatPage + 1) * perPage);
+    const perCol = Math.min(rows, Math.ceil(shown.length / cols));
     const h = perCol * ROW + 8;
     const x0 = Math.floor((this.vw - (colW * cols + (cols - 1) * 6)) / 2);
     for (let c = 0; c < cols; c++) {
+      const part = shown.slice(c * perCol, (c + 1) * perCol);
+      if (!part.length) continue;
       const x = x0 + c * (colW + 6);
       this.#window(x, y, colW, h);
-      items.slice(c * perCol, (c + 1) * perCol).forEach(([label, fn], i) => this.#item(x + 16, y + 6 + i * ROW, label, fn, colW - 20));
+      part.forEach(([label, fn], i) => this.#item(x + 16, y + 6 + i * ROW, label, fn, colW - 20));
     }
+    const turn = (d) => () => { this.cheatPage = (this.cheatPage + d + pages) % pages; this.focus = 0; this.#redraw(); };
+    const nav = pages > 1 ? [['◀ PAGE', turn(-1)], [`${this.cheatPage + 1}/${pages} PAGE ▶`, turn(1)]] : [];
+    this.#rowWindow([...nav, ['BACK', () => this.#back()]], y + h + 4);
+    this.cheatPages = pages;
+  }
+
+  /** The next or the last page of the cheat menu. */
+  #cheatTurn(d) {
+    this.cheatPage = ((this.cheatPage ?? 0) + d + this.cheatPages) % this.cheatPages;
+    this.focus = 0;
+    this.#sound('move');
+    this.#redraw();
   }
 
   #pause() {
@@ -278,8 +304,8 @@ export class MenuScene extends Phaser.Scene {
       ['RESTART SHIFT', () => this.#ask('RESTART THIS SHIFT? YOU LOSE THE MONEY AND THE JOBS OF THIS SHIFT.', 'YES, RESTART', () => this.#restartShift())],
       ['HOW TO PLAY', () => this.#go('help')],
       ['SETTINGS', () => this.#go('settings')],
-      // Always here, so it is easy to find: it turns the cheats on if they are off.
-      ['CHEATS', () => { this.cheatNote = null; if (!this.ride.cheatsOn) this.ride.setCheats(true); this.#go('cheats'); }],
+      // Developer features only (Settings → DEVELOPER FEATURES): the cheat menu for tests.
+      ...(this.ride.cheatsOn ? [['CHEATS', () => { this.cheatNote = null; this.#go('cheats'); }]] : []),
       ['MAIN MENU', () => this.#toMainMenu()],
     ], y, 132);
   }
@@ -348,19 +374,20 @@ export class MenuScene extends Phaser.Scene {
     const y = Math.max(10, Math.floor(this.vh * 0.18));
     this.#label(cx + 2, y + 2, 'SETTINGS', RED, 2).setOrigin(0.5, 0);
     this.#label(cx, y, 'SETTINGS', WHITE, 2).setOrigin(0.5, 0);
-    this.#menuWindow([
+    const lines = [
       [`SOUND: ${ride.engineSound.enabled ? 'ON' : 'OFF'}`, () => { ride.toggleSound(); this.#redraw(); }],
       [`MAP: ${ride.showMap !== false ? 'ON' : 'OFF'}`, () => { ride.toggleMap(); this.#redraw(); }],
       // Radio Inziza: the music volume (the radio plays on a bike with the Bluetooth speaker).
       [`MUSIC: ${Math.round(ride.radio.volume * 100)}%`, () => { ride.cycleMusic(); this.#redraw(); }],
-      // Test mode: to check the later levels, a new game starts at this level.
-      [`TEST: NEW GAME AT LEVEL ${ride.testLevel ?? 1}`, () => { ride.cycleTestLevel(); this.#redraw(); }],
-      // The cheat menu for tests: on here, then pause the ride (Esc) and choose CHEATS.
-      [`CHEATS: ${ride.cheatsOn ? 'ON' : 'OFF'}`, () => { ride.setCheats(!ride.cheatsOn); this.#sound(ride.cheatsOn ? 'select' : 'back'); this.#redraw(); }],
+      // Developer features (Alp: hidden from the normal menus): the cheat menu in the pause menu, and the
+      // test level for a new game. Off: a new game always starts at level 1 on the petrol moto.
+      [`DEVELOPER FEATURES: ${ride.cheatsOn ? 'ON' : 'OFF'}`, () => { ride.setCheats(!ride.cheatsOn); this.#sound(ride.cheatsOn ? 'select' : 'back'); this.#redraw(); }],
+      ...(ride.cheatsOn ? [[`  TEST: NEW GAME AT LEVEL ${ride.testLevel ?? 1}`, () => { ride.cycleTestLevel(); this.#redraw(); }]] : []),
       ['BACK', () => this.#back()],
-    ], y + 28, 240);
-    const hint = ride.cheatsOn ? 'CHEATS ARE ON: IN A RIDE, PAUSE (ESC) AND CHOOSE CHEATS.' : 'TURN CHEATS ON TO JUMP LEVELS, GET MONEY AND TEST EVENTS.';
-    let hy = y + 28 + 6 * ROW + 16; // under the window (6 lines)
+    ];
+    this.#menuWindow(lines, y + 28, 240);
+    const hint = ride.cheatsOn ? 'DEVELOPER FEATURES ARE ON: CHEATS IN THE PAUSE MENU (ESC), AND THE TEST LEVEL FOR A NEW GAME.' : 'DEVELOPER FEATURES ARE FOR TESTS ONLY.';
+    let hy = y + 28 + lines.length * ROW + 16; // under the window
     for (const line of wrapRetro(hint, Math.floor((this.vw - 8) / RETRO_CELL.width))) {
       this.#label(cx, hy, line, ride.cheatsOn ? GOLD : DIM).setOrigin(0.5, 0);
       hy += 11;
@@ -394,6 +421,9 @@ export class MenuScene extends Phaser.Scene {
       ...Object.entries(MODES).map(([id, m]) => [`${m.name} · ${m.short}`, start(id)]),
       ['BACK', () => this.#back()],
     ], y + h + 6, 160);
+    // Test mode on (cheats on, test level over 1): say it, so that a new game at a later level is no surprise.
+    const test = this.ride?.testStartLevel ?? 1;
+    if (test > 1) this.#label(cx, y + h + 6 + (Object.keys(MODES).length + 1) * ROW + 14, `TEST: THE NEW GAME STARTS AT LEVEL ${test}`, GOLD).setOrigin(0.5, 0);
   }
 
   #confirmScreen() {
@@ -417,6 +447,7 @@ export class MenuScene extends Phaser.Scene {
   #go(screen) {
     this.screen = screen;
     if (screen === 'help') this.page = 0;
+    if (screen === 'cheats') this.cheatPage = 0;
     this.focus = screen === 'mode' ? 1 : 0; // the mode screen starts on Kigali 2015 (medium)
     this.#redraw();
   }
@@ -605,8 +636,10 @@ export class MenuScene extends Phaser.Scene {
         e.preventDefault?.();
         return move(1);
       case 'ArrowLeft': case 'KeyA':
+        if (this.screen === 'cheats' && this.cheatPages > 1) return this.#cheatTurn(-1);
         return this.screen === 'help' ? this.#turn(-1) : move(-1);
       case 'ArrowRight': case 'KeyD':
+        if (this.screen === 'cheats' && this.cheatPages > 1) return this.#cheatTurn(1);
         return this.screen === 'help' ? this.#turn(1) : move(1);
       case 'Enter': case 'Space':
         return this.#select(this.focus);
