@@ -17,6 +17,9 @@ const PATIENCE_SECONDS = 4; // after this long at a junction, a vehicle goes any
 
 const cornerFor = (a, b) => Math.min(CORNER, a.length / 2 - 0.05, b.length / 2 - 0.05);
 
+/** The family of a kind (car, bus, truck, moto): its sound, lights and bounce. A pickup is a car. */
+export const familyOf = (kind) => TRAFFIC.kinds[kind]?.family ?? kind;
+
 /** counts: how many of each kind (default: TRAFFIC.counts). */
 export function createTraffic(world, graph, rng, counts = TRAFFIC.counts) {
   const traffic = { graph, vehicles: [], rng, nodeClaims: new Map(), time: 0, nextId: 1, slowZones: [], closed: null };
@@ -151,6 +154,30 @@ function hazardAhead(world, v, look) {
   return null;
 }
 
+// A grid of buckets (GRID_METRES square) for the gap check: each vehicle looks only at the buckets in a
+// strip ahead of it, not at all the others (with many vehicles, that check was most of the time).
+const GRID_METRES = 16;
+const gridKey = (cx, cy) => cx * 65536 + cy;
+function buildGrid(things) {
+  const grid = new Map();
+  for (const o of things) {
+    const k = gridKey(Math.floor(o.x / GRID_METRES), Math.floor(o.y / GRID_METRES));
+    let list = grid.get(k);
+    if (!list) grid.set(k, (list = []));
+    list.push(o);
+  }
+  return grid;
+}
+/** The things in the buckets that a strip of look metres ahead of v (and a margin) touches. */
+function nearAhead(grid, v, look) {
+  const ex = v.x + Math.cos(v.heading) * look, ey = v.y + Math.sin(v.heading) * look, m = 10; // m: the longest vehicle + the lane width
+  const x0 = Math.floor((Math.min(v.x, ex) - m) / GRID_METRES), x1 = Math.floor((Math.max(v.x, ex) + m) / GRID_METRES);
+  const y0 = Math.floor((Math.min(v.y, ey) - m) / GRID_METRES), y1 = Math.floor((Math.max(v.y, ey) + m) / GRID_METRES);
+  const out = [];
+  for (let cx = x0; cx <= x1; cx++) for (let cy = y0; cy <= y1; cy++) { const list = grid.get(gridKey(cx, cy)); if (list) for (const o of list) out.push(o); }
+  return out;
+}
+
 /** Anything in front of vehicle v, in its lane: returns the free distance (metres) and the speed of the thing ahead. */
 function gapAhead(v, others) {
   const fx = Math.cos(v.heading), fy = Math.sin(v.heading);
@@ -193,7 +220,7 @@ export function stepTraffic(traffic, world, obstacles, dt) {
   const { vehicles, rng, nodeClaims } = traffic;
   traffic.time += dt;
   const now = traffic.time;
-  const all = vehicles.concat(obstacles);
+  const grid = buildGrid(vehicles.concat(obstacles));
   const events = [];
   for (const v of vehicles) {
     const spec = TRAFFIC.kinds[v.kind];
@@ -229,7 +256,7 @@ export function stepTraffic(traffic, world, obstacles, dt) {
     }
     // Keep a gap to whatever is ahead.
     v.why = 'free';
-    const { gap, aheadSpeed, ahead } = gapAhead(v, all);
+    const { gap, aheadSpeed, ahead } = gapAhead(v, nearAhead(grid, v, 8 + v.speed * 2));
     if (gap < Infinity) {
       const t2 = Math.max(0, Math.min(aheadSpeed + (gap - 2) * 0.8, (gap - 1.5) * 1.5));
       if (t2 < target) {
@@ -314,7 +341,7 @@ export function stepTraffic(traffic, world, obstacles, dt) {
     }
     v.bump = Math.max(0, (v.bump ?? 0) - dt);
     // Exhaust from petrol engines.
-    if (spec.exhaust) {
+    if (spec.exhaust && !spec.electricVariants?.includes(v.variant)) {
       v.puff -= dt * (0.6 + v.speed * 0.08) * spec.exhaust;
       if (v.puff <= 0) {
         v.puff = 1;

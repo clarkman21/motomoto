@@ -20,15 +20,16 @@ describe('visual design system', () => {
   });
 
   it('the traffic uses only palette colours, in all 16 directions', () => {
-    for (const kind of ['car', 'bus', 'truck']) {
+    for (const kind of ['car', 'pickup', 'lorry', 'truck', 'tipper', 'bus', 'police', 'vip']) {
       for (let v = 0; v < VEHICLE_VARIANTS[kind].length; v++) {
         for (let f = 0; f < 16; f++) expect(hex(offPalette(drawVehicle(kind, v, f), allowed)), `${kind} ${v} ${f}`).toEqual([]);
       }
     }
   });
 
-  it('the sim has the same number of variants as the sprites', () => {
-    for (const kind of ['car', 'bus', 'truck']) expect(TRAFFIC.kinds[kind].variants).toBe(VEHICLE_VARIANTS[kind].length);
+  it('the sim has the same number of variants as the sprites; the electric cars have no exhaust', () => {
+    for (const kind of ['car', 'pickup', 'lorry', 'truck', 'tipper', 'bus']) expect(TRAFFIC.kinds[kind].variants).toBe(VEHICLE_VARIANTS[kind].length);
+    VEHICLE_VARIANTS.car.forEach((v, i) => expect(!!v.ev).toBe(TRAFFIC.kinds.car.electricVariants.includes(i)));
   });
 
   it('the people, the police and the attendants use only palette colours', () => {

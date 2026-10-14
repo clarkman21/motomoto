@@ -16,7 +16,7 @@ const allowed = paletteColours();
 
 describe('design system: palette everywhere', () => {
   it('the player moto, the hired and rival motos, in all directions and with all loads', () => {
-    for (const type of ['petrol', 'electric', 'fleet', 'rival']) {
+    for (const type of ['petrol', 'electric', 'fleet', 'rival', 'amp']) {
       for (let f = 0; f < 16; f++) {
         for (const load of BIKE_LOADS) expect(hex(offPalette(drawBike(type, f, load), allowed)), `${type} ${f} ${load}`).toEqual([]);
         expect(hex(offPalette(drawBike(type, f, 'none', true, 'push1'), allowed))).toEqual([]);

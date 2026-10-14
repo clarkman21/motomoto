@@ -441,21 +441,39 @@ export const TRAFFIC = {
   ringGiveWayMetres: 11, // a vehicle that comes to a roundabout waits while a vehicle on the ring is this near
   ringPatienceSeconds: 6, // after this long it goes anyway, so the ring never locks up
   // Vehicles for each open district (× the level's traffic factor). The map grows, so traffic grows with it.
-  perDistrict: { car: 8, bus: 3, truck: 2 },
+  // Alp (14 October 2026): a lot more traffic, mostly small cars, then pickups and trucks: about 3 times
+  // the vehicles of before (design canvas "Kigali traffic and people").
+  perDistrict: { car: 16, pickup: 4, lorry: 3, truck: 2, tipper: 1, bus: 4 },
+  // Motos that do not race you for customers (taxi: a moto taxi that has a passenger or a load already;
+  // amp: an Ampersand rider on a red Alpha). Their sum for each open district; the Ampersand share grows
+  // with the levels (the story arc: the city goes electric). The rival riders (levels) come on top.
+  motosPerDistrict: 10,
+  ampShare: [0.05, 0.08, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.42, 0.5], // level 1 to 10 (free play: the last)
   kinds: {
     // limitFactor: how they treat the speed limit (motos ride a little over it).
-    car: { length: 4.2, width: 1.8, maxKmh: 50, accel: 2.5, brake: 6, limitFactor: 1.0, hillSlowdown: 1.0, minHillFactor: 0.5, exhaust: 0.5, variants: 5 },
+    // family: the kind of sound, lights and bounce (car, bus, truck, moto); none = the kind itself.
+    car: { length: 4.2, width: 1.8, maxKmh: 50, accel: 2.5, brake: 6, limitFactor: 1.0, hillSlowdown: 1.0, minHillFactor: 0.5, exhaust: 0.5, variants: 12, electricVariants: [10, 11] }, // 10, 11: new electric cars (no exhaust)
+    // An old pickup (Hilux): a load or people in the open back.
+    pickup: { length: 4.9, width: 1.8, maxKmh: 50, accel: 2.2, brake: 6, limitFactor: 1.0, hillSlowdown: 1.3, minHillFactor: 0.45, exhaust: 0.8, variants: 4, family: 'car' },
+    // A short truck (Canter, Elf) with wooden sides and sacks piled high.
+    lorry: { length: 5.6, width: 2.1, maxKmh: 40, accel: 1.4, brake: 5, limitFactor: 0.95, hillSlowdown: 2.0, minHillFactor: 0.25, exhaust: 1.6, variants: 3, family: 'truck' },
+    // A big old tipper with sand or murram for the building sites.
+    tipper: { length: 8.0, width: 2.5, maxKmh: 32, accel: 0.9, brake: 4, limitFactor: 0.9, hillSlowdown: 2.8, minHillFactor: 0.15, exhaust: 2.6, variants: 2, family: 'truck' },
+    // A moto taxi that is busy (a passenger, bananas or rice): it does not race you for customers.
+    taxi: { length: 2.0, width: 0.8, maxKmh: 55, accel: 3.5, brake: 7, limitFactor: 1.1, hillSlowdown: 0.8, minHillFactor: 0.5, exhaust: 0.6, variants: 3, family: 'moto' },
+    // An Ampersand rider on a red Alpha: quiet, no exhaust; sometimes with a passenger.
+    amp: { length: 2.0, width: 0.8, maxKmh: 55, accel: 3.8, brake: 7, limitFactor: 1.0, hillSlowdown: 0.6, minHillFactor: 0.6, exhaust: 0, variants: 2, family: 'moto' },
     bus: { length: 5.0, width: 1.9, maxKmh: 45, accel: 1.8, brake: 5, limitFactor: 1.0, hillSlowdown: 1.6, minHillFactor: 0.35, exhaust: 1.0, variants: 2 },
     truck: { length: 7.0, width: 2.4, maxKmh: 35, accel: 1.0, brake: 4, limitFactor: 0.9, hillSlowdown: 2.4, minHillFactor: 0.18, exhaust: 2.0, variants: 3 },
     moto: { length: 2.0, width: 0.8, maxKmh: 55, accel: 3.5, brake: 7, limitFactor: 1.1, hillSlowdown: 0.8, minHillFactor: 0.5, exhaust: 0.6, variants: 1 },
     // Your hired riders on your electric motos: they keep to the speed limit, and an electric moto has no exhaust.
-    fleet: { length: 2.0, width: 0.8, maxKmh: 50, accel: 3.5, brake: 7, limitFactor: 1.0, hillSlowdown: 0.6, minHillFactor: 0.6, exhaust: 0, variants: 1 },
+    fleet: { length: 2.0, width: 0.8, maxKmh: 50, accel: 3.5, brake: 7, limitFactor: 1.0, hillSlowdown: 0.6, minHillFactor: 0.6, exhaust: 0, variants: 1, family: 'moto' },
     // Cyclists ride slowly at the edge of the road (laneOffset), so cars can pass them. Very slow uphill.
     cyclist: { length: 1.8, width: 0.6, maxKmh: 16, accel: 0.8, brake: 4, limitFactor: 1, hillSlowdown: 4, minHillFactor: 0.3, exhaust: 0, variants: 3, laneOffset: 3.6 },
     // Police patrol cars (the Umuganda mission): they drive only on the main roads (mainRoads), not on murram.
-    police: { length: 4.3, width: 1.8, maxKmh: 40, accel: 2.5, brake: 6, limitFactor: 1.0, hillSlowdown: 1.0, minHillFactor: 0.5, exhaust: 0.4, variants: 2, mainRoads: true },
+    police: { length: 4.3, width: 1.8, maxKmh: 40, accel: 2.5, brake: 6, limitFactor: 1.0, hillSlowdown: 1.0, minHillFactor: 0.5, exhaust: 0.4, variants: 2, mainRoads: true, family: 'car' },
     // VIP convoy cars: big black cars; they follow a planned route on the main roads.
-    vip: { length: 4.8, width: 1.9, maxKmh: 60, accel: 3.0, brake: 7, limitFactor: 1.2, hillSlowdown: 0.6, minHillFactor: 0.6, exhaust: 0.3, variants: 1, mainRoads: true },
+    vip: { length: 4.8, width: 1.9, maxKmh: 60, accel: 3.0, brake: 7, limitFactor: 1.2, hillSlowdown: 0.6, minHillFactor: 0.6, exhaust: 0.3, variants: 1, mainRoads: true, family: 'car' },
   },
   turnKmh: 18,
   busStopSeconds: 5,
@@ -478,7 +496,7 @@ export const TRAFFIC = {
 // ---------------------------------------------------------------------------
 export const PEOPLE = {
   walkers: 40, // default (tests); the game uses walkersPerDistrict
-  walkersPerDistrict: 20,
+  walkersPerDistrict: 50, // Alp (14 October 2026): many more people on the streets (was 20)
   looks: 10, // walker looks (see PERSON_LOOKS in vehicle-sprites.js); the last four are mamas in kitenge
   walkSpeed: [1.1, 1.6], // m/s
   radius: 0.35, // metres, for collisions
@@ -968,7 +986,7 @@ export const FUEL = {
 export const COLLISION = {
   bikeRadius: 0.45, // metres
   restitution: 0.25, // bounce (0 = no bounce, 1 = full bounce)
-  massKg: { car: 1200, bus: 4500, truck: 9000, moto: 200, cyclist: 90, person: 70, wall: Infinity, pole: Infinity },
+  massKg: { car: 1200, pickup: 1700, lorry: 4500, bus: 4500, truck: 9000, tipper: 15000, moto: 200, taxi: 200, amp: 220, fleet: 220, cyclist: 90, person: 70, wall: Infinity, pole: Infinity },
   poleRadius: 0.15, // street lamps, signs, cameras
   crashSpeedKmh: 18, // an impact speed above this throws the rider off
   crashSeconds: 2.5, // time on the ground before you ride again

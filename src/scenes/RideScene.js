@@ -18,7 +18,7 @@ import { garageQuote, serviceDue, crashWearShare } from '../sim/maintenance.js';
 import { createJobBoard, updateBoard, acceptOffer, cancelJob, updateJob, jobTarget, acceptHail, tripMetres, passengerWaits, loseJobWhenEmpty } from '../sim/jobs.js';
 import { createCameraState, checkCameras, speedLimitAt } from '../sim/law.js';
 import { buildRoadGraph, openRoads } from '../sim/roads.js';
-import { createTraffic, stepTraffic, addVehicle, insideVehicle, sendBusToPark } from '../sim/traffic.js';
+import { createTraffic, stepTraffic, addVehicle, insideVehicle, sendBusToPark, familyOf } from '../sim/traffic.js';
 import { mulberry32 } from '../sim/jobs.js';
 import { TrafficView, isDiesel } from './TrafficView.js';
 import { createPeople, stepPeople, hailInReach, insidePerson, busArrivalHails, honkAt, newPerson } from '../sim/people.js';
@@ -82,6 +82,8 @@ const BARKS = {
 };
 const REPAIR_LABELS = { wall: 'Crash damage' };
 const STATION_RANGE_METRES = 6;
+// What you hit, in words (a crash message).
+const HIT_NAMES = { moto: 'moto', taxi: 'moto taxi', amp: 'Ampersand rider', bus: 'minibus', lorry: 'truck', tipper: 'tipper truck', truck: 'truck', pickup: 'pickup', cyclist: 'cyclist', police: 'police car', vip: 'VIP car' };
 // You may also stop anywhere beside the building of a fuel station, a swap station or a garage (Alp:
 // F at the garage did nothing, because the bike was not near the one stop point).
 const STATION_BUILDING_METRES = 3.5;
@@ -899,7 +901,11 @@ export class RideScene extends Phaser.Scene {
     this.parkEdge = this.parkStop ? this.#edgeThrough(this.parkStop) : null;
     this.busTimer = 4;
     const counts = {};
-    for (const kind of ['car', 'bus', 'truck']) counts[kind] = Math.round(TRAFFIC.perDistrict[kind] * L.districts.length * L.traffic * mode.traffic);
+    for (const [kind, n] of Object.entries(TRAFFIC.perDistrict)) counts[kind] = Math.round(n * L.districts.length * L.traffic * mode.traffic);
+    // Busy moto taxis and Ampersand riders on red Alphas (more of them at each level), then the rivals.
+    const motos = Math.round(TRAFFIC.motosPerDistrict * L.districts.length * L.traffic * mode.traffic);
+    counts.amp = Math.round(motos * TRAFFIC.ampShare[Math.min(L.n, TRAFFIC.ampShare.length) - 1]);
+    counts.taxi = motos - counts.amp;
     counts.moto = L.rivals;
     counts.cyclist = (L.cyclists ?? 0) * L.districts.length; // slow bicycles from level 3
     // Rush hours: extra cars and minibuses (they wait off the road outside the rush hours, see sim/rush.js).
@@ -919,7 +925,7 @@ export class RideScene extends Phaser.Scene {
     this.batteries = yellow ? batterySpots(this.world, L.districts, this.wallet.day) : [];
     this.batteryView.set(this.world, this.batteries);
     this.bike.boost = 0;
-    this.storyBark = yellow ? `An Ampersand rider passes on a yellow electric moto. Ride over a yellow battery on the road: ${STORY.boostSeconds} s of electric power!` : null;
+    this.storyBark = yellow ? `An Ampersand rider passes on a red electric Alpha. Ride over a yellow battery on the road: ${STORY.boostSeconds} s of electric power!` : null;
     this.trafficView?.destroy();
     this.peopleView?.destroy();
     this.traffic = createTraffic(this.world, this.roadGraph, mulberry32(Date.now() & 0xffff), counts);
@@ -1385,7 +1391,7 @@ export class RideScene extends Phaser.Scene {
           continue;
         }
         if (e.type === 'wall' && e.hit?.kind) {
-          this.events.emit('bark', `Crash! You hit a ${e.hit.kind === 'moto' ? 'moto' : e.hit.kind === 'fleet' ? (e.hit.rider ? 'moto of your fleet' : 'Ampersand rider') : e.hit.kind === 'bus' ? 'minibus' : e.hit.kind === 'cyclist' ? 'cyclist' : e.hit.kind}`);
+          this.events.emit('bark', `Crash! You hit ${e.hit.kind === 'amp' ? 'an' : 'a'} ${e.hit.kind === 'fleet' ? (e.hit.rider ? 'moto of your fleet' : 'Ampersand rider') : HIT_NAMES[e.hit.kind] ?? e.hit.kind}`);
           e.hit.stopTimer = 2; // the other driver stops
           continue;
         }
@@ -1520,7 +1526,7 @@ export class RideScene extends Phaser.Scene {
   // A hard hit: the rider falls off. The passenger is upset, fragile cargo breaks (see jobs), repairs cost money.
   #crash(e) {
     const kmh = Math.round(e.speed * 3.6);
-    const what = !e.hit ? 'a wall' : e.hit.officer ? 'a police officer' : e.hit.kind === 'pole' ? 'a pole' : e.hit.kind === 'person' ? 'a person' : e.hit.kind === 'bus' ? 'a minibus' : `a ${e.hit.kind}`;
+    const what = !e.hit ? 'a wall' : e.hit.officer ? 'a police officer' : e.hit.kind === 'pole' ? 'a pole' : e.hit.kind === 'person' ? 'a person' : e.hit.kind === 'amp' ? 'an Ampersand rider' : `a ${HIT_NAMES[e.hit.kind] ?? e.hit.kind}`;
     this.cameras.main.shake(300, 0.008);
     this.engineSound.crash(e.speed / 12);
     // The crash also fills the service meter (sim/maintenance.js); crash bars make it smaller.
@@ -1961,8 +1967,9 @@ export class RideScene extends Phaser.Scene {
     const honks = trafficHonks(this.traffic, { x: b.x, y: b.y, speed: Math.abs(forwardSpeed(b)) }, dt, this.rng);
     const words = { car: 'BEEP BEEP!', bus: 'POOOO!', truck: 'BWAAAP!', moto: 'BIP BIP!', cyclist: 'TRING TRING!' };
     for (const v of honks) {
-      this.engineSound.honk(v.kind, 1 - Math.hypot(v.x - b.x, v.y - b.y) / 20);
-      this.#bubble(v.x, v.y, v.kind === 'bus' || v.kind === 'truck' ? 40 : 28, words[v.kind] ?? 'BEEP!', 0xffe080);
+      const fam = familyOf(v.kind);
+      this.engineSound.honk(fam, 1 - Math.hypot(v.x - b.x, v.y - b.y) / 20);
+      this.#bubble(v.x, v.y, fam === 'bus' || fam === 'truck' ? 40 : 28, words[fam] ?? 'BEEP!', 0xffe080);
       if (!this.honkBarked) {
         this.honkBarked = true;
         this.events.emit('bark', 'You block the road! Traffic is waiting behind you');

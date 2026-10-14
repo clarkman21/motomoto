@@ -1,10 +1,14 @@
 import { WORLD, TRAFFIC } from '../config.js';
+import { familyOf } from '../sim/traffic.js';
 import { toScreen } from '../world/iso.js';
 import { bikeFrameForHeading, BIKE_DIRECTIONS, BIKE_CANVAS } from '../world/sprites.js';
-import { drawVehicle, drawRivalMoto, drawFleetMoto, drawCyclist, VEHICLE_CANVAS, VEHICLE_VARIANTS } from '../world/vehicle-sprites.js';
+import { drawVehicle, drawRivalMoto, drawFleetMoto, drawAmpMoto, drawCyclist, VEHICLE_CANVAS, VEHICLE_VARIANTS } from '../world/vehicle-sprites.js';
 import { packShelves } from './chunks.js';
 
 // Draws the traffic: one sprite and one shadow per vehicle, all frames in one atlas.
+
+const TWO_WHEELS = new Set(['moto', 'fleet', 'cyclist', 'taxi', 'amp']);
+const TAXI_LOADS = ['passenger', 'bananas', 'rice'];
 
 export class TrafficView {
   constructor(scene, traffic) {
@@ -20,7 +24,7 @@ export class TrafficView {
   #make(v) {
     const scene = this.scene;
     const shadow = scene.add.image(0, 0, 'shadow').setAlpha(0.9).setVisible(false);
-    const moto = v.kind === 'moto' || v.kind === 'fleet' || v.kind === 'cyclist'; // two wheels: the bike canvas
+    const moto = TWO_WHEELS.has(v.kind); // two wheels: the bike canvas
     const c = moto ? BIKE_CANVAS : VEHICLE_CANVAS;
     const img = scene.add.image(0, 0, 'vehicles', this.#frame(v)).setOrigin(c.groundX / c.width, c.groundY / c.height).setVisible(false);
     // Shadow size from the vehicle size (the shadow texture is 24 × 12 px).
@@ -42,6 +46,8 @@ export class TrafficView {
   #frame(v) {
     const f = bikeFrameForHeading(v.heading);
     if (v.kind === 'moto' || v.kind === 'fleet') return `${v.kind}-${v.loaded ? 'passenger' : 'none'}-${f}`;
+    if (v.kind === 'taxi') return `taxi-${TAXI_LOADS[v.variant % TAXI_LOADS.length]}-${f}`;
+    if (v.kind === 'amp') return `amp-${v.variant ? 'passenger' : 'none'}-${f}`;
     if (v.kind === 'cyclist') return `cyclist-${v.variant}-${f}`;
     return `${v.kind}-${v.variant}-${f}`;
   }
@@ -49,7 +55,7 @@ export class TrafficView {
   #buildAtlas() {
     if (this.scene.textures.exists('vehicles')) return;
     const frames = [];
-    for (const kind of ['car', 'bus', 'truck', 'police', 'vip']) {
+    for (const kind of ['car', 'pickup', 'lorry', 'truck', 'tipper', 'bus', 'police', 'vip']) {
       for (let variant = 0; variant < VEHICLE_VARIANTS[kind].length; variant++) {
         for (let f = 0; f < BIKE_DIRECTIONS; f++) frames.push({ name: `${kind}-${variant}-${f}`, canvas: drawVehicle(kind, variant, f) });
       }
@@ -60,7 +66,10 @@ export class TrafficView {
     for (const load of ['none', 'passenger']) {
       for (let f = 0; f < BIKE_DIRECTIONS; f++) frames.push({ name: `moto-${load}-${f}`, canvas: drawRivalMoto(f, load) });
       for (let f = 0; f < BIKE_DIRECTIONS; f++) frames.push({ name: `fleet-${load}-${f}`, canvas: drawFleetMoto(f, load) });
+      for (let f = 0; f < BIKE_DIRECTIONS; f++) frames.push({ name: `amp-${load}-${f}`, canvas: drawAmpMoto(f, load) });
     }
+    // Busy moto taxis: a passenger, bananas or a rice sack on the back.
+    for (const load of TAXI_LOADS) for (let f = 0; f < BIKE_DIRECTIONS; f++) frames.push({ name: `taxi-${load}-${f}`, canvas: drawRivalMoto(f, load) });
     const { width, height, places } = packShelves(frames.map((fr) => fr.canvas));
     const tex = this.scene.textures.createCanvas('vehicles', width, height);
     frames.forEach((fr, i) => {
@@ -97,7 +106,7 @@ export class TrafficView {
 }
 
 /** How many pixels a vehicle jumps up on a speed bump or a pothole now (the lights jump with it). */
-export const vehicleBounce = (v) => (v.bump > 0 ? Math.sin((v.bump / 0.3) * Math.PI) * (v.kind === 'truck' || v.kind === 'bus' ? 3 : 2) : 0);
+export const vehicleBounce = (v) => (v.bump > 0 ? Math.sin((v.bump / 0.3) * Math.PI) * (isDiesel(v) ? 3 : 2) : 0);
 
-export const isDiesel = (v) => v.kind === 'truck' || v.kind === 'bus';
+export const isDiesel = (v) => familyOf(v.kind) === 'truck' || familyOf(v.kind) === 'bus';
 export { TRAFFIC };

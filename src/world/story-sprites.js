@@ -1,4 +1,4 @@
-import { COLOURS } from '../config.js';
+import { COLOURS, PALETTE } from '../config.js';
 import { PixelCanvas } from './pixel-canvas.js';
 
 // The yellow battery pickup (story arc, levels 3 and 4): an Ampersand battery in Surge Yellow (a
@@ -45,10 +45,11 @@ export function drawEndingPicture(w, h) {
   for (let i = 0; i < 9; i++) for (let x = hx - 3 + i; x < hx + hw + 3 - i; x++) c.setPixel(x, hy - 1 - i, i === 0 ? 0x7a2a1a : 0xb04a30);
   for (let y = ground - 12; y < ground; y++) for (let x = hx + 20; x < hx + 26; x++) c.setPixel(x, y, 0x2f6fb0); // the door
   for (const wx of [hx + 5, hx + 33]) for (let y = hy + 5; y < hy + 13; y++) for (let x = wx; x < wx + 8; x++) c.setPixel(x, y, y === hy + 9 || x === wx + 4 ? 0x2f6fb0 : 0x9cd0f0);
-  // The gate posts and three electric motos (Surge Yellow: the Ampersand moto) in front.
+  // Three Ampersand Alphas in front: red and black, the yellow battery forward under the seat.
   const moto = (mx) => {
     for (const wx of [mx + 2, mx + 11]) c.fillDisc(wx, ground + 6, 2.2, 0x1e1e1e);
-    for (let x = mx + 2; x < mx + 12; x++) for (let y = ground + 2; y < ground + 5; y++) c.setPixel(x, y, COLOURS.ampersandYellow);
+    for (let x = mx + 2; x < mx + 12; x++) for (let y = ground + 2; y < ground + 5; y++) c.setPixel(x, y, PALETTE.red);
+    for (let x = mx + 6; x < mx + 10; x++) for (let y = ground + 3; y < ground + 5; y++) c.setPixel(x, y, COLOURS.ampersandYellow); // the battery
     for (let x = mx + 4; x < mx + 9; x++) c.setPixel(x, ground + 1, 0x111111); // the seat
     c.setPixel(mx + 12, ground + 1, 0x9a9a9a); c.setPixel(mx + 12, ground, 0x9a9a9a); // the handlebar
   };

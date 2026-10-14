@@ -7,6 +7,7 @@ import {
 } from '../world/light-sprites.js';
 import { addCanvasTexture } from './textures.js';
 import { vehicleBounce } from './TrafficView.js';
+import { familyOf } from '../sim/traffic.js';
 
 // Night lights and the colour of the day. The scene calls update() each frame with the hour.
 // - The night tint multiplies the colour of every world sprite (dark blue at night, warm at sunset).
@@ -82,7 +83,7 @@ export class LightsView {
 
   /** Light sprites for one vehicle: a cone on the ground, head lights and tail lights. */
   #vehicleLights(kind) {
-    const pairs = kind === 'moto' || kind === 'fleet' ? 1 : 2;
+    const pairs = familyOf(kind) === 'moto' ? 1 : 2;
     const cone = this.light('headlights', GROUND_LIGHT_DEPTH + 1).setFrame('cone-0');
     const heads = Array.from({ length: pairs }, () => this.light('dot-head', 0));
     const tails = Array.from({ length: pairs }, () => this.light('dot-tail', 0));
@@ -122,7 +123,7 @@ export class LightsView {
     const c = Math.cos(heading), sn = Math.sin(heading);
     const half = (v.length ?? 2) / 2;
     const side = l.heads.length > 1 ? (v.width ?? 1) / 2 - 0.3 : 0;
-    const h = LIGHT_HEIGHT[l.kind] ?? 1;
+    const h = LIGHT_HEIGHT[familyOf(l.kind)] ?? 1;
     const put = (dot, along, across, alpha) => {
       const wx = v.x + c * along - sn * across, wy = v.y + sn * along + c * across;
       const p = toScreen(wx, wy, z + h);

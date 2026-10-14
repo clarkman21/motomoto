@@ -16,8 +16,12 @@ export const BIKE_CANVAS = { width: 44, height: 44, groundX: 22, groundY: 34 };
 export const VEST = { colour: PALETTE.vest, stripe: PALETTE.reflect };
 export const BIKE_LOOKS = {
   petrol: { body: PALETTE.motoRed, seat: PALETTE.tyre, vest: VEST.colour, helmet: PALETTE.red, trousers: PALETTE.navy },
-  electric: { body: COLOURS.ampersandYellow, seat: PALETTE.ink, vest: VEST.colour, helmet: PALETTE.ink, trousers: PALETTE.navy },
-  fleet: { body: COLOURS.ampersandYellow, seat: PALETTE.ink, vest: VEST.colour, helmet: PALETTE.carBlue, trousers: PALETTE.navy }, // your hired riders: your electric moto, a blue helmet
+  // The Ampersand Alpha (Alp, 14 October 2026: as the real one): red and black, the yellow battery forward
+  // under the seat (battery: true). Your moto, your hired riders (a blue helmet) and the Ampersand riders
+  // in the traffic (the yellow Ampersand helmet).
+  electric: { body: PALETTE.red, seat: PALETTE.ink, vest: VEST.colour, helmet: PALETTE.ink, trousers: PALETTE.navy, battery: true },
+  fleet: { body: PALETTE.red, seat: PALETTE.ink, vest: VEST.colour, helmet: PALETTE.carBlue, trousers: PALETTE.navy, battery: true },
+  amp: { body: PALETTE.red, seat: PALETTE.ink, vest: VEST.colour, helmet: COLOURS.ampersandYellow, trousers: PALETTE.navy, battery: true },
   rival: { body: PALETTE.bumper, seat: PALETTE.ink, vest: VEST.colour, helmet: PALETTE.reflect, trousers: PALETTE.charcoal }, // other moto taxi riders
   // Motos that wait for repair at the garage (no rider).
   parkedRed: { body: PALETTE.roofRed, seat: PALETTE.tyre },
@@ -85,6 +89,11 @@ export function drawBike(type, frame, load = 'none', rider = true, pose = 'ride'
   seg([-0.45, 0, 0.8], [0.05, 0, 0.84], 3, look.seat); // seat
   seg([0.42, -0.32, 0.98], [0.42, 0.32, 0.98], 1.5, PALETTE.bumper); // handlebar
   blob([0.52, 0, 0.84], 1.1, PALETTE.headlight, 0.05); // headlight
+  if (look.battery) {
+    // The yellow MK2 battery, forward under the seat (Alp), with its black top.
+    seg([-0.08, 0, 0.6], [0.26, 0, 0.6], 4.6, COLOURS.ampersandYellow, 0.03);
+    seg([-0.08, 0, 0.71], [0.26, 0, 0.71], 1.2, PALETTE.ink, 0.031);
+  }
   if (pose !== 'ride') {
     // The rider walks on the left of the bike, leans on it, one hand on the handlebar, one on
     // the seat. The legs take long steps. A drop of sweat on the second step.

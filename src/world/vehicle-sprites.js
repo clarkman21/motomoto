@@ -14,7 +14,34 @@ const C = PALETTE;
 // Each variant: the paint (car), the roof rack (bus) or the cab colour (truck). Trucks carry a
 // tagline on the windscreen and on the side boards, as in Kigali, and a load: sacks, bananas or a tarpaulin.
 export const VEHICLE_VARIANTS = {
-  car: [C.white, C.silver, C.carRed, C.carBlue, C.carGreen],
+  // Small cars (Alp): mostly old Toyotas, a white NGO Land Cruiser, a few new electric cars. people: who
+  // you see inside (1 = the driver only).
+  car: [
+    { model: 'corolla', paint: C.white, people: 3, rust: true },
+    { model: 'corolla', paint: C.silver, people: 2 },
+    { model: 'corolla', paint: C.carBlue, people: 1 },
+    { model: 'starlet', paint: C.carRed, people: 2, rust: true },
+    { model: 'starlet', paint: C.paintSky, people: 1 },
+    { model: 'probox', paint: C.white, people: 1, rack: true },
+    { model: 'probox', paint: C.silver, people: 2, rack: true },
+    { model: 'rav4', paint: C.silver, people: 4, spare: true },
+    { model: 'rav4', paint: C.carGreen, people: 3, spare: true },
+    { model: 'cruiser', paint: C.policeWhite, people: 3, snorkel: true, antenna: true },
+    { model: 'ev', paint: C.white, people: 1, ev: true },
+    { model: 'ev', paint: C.slate, people: 2, ev: true },
+  ],
+  pickup: [
+    { paint: C.white, load: 'bananas', riders: 2, cab: 2, rust: true },
+    { paint: C.carRed, load: 'sacks', riders: 1, cab: 1, rust: true },
+    { paint: C.silver, load: 'charcoal', riders: 0, cab: 2 },
+    { paint: C.cabBlue, load: 'people', riders: 4, cab: 2 },
+  ],
+  lorry: [
+    { cab: C.cabBlue, load: 'sacks', rider: true, slogan: ['IMANA IRATABARA', 'IMANA', 'AMEN'] },
+    { cab: C.white, load: 'charcoal', rider: false, slogan: ['GOD IS ABLE', 'AMEN'] },
+    { cab: C.cabGreen, load: 'sacks', rider: true, slogan: ['NTA KIBAZO', 'HOZA'] },
+  ],
+  tipper: [{ cab: C.kGold }, { cab: C.carRed }],
   // Buses are plain white government buses (Alp); one kind has a roof rack.
   bus: [{ rack: false }, { rack: true }],
   // A police patrol car: white, a blue stripe, a light bar (two frames: the red and the blue lamp swap).
@@ -128,43 +155,196 @@ const wheels = (L, W, r = 0.32, inset = 0.8) => {
 const band = (z, a, b) => z > a && z < b;
 const edge = (u, e) => u < e || u > 1 - e;
 
+// Car models (Alp, 14 October 2026: old Toyotas and a few new electric cars). L, W: metres; body: the
+// top of the body; cab: the cabin from f0 to f1 (forward is +), its roof at top.
+const CAR_MODELS = {
+  corolla: { L: 4.4, W: 1.72, body: 0.8, cab: [-1.35, 0.75], top: 1.4 }, // a saloon with a boot
+  starlet: { L: 3.8, W: 1.66, body: 0.78, cab: [-1.6, 0.5], top: 1.42 }, // a small hatchback
+  probox: { L: 4.2, W: 1.7, body: 0.8, cab: [-1.95, 0.7], top: 1.46 }, // the work wagon
+  rav4: { L: 4.1, W: 1.76, body: 0.95, cab: [-1.85, 0.85], top: 1.66 }, // a boxy SUV
+  cruiser: { L: 4.8, W: 1.9, body: 1.05, cab: [-2.25, 0.9], top: 1.92 }, // the big white NGO car
+  ev: { L: 4.4, W: 1.8, body: 0.85, cab: [-1.55, 0.95], top: 1.5 }, // a new electric car
+};
+const HEADS = [C.skin, C.skinDeep, C.skinLight];
+
+/**
+ * The cabin of a car or a pickup: glass all round, with the heads of the people inside. people: 1 =
+ * the driver (on the left: Rwanda drives on the right), 2 = and the front passenger, 3 and 4 = and the
+ * back seats. z0, top: the bottom and the roof of the cabin.
+ */
+function cabinSide(paint, z0, top, people, skin) {
+  const g0 = z0 + 0.03, g1 = top - 0.08;
+  const headZ = z0 + 0.32;
+  const head = (u, z, at) => Math.abs(u - at) < 0.07 && z > headZ - 0.13 && z < headZ + 0.14 ? (z > headZ + 0.08 ? C.hair : skin) : null;
+  return (u, z, face) => {
+    if (z < g0 || z > g1) return paint;
+    if (face === 'front' || face === 'back') {
+      if (edge(u, 0.07)) return paint;
+      const seats = face === 'front' ? [[0.7, 1], [0.3, 2]] : [[0.3, 3], [0.7, 4]];
+      for (const [at, n] of seats) if (people >= n) { const h = head(u, z, at); if (h) return h; }
+      return face === 'front' && Math.abs(u - 0.3 - (g1 - z) * 0.6) < 0.06 ? C.glassShine : C.glass;
+    }
+    if (edge(u, 0.06) || Math.abs(u - 0.5) < 0.04) return paint; // the pillars between the side windows
+    // The left side shows the driver and the back-left seat; the right side the front passenger and the back-right seat.
+    const front = face === 'left' ? 0.28 : 0.72, back = face === 'left' ? 0.74 : 0.26;
+    const [nf, nb] = face === 'left' ? [1, 3] : [2, 4];
+    if (people >= nf) { const h = head(u, z, front); if (h) return h; }
+    if (people >= nb) { const h = head(u, z, back); if (h) return h; }
+    return C.glass;
+  };
+}
+
+/** A person who sits in the open back of a pickup or on a load: a shirt box and a head box. */
+const sitter = (f, s, z, shirt, skin) => [
+  { f0: f - 0.17, f1: f + 0.17, s0: s - 0.18, s1: s + 0.18, z0: z, z1: z + 0.45, top: shirt, side: shirt },
+  { f0: f - 0.12, f1: f + 0.12, s0: s - 0.12, s1: s + 0.12, z0: z + 0.45, z1: z + 0.7, top: C.hair, side: (u, zz) => (zz > z + 0.63 ? C.hair : skin) },
+];
+
 const BUILD = {
-  car: (paint) => {
-    const L = 4.2, W = 1.8;
+  car: (v) => {
+    const m = CAR_MODELS[v.model ?? 'corolla'];
+    const paint = v.paint, L = m.L, W = m.W;
     const body = (u, z, face) => {
       if (face === 'front' || face === 'back') {
         if (z < 0.42) return band(u, 0.38, 0.62) && z > 0.3 ? C.plate : C.bumper; // bumper and number plate
         if (band(z, 0.55, 0.7) && edge(u, 0.2)) return face === 'front' ? C.headlight : C.tailLight;
-        if (face === 'front' && band(z, 0.46, 0.62) && band(u, 0.3, 0.7)) return C.bumper; // the grille
+        if (face === 'front' && !v.ev && band(z, 0.46, 0.62) && band(u, 0.3, 0.7)) return C.bumper; // the grille (an electric car has none)
+        if (face === 'back' && v.spare && band(z, 0.5, 0.95) && band(u, 0.32, 0.68)) return Math.abs(u - 0.5) < 0.06 && Math.abs(z - 0.72) < 0.06 ? C.hub : C.tyre; // the spare wheel
         return paint;
       }
-      if (z < 0.4) return C.bumper; // the sill
-      if (band(z, 0.5, 0.8) && Math.abs(u - 0.47) < 0.012) return C.bumper; // the door line
+      if (z < 0.4) return v.rust && (u * 9) % 1 < 0.3 ? C.tinRust : C.bumper; // the sill (rust on an old car)
+      if (band(z, 0.5, m.body) && Math.abs(u - 0.47) < 0.012) return C.bumper; // the door line
       if (band(z, 0.6, 0.7) && edge(u, 0.04)) return C.indicator;
+      if (v.ev && band(z, 0.56, 0.66) && Math.abs(u - (face === 'left' ? 0.12 : 0.88)) < 0.04) return C.green; // the green EV mark
       return paint;
     };
-    const cabin = (u, z, face) => {
-      if (z < 0.82 || z > 1.32) return paint;
+    const skin = HEADS[(v.people * 7 + (v.model?.length ?? 0)) % HEADS.length];
+    const parts = [
+      ...wheels(L, W, m.body > 0.9 ? 0.36 : 0.32, 0.8),
+      { f0: -L / 2, f1: L / 2, s0: -W / 2, s1: W / 2, z0: 0.25, z1: m.body, top: paint, side: body },
+      { f0: m.cab[0], f1: m.cab[1], s0: -W / 2 + 0.14, s1: W / 2 - 0.14, z0: m.body, z1: m.top, top: paint, side: cabinSide(paint, m.body, m.top, v.people ?? 1, skin) },
+      // The side mirrors.
+      { f0: m.cab[1] - 0.1, f1: m.cab[1], s0: -W / 2 - 0.14, s1: -W / 2, z0: m.body + 0.05, z1: m.body + 0.15, top: paint, side: paint },
+      { f0: m.cab[1] - 0.1, f1: m.cab[1], s0: W / 2, s1: W / 2 + 0.14, z0: m.body + 0.05, z1: m.body + 0.15, top: paint, side: paint },
+    ];
+    if (v.rack) {
+      // A roof rack with a load: sacks, boxes, a jerrycan.
+      const r0 = m.cab[0] + 0.2, r1 = m.cab[1] - 0.25;
+      parts.push({ f0: r0, f1: r1, s0: -W / 2 + 0.2, s1: W / 2 - 0.2, z0: m.top, z1: m.top + 0.06, top: C.bumper, side: C.bumper });
+      parts.push({ f0: r0 + 0.1, f1: r0 + 0.9, s0: -0.5, s1: 0.4, z0: m.top + 0.06, z1: m.top + 0.36, top: C.sack, side: C.sack });
+      parts.push({ f0: r0 + 1.0, f1: r0 + 1.5, s0: -0.3, s1: 0.5, z0: m.top + 0.06, z1: m.top + 0.3, top: C.woodDark, side: C.wood });
+      if (r1 - r0 > 1.9) parts.push({ f0: r0 + 1.6, f1: r0 + 1.9, s0: -0.4, s1: -0.1, z0: m.top + 0.06, z1: m.top + 0.42, top: C.kOrange, side: C.kOrange });
+    }
+    if (v.snorkel) parts.push({ f0: m.cab[1] - 0.12, f1: m.cab[1] - 0.02, s0: W / 2, s1: W / 2 + 0.1, z0: m.body - 0.25, z1: m.top + 0.05, top: C.bumper, side: C.bumper });
+    if (v.antenna) parts.push({ f0: L / 2 - 0.35, f1: L / 2 - 0.3, s0: -W / 2 + 0.1, s1: -W / 2 + 0.15, z0: m.body, z1: m.body + 0.9, top: C.bumper, side: C.bumper });
+    return { parts };
+  },
+  // An old pickup: a cab, an open back with a load, and people who ride in the back.
+  pickup: (v) => {
+    const L = 4.9, W = 1.76, top = 1.52, z0 = 0.82;
+    const body = (u, z, face) => {
       if (face === 'front' || face === 'back') {
-        if (edge(u, 0.07)) return paint;
-        return face === 'front' && Math.abs(u - 0.3 - (1.3 - z) * 0.6) < 0.06 ? C.glassShine : C.glass;
+        if (z < 0.42) return band(u, 0.38, 0.62) && z > 0.3 ? C.plate : C.bumper;
+        if (band(z, 0.55, 0.7) && edge(u, 0.18)) return face === 'front' ? C.headlight : C.tailLight;
+        if (face === 'front' && band(z, 0.46, 0.66) && band(u, 0.28, 0.72)) return (Math.floor(z * 30) % 2 ? C.chrome : C.bumper); // the grille
+        return v.paint;
       }
-      return edge(u, 0.06) || Math.abs(u - 0.5) < 0.04 ? paint : C.glass; // two side windows
+      if (z < 0.42) return v.rust && (u * 8) % 1 < 0.3 ? C.tinRust : C.bumper;
+      return v.paint;
     };
+    const skin = HEADS[(v.riders ?? 0) % HEADS.length];
+    const loads = {
+      bananas: { side: (u, z) => ((Math.floor(u * 8) + Math.floor(z * 7)) % 3 ? C.banana : C.bananaDark), top: (u, w) => ((Math.floor(u * 8) + Math.floor(w * 4)) % 3 ? C.banana : C.bananaDark), h: 0.42 },
+      sacks: { side: (u) => ((u * 5) % 1 < 0.14 ? C.silver : C.sack), top: (u, w) => ((u * 5) % 1 < 0.14 || (w * 2) % 1 < 0.12 ? C.silver : C.sack), h: 0.38 },
+      charcoal: { side: (u, z) => ((u * 5) % 1 < 0.12 ? C.charcoal : z > z0 + 0.3 ? C.charcoal : C.sack), top: C.charcoal, h: 0.45 },
+      people: null,
+    };
+    const load = loads[v.load];
+    const parts = [
+      ...wheels(L, W, 0.36, 0.85),
+      { f0: -L / 2, f1: L / 2, s0: -W / 2, s1: W / 2, z0: 0.3, z1: z0, top: (u) => (u < 0.53 ? C.bumper : v.paint), side: body },
+      { f0: 0.0, f1: 1.25, s0: -W / 2 + 0.06, s1: W / 2 - 0.06, z0, z1: top, top: v.paint, side: cabinSide(v.paint, z0, top, v.cab ?? 2, skin) },
+      // The sides and the tailgate of the open back.
+      { f0: -L / 2, f1: -0.05, s0: -W / 2, s1: -W / 2 + 0.07, z0, z1: z0 + 0.3, top: v.paint, side: v.paint },
+      { f0: -L / 2, f1: -0.05, s0: W / 2 - 0.07, s1: W / 2, z0, z1: z0 + 0.3, top: v.paint, side: v.paint },
+      { f0: -L / 2, f1: -L / 2 + 0.07, s0: -W / 2, s1: W / 2, z0, z1: z0 + 0.3, top: v.paint, side: (u, z, face) => (face === 'back' && band(z, z0 + 0.08, z0 + 0.2) && edge(u, 0.12) ? C.tailLight : v.paint) },
+    ];
+    if (load) parts.push({ f0: -L / 2 + 0.15, f1: -0.25, s0: -W / 2 + 0.12, s1: W / 2 - 0.12, z0, z1: z0 + load.h, top: load.top, side: load.side });
+    const shirts = [C.blue, C.kOrange, C.red, C.green];
+    for (let i = 0; i < (v.riders ?? 0); i++) parts.push(...sitter(-0.7 - Math.floor(i / 2) * 0.9, i % 2 ? 0.42 : -0.42, load ? z0 + load.h - 0.05 : z0, shirts[i % shirts.length], HEADS[(i + 1) % HEADS.length]));
+    return { parts };
+  },
+  // A short truck (Canter, Elf): a flat cab, wooden sides, sacks piled high, a loader on top.
+  lorry: (v) => {
+    const L = 5.6, W = 2.04, cab0 = 1.5, cz0 = 0.75, cz1 = 2.3, bz1 = 1.5;
+    const cab = (u, z, face) => {
+      if (face === 'front') {
+        if (z < 0.9) return band(u, 0.4, 0.6) && z > 0.78 ? C.plate : C.bumper;
+        if (band(z, 0.95, 1.12) && edge(u, 0.14)) return C.headlight;
+        if (band(z, 0.92, 1.25) && band(u, 0.28, 0.72)) return Math.floor(z * 30) % 2 ? C.chrome : C.bumper;
+        if (band(z, 1.4, 2.12) && !edge(u, 0.06)) { if (Math.abs(u - 0.7) < 0.08 && band(z, 1.5, 1.8)) return z > 1.72 ? C.hair : C.skin; return C.glass; }
+        return v.cab;
+      }
+      const front = face === 'left' ? u < 0.62 : u > 0.38;
+      if (band(z, 1.45, 2.1) && front && !edge(u, 0.07)) return C.glass;
+      if (z < 0.95 && band(u, 0.3, 0.7)) return C.bumper;
+      return v.cab;
+    };
+    const slats = (u, z, face) => {
+      if (face === 'back' && band(z, 0.8, 0.95) && edge(u, 0.12)) return C.tailLight;
+      if ((face === 'left' || face === 'right') && (u * 4) % 1 < 0.06) return C.woodDark;
+      return Math.floor(z * 8) % 2 ? C.wood : C.woodDark;
+    };
+    const sacks = { side: (u, z) => ((u * 6) % 1 < 0.12 || Math.floor(z * 3.4) !== Math.floor((z + 0.04) * 3.4) ? C.silver : v.load === 'charcoal' && z > 1.9 ? C.charcoal : C.sack), top: (u, w) => ((u * 6) % 1 < 0.12 || (w * 3) % 1 < 0.1 ? C.silver : v.load === 'charcoal' ? C.charcoal : C.sack) };
+    const bed = { f0: -L / 2, f1: cab0 - 0.12, s0: -W / 2, s1: W / 2, z0: cz0, z1: bz1, top: C.woodDark, side: slats };
+    const parts = [
+      ...wheels(L, W, 0.4, 1.0),
+      { f0: -L / 2, f1: L / 2, s0: -W / 2 + 0.15, s1: W / 2 - 0.15, z0: 0.45, z1: cz0, top: C.bumper, side: C.bumper },
+      { f0: cab0, f1: L / 2, s0: -W / 2, s1: W / 2, z0: cz0, z1: cz1, top: v.cab, side: cab },
+      bed,
+      { f0: -L / 2 + 0.15, f1: cab0 - 0.3, s0: -W / 2 + 0.12, s1: W / 2 - 0.12, z0: bz1, z1: 2.3, top: sacks.top, side: sacks.side },
+    ];
+    if (v.rider) parts.push(...sitter(-0.9, 0.2, 2.3, C.kOrange, C.skinDeep));
+    return { parts, stickers: v.slogan ? sideWords(bed, 1.42, v.cab, v.slogan) : [] };
+  },
+  // A big old tipper truck with sand or murram for the building sites.
+  tipper: (v) => {
+    const L = 8.0, W = 2.5, cab0 = 2.55, cz0 = 0.95, cz1 = 2.95, bz0 = 0.95, bz1 = 2.35;
+    const cab = (u, z, face) => {
+      if (face === 'front') {
+        if (z < 1.15) return band(u, 0.4, 0.6) && z > 1.0 ? C.plate : C.bumper;
+        if (band(z, 1.2, 1.4) && edge(u, 0.14)) return C.headlight;
+        if (band(z, 1.18, 1.65) && band(u, 0.25, 0.75)) return Math.floor(z * 30) % 2 ? C.chrome : C.bumper;
+        if (band(z, 1.85, 2.7) && !edge(u, 0.05)) { if (Math.abs(u - 0.7) < 0.07 && band(z, 2.0, 2.35)) return z > 2.27 ? C.hair : C.skin; return C.glass; }
+        return v.cab;
+      }
+      const front = face === 'left' ? u < 0.6 : u > 0.4;
+      if (band(z, 1.95, 2.7) && front && !edge(u, 0.06)) return C.glass;
+      if (z < 1.2 && band(u, 0.3, 0.7)) return C.bumper;
+      return v.cab;
+    };
+    const bin = (u, z, face) => {
+      if (face === 'back' && band(z, 1.0, 1.15) && edge(u, 0.1)) return C.tailLight;
+      if ((face === 'left' || face === 'right') && (u * 7) % 1 < 0.1) return C.slate; // the ribs of the steel bin
+      return C.charcoal;
+    };
+    const sand = { side: (u, z) => ((Math.floor(u * 12) + Math.floor(z * 10)) % 4 ? C.mudLight : C.mudWall), top: (u, w) => ((Math.floor(u * 12) + Math.floor(w * 5)) % 4 ? C.mudLight : C.mudWall) };
+    const rear = wheels(L, W, 0.5, 1.25).filter((p) => p.f0 < 0).map((p) => ({ ...p, f0: p.f0 + 1.15, f1: p.f1 + 1.15 }));
     return {
       parts: [
-        ...wheels(L, W),
-        { f0: -L / 2, f1: L / 2, s0: -W / 2, s1: W / 2, z0: 0.25, z1: 0.8, top: paint, side: body },
-        { f0: -1.35, f1: 0.85, s0: -W / 2 + 0.14, s1: W / 2 - 0.14, z0: 0.8, z1: 1.4, top: paint, side: cabin },
-        // The side mirrors.
-        { f0: 0.75, f1: 0.85, s0: -W / 2 - 0.14, s1: -W / 2, z0: 0.85, z1: 0.95, top: paint, side: paint },
-        { f0: 0.75, f1: 0.85, s0: W / 2, s1: W / 2 + 0.14, z0: 0.85, z1: 0.95, top: paint, side: paint },
+        ...wheels(L, W, 0.5, 1.25), ...rear,
+        { f0: -L / 2, f1: L / 2, s0: -W / 2 + 0.2, s1: W / 2 - 0.2, z0: 0.6, z1: bz0, top: C.bumper, side: C.bumper },
+        { f0: cab0, f1: L / 2, s0: -W / 2, s1: W / 2, z0: cz0, z1: cz1, top: v.cab, side: cab },
+        { f0: -L / 2, f1: cab0 - 0.15, s0: -W / 2, s1: W / 2, z0: bz0, z1: bz1, top: C.charcoal, side: bin },
+        { f0: -L / 2 + 0.3, f1: cab0 - 0.45, s0: -W / 2 + 0.2, s1: W / 2 - 0.2, z0: bz1, z1: bz1 + 0.3, top: sand.top, side: sand.side },
+        { f0: L / 2 - 0.15, f1: L / 2 - 0.05, s0: -W / 2 - 0.18, s1: -W / 2, z0: 1.9, z1: 2.25, top: C.bumper, side: C.bumper },
+        { f0: L / 2 - 0.15, f1: L / 2 - 0.05, s0: W / 2, s1: W / 2 + 0.18, z0: 1.9, z1: 2.25, top: C.bumper, side: C.bumper },
       ],
     };
   },
   police: (v) => {
     // A white car with a blue stripe on the sides and POLICE, and a red and blue light bar on the roof.
-    const car = BUILD.car(C.policeWhite);
+    const car = BUILD.car({ model: 'corolla', paint: C.policeWhite, people: 2 });
     const stripe = (side) => (u, z, face) => (face !== 'front' && face !== 'back' && band(z, 0.48, 0.64) ? C.uniform : side(u, z, face));
     const body = car.parts.find((p) => p.z0 === 0.25 && p.z1 === 0.8);
     body.side = stripe(body.side);
@@ -176,7 +356,7 @@ const BUILD = {
     return car;
   },
   vip: () => {
-    const car = BUILD.car(C.charcoal);
+    const car = BUILD.car({ model: 'corolla', paint: C.charcoal, people: 0 });
     for (const p of car.parts) { p.f0 *= 1.12; p.f1 *= 1.12; } // a little longer than a car
     return car;
   },
@@ -262,6 +442,11 @@ const BUILD = {
 /** Other moto riders, with or without a passenger. */
 export function drawRivalMoto(frame, load = 'none') {
   return drawBike('rival', frame, load);
+}
+
+/** Ampersand riders on red Alphas (the yellow helmet), with or without a passenger. */
+export function drawAmpMoto(frame, load = 'none') {
+  return drawBike('amp', frame, load);
 }
 
 /** Your hired riders on your electric motos (a blue helmet), with or without a passenger. */
