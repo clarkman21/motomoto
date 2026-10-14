@@ -104,6 +104,7 @@ All 10 levels, the three modes, the story arc (smog, the yellow battery, the swa
 | The HQ mission (start of level 5): the level 4 milestone (bought at the day end) makes the Alpha ready. Ride the old moto into the yard, stop, F: get off; walk with the arrow keys (only in the yard) to the desk, F: trade-in +15,000 RWF (guess); walk to your Alpha with the teal bow and the name tag ("IYI NI IYAWE!", guess), F: get on; the test track: 4 gates against the clock, a cone adds 2 s, under 45 s gives 3,000 RWF (guess), F skips it; ride out: confetti, the family waves, the staff clap, a jingle, then the level 5 news | Done |
 | Radio Inziza (on a bike with the Bluetooth speaker): IMPALA GOLD, RUMBA KIN, KIGALI COUNTRY, KINYATRAP FM, GOSPEL 7, KISS FM, then OFF. Each station has 3 or 4 tracks with new titles; all the music is made in code (Web Audio chiptune in the style of each kind of music; no real songs). N, the ♪ touch button or a tap on the chip changes the station; the chip shows the station and the track for 3 s; Settings has a music volume. The radio stops in the menus, at the garage screen and at the day end. KISS FM is the name of a real Kigali radio station (Alp asked for it) | Done |
 | Garage parts that you can see on your bike: the speaker box with a blue light (music notes float up when the radio plays), the phone on the handlebar, chrome crash bars, the orange cargo net, the thicker seat, bigger tyres. The other parts are inside the bike | Done |
+| Effects of the garage parts, on your bike only (Alp, 14 October 2026; design canvas "Moto Inziza: bike add-on effects"): speaker (a ring on each beat, the light blinks), phone charger (the screen shines at night; a cable and a green bolt when a passenger gets on), crash bars (sparks and a mint shield when you knock something), cargo net (a green tick after a bump with cargo), seat cushion (an air puff and a heart after a bump with a passenger), better tyres (tread marks on murram, spray on wet murram), chain kit (a glint along the chain above 30 km/h), air filter (small, light exhaust puffs), ceramic pads (a clean stop; without them, orange sparks on a hard brake), wheel bearings (spin rings and a hub sparkle when you roll), regen tune (Surge Yellow sparks to the battery and a green +). Each short effect waits 4 s before it plays again. Only the look changes, not the physics | Done |
 | Station attendants: an SP attendant with the fuel nozzle, an Ampersand attendant with the new battery; the bike stands still while you fill up | Done |
 | Family rewards: what the money means at home after each job, each shift and each milestone | Done |
 | Sounds: the engine stops at the end of a shift; short tunes for shift end, milestone, game over, delivery | Done |
@@ -295,6 +296,7 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `MODES` | The difficulty modes: gears, fuel use, wear, cameras, police, potholes, traffic, crash repairs, traffic lights, rider energy, helmet checks |
 | `SHOP` | The parts and upgrades at the garages: price, level, effect, petrol or electric only; the mechanic's lines |
 | `VISIBLE_PARTS` | The garage parts that you can see on the bike |
+| `PART_FX` | The effects of the garage parts: the cool-down, the bump size, the hard brake, the speeds for regen, rolling, the chain glint, tread marks and spray, the night for the phone glow, the most particles |
 | `HQ` | The Ampersand HQ: the yard, the hall, the gates, the rows of Alphas, the desk, the test track (cones, gates, the bonus time and money), the trade-in money, the walking speed, the confetti |
 | `RADIO` | Radio Inziza: the stations (name, kind, tempo, track titles), how long the chip shows, the default music volume |
 | `RIDER` | Rider energy (hard mode): how fast it goes down, the power when hungry or weak, and each food (price, energy, time, lunch hours) |
@@ -384,6 +386,7 @@ src/
     umuganda.js          The Umuganda run: the offer, the patrol cars, being seen on a main road
     roadevents.js        Street events: road works, VIP convoys, car free mornings
     hardrules.js         Hard mode challenges: speed checks, one-way and no-moto streets, overloading, the bathroom need
+    partfx.js            When the garage parts show their effects (triggers, cool-downs, steady effects)
     hq.js                The Ampersand HQ mission: get off, walk, trade-in, your Alpha, the test track, ride out
   audio/
     engine-sound.js      Engine, horn, crash, yells, jingles and menu sounds (Web Audio)
@@ -412,6 +415,7 @@ src/
     KiteView.js          The brown kites and their shadows
     SmogView.js          The smog layer over the city (thinner at each level)
     BatteryView.js       The yellow batteries on the road (levels 3 and 4)
+    PartFxView.js        The effects of the garage parts on your bike (one particle pool, two Graphics layers)
     HqView.js            The Ampersand HQ yard: Alphas, the trade-in row, staff, the track, the walker, confetti
     save.js              Saves the game in the browser (localStorage)
 test/                    Unit tests (Vitest)

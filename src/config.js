@@ -943,6 +943,25 @@ export const SHOP = {
 // Garage parts that show on your bike (Alp, 14 October 2026). The other parts are inside the bike.
 export const VISIBLE_PARTS = ['speaker', 'charger', 'crashbars', 'net', 'cushion', 'tyres'];
 
+// Effects of the garage parts on your bike (Alp, 14 October 2026; design canvas "Moto Inziza: bike
+// add-on effects"): each part shows a short effect when it does its job (sim/partfx.js, PartFxView.js).
+// Only on your bike. Times are guesses.
+export const PART_FX = {
+  cooldown: 4, // seconds before the same effect can play again
+  bumpMin: 0.18, // a bump this big (bounce seconds) or more: a pothole, rocks or a speed bump (not the murram washboard)
+  hardBrake: 0.7, // brake input for a hard brake
+  hardBrakeKmh: 20, // a hard brake from this speed or more
+  regenKmh: 10, // regen sparks from this speed (Alpha, braking)
+  rollKmh: 15, // the bearings effect: rolling with no throttle and no brake from this speed
+  chainKmh: 30, // the chain glint from this speed (petrol)
+  treadKmh: 5, // tread marks on murram from this speed
+  treadEveryMetres: 0.7, // one tread mark each this many metres
+  treadSeconds: 3, // a tread mark stays this long
+  sprayKmh: 8, // spray on wet murram from this speed
+  glowNight: 0.3, // the phone screen shines when the night is darker than this (0..1)
+  maxParticles: 160,
+};
+
 // The Ampersand HQ in Gikondo (Alp, 14 October 2026: "a blue roof warehouse"): the factory where you
 // get your Alpha at the start of level 5 (sim/hq.js). Positions are in tiles (x, y), from the design
 // canvas "Moto Inziza: Ampersand HQ mission and radio". Money and times are guesses.

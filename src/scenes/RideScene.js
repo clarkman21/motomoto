@@ -65,6 +65,8 @@ import { fleetRiders, planFleetDay, attachFleet, stepFleet, waitingRider, fleetD
 import { maybeVisitor, maybeVisitorHail, stepVisitor, greeting, dropOffLines, sightNear, quietNear, VISITOR_LINES } from '../sim/muzungu.js';
 import { hqMissionDue, createHq, hqAction, stepWalk, stepTrack, stepExit, skipTrack, inYard, hqGoal, deskSpot, ribbonAlpha } from '../sim/hq.js';
 import { HqView, parkedKey } from './HqView.js';
+import { PartFxView } from './PartFxView.js';
+import { createPartFx, partFxTriggers, partFxSteady } from '../sim/partfx.js';
 import { dayStats, pickQuests, recordDelivery, recordFine, checkQuests, maybeMission, stepMission, missionResult, findSecret } from '../sim/missions.js';
 
 const FIXED_DT = 1 / 120; // physics step in seconds
@@ -134,6 +136,10 @@ export class RideScene extends Phaser.Scene {
     this.ghost = this.add.image(0, 0, 'bike-petrol-none-0').setOrigin(ox, oy).setTintFill(0xffffff).setAlpha(0.5).setDepth(1e6).setVisible(false);
     this.puffs = [];
     this.puffTimer = 0;
+    // The effects of the garage parts on your bike (sim/partfx.js, PartFxView.js).
+    this.partFx = createPartFx();
+    this.partFxView = new PartFxView(this);
+    this.steadyFx = {};
 
     this.#createProps();
     // The moto garages: motos, mechanics, oil stains and the name sign.
@@ -1329,6 +1335,7 @@ export class RideScene extends Phaser.Scene {
     this.dayTime = 0;
     this.dayOver = false;
     this.hqAnnounced = false;
+    this.partFxView.reset();
     this.hq = null; // a new day: the mission starts again if the Alpha still waits (see #applyLevel)
     this.honkBarked = false;
     this.strandedTime = null;
@@ -1613,6 +1620,7 @@ export class RideScene extends Phaser.Scene {
       const events = stepBike(this.bike, this.controls, this.world, FIXED_DT);
       const crashed = events.some((e) => e.type === 'crash');
       for (const e of events) {
+        if (e.type === 'crash' || (e.type === 'wall' && e.speed > 3)) this.fxWall = true; // the crash bars show
         if (e.type === 'crash') {
           this.#crash(e);
           continue;
@@ -1687,6 +1695,7 @@ export class RideScene extends Phaser.Scene {
     this.chunks.update(this.bike.x, this.bike.y);
     this.#placeBike();
     this.hqView.update(this.hq, this, dt, this.time.now);
+    this.#updatePartFx(dt);
     this.#updateSmoke(dt);
     this.#updateOcclusion();
     this.#updateCamera(dt);
@@ -2427,7 +2436,7 @@ export class RideScene extends Phaser.Scene {
   }
 
   /** An exhaust puff at a world point (metres). */
-  #spawnPuff(px, py, z, dark = false) {
+  #spawnPuff(px, py, z, dark = false, small = false) {
     const s = toScreen(px, py, this.world.heightAt(px, py) + z);
     let puff = this.puffs.find((p) => !p.img.visible);
     if (!puff) {
@@ -2438,6 +2447,7 @@ export class RideScene extends Phaser.Scene {
     puff.img.setTexture(dark ? 'puff-dark' : 'puff').setVisible(true).setPosition(s.x, s.y).setDepth((px + py) / WORLD.tileMetres);
     puff.life = puff.maxLife = dark ? 1.3 : 0.9;
     puff.drift = (Math.random() - 0.5) * 6;
+    puff.small = small;
   }
 
   // A red pin over the rival who races you to your pickup.
@@ -2590,6 +2600,23 @@ export class RideScene extends Phaser.Scene {
     if (electric) this.glow.setAlpha(0.75 + 0.25 * Math.sin(this.time.now / 180));
   }
 
+  /** The effects of the garage parts on your bike (only your bike): short ones at their triggers, steady ones. */
+  #updatePartFx(dt) {
+    const b = this.bike, onFoot = !!this.hq?.walker;
+    const tile = this.world.tileAt(b.x, b.y)?.surface;
+    const surface = this.world.rain && tile === 'murram' ? 'murramWet' : tile; // rain makes the murram wet (as the physics)
+    const input = {
+      parts: this.wallet.parts ?? [], type: b.type, kmh: Math.abs(forwardSpeed(b)) * 3.6,
+      throttle: this.controls.throttle, brake: this.controls.hold ? 0 : this.controls.brake, bump: b.bump ?? 0,
+      load: b.loadType ?? 'none', surface, night: this.daylight?.night ?? 0,
+      radio: this.radio.playing, wall: !!this.fxWall,
+    };
+    this.fxWall = false;
+    if (!onFoot) for (const name of partFxTriggers(this.partFx, input, dt)) this.partFxView.play(name, this);
+    this.steadyFx = partFxSteady(input);
+    this.partFxView.update(this, dt, this.steadyFx, !onFoot && !(b.crashed > 0));
+  }
+
   /** The garage parts that show on your bike (VISIBLE_PARTS), in a fixed order. */
   #visibleParts() {
     const owned = this.wallet.parts ?? [];
@@ -2607,7 +2634,7 @@ export class RideScene extends Phaser.Scene {
       const throttle = this.controls.throttle;
       this.puffTimer = throttle > 0 ? 0.06 : 0.3;
       const back = 1.0; // metres behind the bike centre
-      this.#spawnPuff(b.x - Math.cos(b.heading) * back, b.y - Math.sin(b.heading) * back, 0.45);
+      this.#spawnPuff(b.x - Math.cos(b.heading) * back, b.y - Math.sin(b.heading) * back, 0.45, false, this.steadyFx.smallPuffs); // the air filter: small, light puffs
     }
     for (const p of this.puffs) {
       if (!p.img.visible) continue;
@@ -2619,7 +2646,7 @@ export class RideScene extends Phaser.Scene {
       const t = 1 - p.life / p.maxLife;
       p.img.y -= 9 * dt;
       p.img.x += p.drift * dt;
-      p.img.setScale(1 + t * 1.6).setAlpha(0.7 * (1 - t));
+      p.img.setScale(p.small ? 0.5 + t * 0.7 : 1 + t * 1.6).setAlpha((p.small ? 0.4 : 0.7) * (1 - t));
     }
   }
 
