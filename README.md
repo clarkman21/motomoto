@@ -129,6 +129,9 @@ All 10 levels, the three modes, the story arc (smog, the yellow battery, the swa
 | Design system step 2: the player moto, the trees, the road signs, the HUD icons and the menus use only colour tokens (`PALETTE` with the light rule for the world, `UI_PALETTE` for the HUD and the menus); a test checks it | Done |
 | A crash fills the service meter (Alp, 13 October 2026): 10% of the meter, plus 0.6% for each km/h over 18 km/h, up to 30%; the same share for the petrol and the electric moto; crash bars make it 40% smaller. The crash message shows it ("Service +14%") | Done |
 | Stations and garages are easier to use (Alp, 13 October 2026): you can stop anywhere beside the building of a fuel station, a swap station or a garage (before: only within 6 m of one stop point). F never does nothing: it says why (stop first, ride closer, wait for the stop to end, or where F works) | Done |
+| Much more traffic (Alp, 14 October 2026): about 3 times the vehicles and 50 walkers in each district. New kinds: pickups (bananas, sacks, charcoal or people in the back), short lorries with a wooden bed, tipper trucks with sand, busy moto taxis, and Ampersand riders on red Alphas (5% of the motos at level 1, 50% at level 10). Car models: old Corollas, Starlets, Proboxes, RAV4s and Land Cruisers, and new electric cars (no exhaust), with people in the windows. A spatial grid keeps the traffic fast (372 vehicles: 1.5 ms a step) | Done |
+| The red Alpha (Alp, 14 October 2026): your electric moto, your hired riders and the Ampersand riders ride a red and black Alpha, with the yellow battery forward under the seat | Done |
+| The muzungu passenger (Alp, 14 October 2026): about 1 new offer in 15 (at most 2 on the board, from level 2) is a foreign visitor at a hotel or a landmark. A gold card "MUZUNGU ★ ×4": the fare is 4 times a normal fare, and a clean ride counts as 3 rides for the clean ride streak. On the ride the visitor says "OH WOW!" and tries Kinyarwanda words (the words float over the bike; you answer in gold). Ride past a sight (the KCC, I LOVE KIGALI, the City Tower, the fountain and more) under 20 km/h: a photo and a bigger tip (at most 3). At the drop off: "HOW MUCH? ... OH, KEEP THE CHANGE!" and "MURAKOZE, MUZUNGU!". No visitor lines near Parliament (the Campaign Against Genocide Museum), memorials or churches. The Kinyarwanda words are a guess: Alp checks them | Done |
 | The moto shop look (a container shop) | Later (after v1.0) |
 
 ## Run the game
@@ -160,6 +163,7 @@ Main menu → SETTINGS → CHEATS: ON. Then, in a ride, pause (Esc, or the pause
 | MOTO: PETROL / ELECTRIC | Change to the other moto at once, with a full tank or battery. Electric = the moto is yours (no bike rent, swap stations), as after the level 4 milestone |
 | YELLOW BATTERY: 25 S BOOST | 25 s of extra power on the moto you ride (not the electric moto) |
 | CAR FREE MORNING, VIP CONVOY NOW | Start a street event at once |
+| MUZUNGU ON THE BIKE NOW | A muzungu passenger gets on at once, at a hotel or a landmark (from level 2) |
 | GO TO | The Ampersand showroom, the nearest garage, the nearest station, the Nyabugogo bus park |
 | SHOW THE ENDING | The ending screen |
 
@@ -253,9 +257,10 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `MAINTENANCE` | Service interval, wear from red zone and hits, overdue penalties, breakdown, garage price |
 | `JOBS` | Fares, tips, cargo pay, comfort and damage rules, game km scale |
 | `LAW` | Default speed limit, camera tolerance and fines |
-| `TRAFFIC` | Number of each vehicle type, speeds, hill slowdown, exhaust, bus stop time, pothole speed, hazard look ahead |
+| `TRAFFIC` | Number of each vehicle type for each district (`perDistrict`, `motosPerDistrict`, the Ampersand share `ampShare` for each level), the kinds (length, family, variants), speeds, hill slowdown, exhaust, bus stop time, pothole speed, hazard look ahead |
 | `PEOPLE` | Number of walkers, street hails, police fine for hitting a person, near miss yells, how far the horn reaches |
 | `RIVALS` | Chance a rival races you or takes a street hail, offer lifetimes |
+| `MUZUNGU` | The visitor passenger: from what level, how often, the fare factor, the streak rides, the start and end places, the sights for the photo stops, the photo tip, the quiet places, when the visitor talks |
 | `LEVELS`, `SAVINGS_FLOAT`, `STREAK` | Goals, shifts, rent, traffic and rivals for each level; the clean ride bonus |
 | `BALANCE` | Player profiles for the balance model (speed, time lost at each job, tips, fines, crashes) and the targets that the tests check |
 | `DISTRICTS` | Name, unlock level, fuel price and fare factor of each district |
@@ -332,6 +337,7 @@ src/
     controls.js          The steering (bike relative; the screen relative model is still in the code, but the game does not use it)
     economy.js           Wallet, fuel and swaps, repairs, day end bill, out of cash (stranded)
     jobs.js              Job offers, pickup and drop off, fares and tips
+    muzungu.js           The muzungu passenger: visitor offers, lines on the ride, photo stops
     law.js               Speed limit zones and speed cameras
     roads.js             Road graph from the map's road list, lanes, shortest path
     traffic.js           Vehicles: lane following, gaps, junctions, bus stops, hills
