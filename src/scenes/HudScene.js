@@ -4,6 +4,7 @@ import { forwardSpeed } from '../sim/bike.js';
 import { serviceDue } from '../sim/maintenance.js';
 import { wrapRetro, retroText, RETRO_CELL } from '../world/retro-font.js';
 import { MinimapView } from './MinimapView.js';
+import { LessonCall } from './LessonCall.js';
 import { textBit, textWidth } from '../world/garage-sprites.js';
 import { UI, pixelScale, ensureRetroFont, ensureIcons, retroLabel, retroWidth, drawWindow, drawSegBar, smallLabel, wrapSmall } from './retro-ui.js';
 
@@ -108,6 +109,8 @@ export class HudScene extends Phaser.Scene {
     this.barkLines = [0, 1].map(() => small());
     this.popups = [];
 
+    // The Motari lesson (level 1): Rukundo's phone call under the left window.
+    this.lessonCall = new LessonCall(this, add);
     this.minimap = new MinimapView(this, this.ui);
     // Prompts, fuel choices and messages are on top of everything (also on top of the minimap).
     this.over = add(this.add.graphics());
@@ -163,6 +166,8 @@ export class HudScene extends Phaser.Scene {
     this.helpText.setVisible(this.helpFits && this.time.now < this.helpUntil);
     this.#updateLeft(g);
     this.#updateRadio(g, deltaMs);
+    const L = this.left, radioOn = this.radioIcon.visible;
+    this.lessonCall.update(g, L.x, L.y + L.h + 3 + (radioOn ? 23 : 0), this.time.now);
     this.minimap.update(this.time.now);
     this.#updateMoney(g);
     this.#updateJobs(g);

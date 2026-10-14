@@ -126,6 +126,22 @@ export const SURFACES = {
   water: { name: 'River', grip: 0, speedFactor: 0, energyFactor: 1, rollingMs2: 9, wearFactor: 1 }, // solid: you cannot ride here
 };
 
+// The Motari lesson (level 1, sim/lesson.js): Rukundo Thacien phones you with tips. Values are a first guess.
+export const LESSON = {
+  helloAfterSeconds: 2, // he calls this long after the shift starts
+  ringSeconds: 1.2, // the phone rings this long before he talks
+  lineSeconds: 1.6, // each line shows this long ...
+  secondsPerChar: 0.055, // ... plus this for each letter (time to read)
+  charsPerSecond: 40, // the line types out at this speed
+  gapSeconds: 6, // at least this long between two calls
+  fuelBelow: 0.4, // the fuel tip: the tank under this
+  serviceFrom: 0.5, // the service tip: the service meter from this (1 = service due)
+  overLimitKmh: 8, // the speed tip: this much over the limit ...
+  officerNearMetres: 25, // the police tip: an officer this near
+  bumpLookMetres: 14, // the speed bump tip: a bump this far ahead
+  byeAfterTips: 9, // he says goodbye after this many tips
+};
+
 // Wet murram is very slippery (Alp, 14 October 2026): a turn at speed makes the bike slide; a hard
 // turn at speed, held, makes it fall. The turn load is the speed times the turn rate (m/s²). Guesses.
 // Better tyres (wetGrip) move both limits up.

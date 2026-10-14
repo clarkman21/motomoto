@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS, FLEET, RIDER, TRAFFIC_LIGHTS, HELMET_CHECKS, CROSSINGS, STORY, MODES, RUSH, ROAD_EVENTS, HARD_RULES, MUZUNGU, CREWS, HQ, RADIO, VISIBLE_PARTS } from '../config.js';
+import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS, FLEET, RIDER, TRAFFIC_LIGHTS, HELMET_CHECKS, CROSSINGS, STORY, MODES, RUSH, ROAD_EVENTS, HARD_RULES, MUZUNGU, CREWS, HQ, RADIO, VISIBLE_PARTS, LESSON } from '../config.js';
 import { World } from '../world/world.js';
 import { buildKigaliMap } from '../world/maps/kigali.js';
 import { ChunkStreamer, groupKey } from './chunks.js';
@@ -16,6 +16,7 @@ import { EngineSound } from '../audio/engine-sound.js';
 import { Radio } from '../audio/radio.js';
 import { createWallet, earn, spend, buyFuel, swapBattery, fuelFillCost, fuelChoices, repairCost, endDay, stranded, payGarage } from '../sim/economy.js';
 import { garageQuote, serviceDue, crashWearShare } from '../sim/maintenance.js';
+import { createLesson, stepLesson, lessonEvent, skipLesson as skipLessonNow, stepClosing } from '../sim/lesson.js';
 import { createJobBoard, makeOffer, updateBoard, acceptOffer, cancelJob, updateJob, jobTarget, acceptHail, tripMetres, passengerWaits, loseJobWhenEmpty, loseJobOnCrash } from '../sim/jobs.js';
 import { createCameraState, checkCameras, speedLimitAt } from '../sim/law.js';
 import { buildRoadGraph, openRoads } from '../sim/roads.js';
@@ -91,6 +92,8 @@ const BARKS = {
   oilDue: 'Oil change due! The engine loses power. Go to the garage',
   breakdown: 'Breakdown! Push the bike to the garage',
 };
+// Barks that explain an effect: only in level 1 (the Motari lesson). From level 2 only the effects stay (Alp).
+const EXPLAIN = new Set(['bumpHard', 'pothole', 'puddle', 'rocksHard', 'redZone', 'lugging', 'offRoad']);
 const REPAIR_LABELS = { wall: 'Crash damage' };
 const STATION_RANGE_METRES = 6;
 // What you hit, in words (a crash message).
@@ -367,6 +370,7 @@ export class RideScene extends Phaser.Scene {
         case 'KeyH': this.horn(); break;
         case 'KeyV': this.toggleSound(); break;
         case 'KeyN': this.nextStation(); break;
+        case 'KeyL': this.skipLesson(); break;
         case 'KeyE': case 'KeyX': this.shift(1); break;
         case 'KeyQ': case 'KeyZ': this.shift(-1); break;
         case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': this.acceptJob(Number(e.code.slice(5)) - 1); break;
@@ -377,6 +381,63 @@ export class RideScene extends Phaser.Scene {
       }
     });
     this.input.on('pointerdown', () => this.engineSound.start());
+  }
+
+  /** Explanation messages (for example "murram wears the moto") show only in level 1. */
+  get explaining() {
+    return (this.wallet?.level ?? 1) <= 1;
+  }
+
+  /** The Motari lesson: Rukundo's tips on the first shift (sim/lesson.js). Level 1 only, until skipped or done. */
+  #startLesson() {
+    const saved = this.wallet.lesson ?? {};
+    const on = this.wallet.level === 1 && !saved.skipped && !(saved.seen ?? []).includes('bye');
+    this.lesson = on ? createLesson(saved.seen ?? [], this.sys.game.device.input.touch) : null;
+  }
+
+  #updateLesson(dt) {
+    const lesson = this.lesson;
+    if (!lesson) return;
+    if (lesson.closing) {
+      stepClosing(lesson, dt);
+      return;
+    }
+    if (lesson.done && !lesson.call) return;
+    const b = this.bike, kmh = Math.abs(forwardSpeed(b)) * 3.6;
+    const tile = this.world.tileAt(b.x, b.y), job = this.board.active;
+    this.overLimitT = kmh > this.speedLimit.limitKmh + LESSON.overLimitKmh ? (this.overLimitT ?? 0) + dt : 0;
+    const fx = Math.cos(b.heading), fy = Math.sin(b.heading);
+    let bumpAhead = false;
+    for (let d = 4; d <= LESSON.bumpLookMetres && !bumpAhead; d += 2) bumpAhead = this.world.tileAt(b.x + fx * d, b.y + fy * d)?.hazard === 'speedBump';
+    const ctx = {
+      t: this.dayTime, kmh, jobStage: job?.stage, passenger: job?.type === 'passenger' && job.stage === 'toDropoff',
+      murram: tile?.surface === 'murram' || tile?.surface === 'murramWet', bumpAhead,
+      officerNear: this.police.police.officers.some((o) => Math.hypot(o.x - b.x, o.y - b.y) < LESSON.officerNearMetres),
+      overLimitSeconds: this.overLimitT, petrol: b.type === 'petrol', energy: b.energy, service: serviceDue(b), night: this.daylight?.night ?? 0,
+    };
+    for (const e of stepLesson(lesson, ctx, dt)) {
+      if (e.type === 'ring') {
+        this.engineSound.ring();
+        this.wallet.lesson = { seen: [...lesson.seen], skipped: false }; // saved with the day
+      }
+      if (e.type === 'line') this.lessonTalk = (lesson.call?.lines[lesson.call.line]?.length ?? 0) / LESSON.charsPerSecond;
+    }
+    // His voice on the phone while the line types out.
+    if (this.lessonTalk > 0) {
+      this.lessonTalk -= dt;
+      if (this.time.now - (this.murmurAt ?? 0) > 95) {
+        this.murmurAt = this.time.now;
+        this.engineSound.murmur(0.9 + Math.random() * 0.2);
+      }
+    }
+  }
+
+  /** L or the SKIP button: no more tips (the lesson is in the game, not in Settings). */
+  skipLesson() {
+    if (!this.lesson || this.lesson.done) return;
+    skipLessonNow(this.lesson);
+    this.lessonTalk = 0;
+    this.wallet.lesson = { seen: [...this.lesson.seen], skipped: true };
   }
 
   toggleBike() {
@@ -989,6 +1050,7 @@ export class RideScene extends Phaser.Scene {
         }
         earn(this.wallet, e.job.type === 'passenger' ? 'fares' : 'cargo', e.fare);
         this.events.emit('money', e.fare, e.job.type === 'passenger' ? 'Fare' : 'Cargo delivered');
+        lessonEvent(this.lesson, 'paid');
         // What the money means at home (see sim/family.js).
         this.events.emit('bark', deliveryLine(e.fare));
         this.engineSound.jingle('reward');
@@ -1106,6 +1168,7 @@ export class RideScene extends Phaser.Scene {
     if (hqMissionDue(this.wallet) && L.districts.includes('kicukiro')) {
       if (!this.hq || this.hq.stage === 'done') this.hq = createHq();
     } else if (this.hq && !['alpha', 'track', 'exit', 'done'].includes(this.hq.stage)) this.hq = null;
+    this.#startLesson();
     // The difficulty mode (sim/modes.js): fuel use, wear, potholes, traffic. The gears are always manual.
     const mode = (this.mode = modeOf(this.wallet));
     this.bike.autoShift = false;
@@ -1637,7 +1700,7 @@ export class RideScene extends Phaser.Scene {
         if (e.type === 'crash' || (e.type === 'wall' && e.speed > 3)) this.fxWall = true; // the crash bars show
         if (e.type === 'slide') {
           this.partFxView.play('slide', this); // mud flies off the rear wheel (all bikes)
-          if (this.time.now - (this.slideBarkAt ?? -1e9) > 12000) {
+          if (this.explaining && this.time.now - (this.slideBarkAt ?? -1e9) > 12000) {
             this.slideBarkAt = this.time.now;
             this.events.emit('bark', 'Slippery! The wet murram slides. Turn slowly');
           }
@@ -1679,7 +1742,7 @@ export class RideScene extends Phaser.Scene {
             e.hit.hurt = 3;
             this.#yell(e.hit, 'AYA!');
             if (this.mode.fines) this.#pay('fines', PEOPLE.hitFine, 'Police: you hit a person');
-            this.events.emit('bark', 'You hit a person! Slow down near people');
+            this.events.emit('bark', this.explaining ? 'You hit a person! Slow down near people' : 'You hit a person!');
           }
           continue;
         }
@@ -1691,7 +1754,7 @@ export class RideScene extends Phaser.Scene {
         // A petrol engine needs an oil change: its service messages say so.
         const petrol = this.bike.type === 'petrol';
         const type = petrol && e.type === 'serviceSoon' ? 'oilSoon' : petrol && e.type === 'serviceDue' ? 'oilDue' : e.type;
-        if (BARKS[type]) this.events.emit('bark', BARKS[type]);
+        if (BARKS[type] && (this.explaining || !EXPLAIN.has(type))) this.events.emit('bark', BARKS[type]);
       }
       this.#economyStep(events);
       this.accumulator -= FIXED_DT;
@@ -1700,6 +1763,7 @@ export class RideScene extends Phaser.Scene {
     if (this.refuel && (this.refuel.timeLeft -= dt) <= 0) this.#finishRefuel();
     this.#updateHq(dt);
     this.#updateRadio(dt);
+    this.#updateLesson(dt);
     this.#updateRescue(dt);
     this.#updateStation();
     this.#updateEvent(dt);
@@ -1826,6 +1890,7 @@ export class RideScene extends Phaser.Scene {
     // The crash also fills the service meter (sim/maintenance.js); crash bars make it smaller.
     const wear = Math.round(crashWearShare(e.speed) * (this.bike.mods?.crash ?? 1) * 100);
     // A passenger on the back gets off and does not pay: a bad name for your moto.
+    lessonEvent(this.lesson, 'crash');
     const lost = loseJobOnCrash(this.board, this.bike);
     if (lost) {
       cancelMission(this.raceRival);
@@ -1835,7 +1900,7 @@ export class RideScene extends Phaser.Scene {
       const words = PEOPLE.crashWords;
       this.time.delayedCall(700, () => this.#bubble(this.bike.x, this.bike.y, 46, words[Math.floor(this.rng() * words.length)], 0xffa080));
       this.events.emit('bark', `Crash at ${kmh} km/h! Your passenger gets off and does not pay. You lose the fare`);
-    } else if (e.slip) this.events.emit('bark', `You slid on the wet murram at ${kmh} km/h and fell! Turn slowly when it is wet. Service +${wear}%`);
+    } else if (e.slip) this.events.emit('bark', `You slid on the wet murram at ${kmh} km/h and fell!${this.explaining ? ' Turn slowly when it is wet.' : ''} Service +${wear}%`);
     else this.events.emit('bark', `Crash! You hit ${what} at ${kmh} km/h and fell off. Service +${wear}%`);
     for (let i = 0; i < 4; i++) this.#spawnPuff(this.bike.x + (this.rng() - 0.5) * 1.5, this.bike.y + (this.rng() - 0.5) * 1.5, 0.1);
   }

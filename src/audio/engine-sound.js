@@ -210,6 +210,46 @@ export class EngineSound {
     }
   }
 
+  /** A phone ring (the call of the Motari lesson): two short bursts of two quick tones. */
+  ring() {
+    if (!this.ctx || !this.enabled) return;
+    const ctx = this.ctx, t0 = ctx.currentTime;
+    for (const burst of [0, 0.45]) {
+      for (let i = 0; i < 6; i++) {
+        const t = t0 + burst + i * 0.05;
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = 'square';
+        o.frequency.value = i % 2 ? 1300 : 1600;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.linearRampToValueAtTime(0.045, t + 0.005);
+        g.gain.setValueAtTime(0.045, t + 0.04);
+        g.gain.linearRampToValueAtTime(0.0001, t + 0.05);
+        o.connect(g).connect(this.master);
+        o.start(t);
+        o.stop(t + 0.06);
+      }
+    }
+  }
+
+  /** A soft voice on the phone line (he talks): a short low tone through a narrow band, like a phone speaker. */
+  murmur(pitch = 1) {
+    if (!this.ctx || !this.enabled) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    const o = ctx.createOscillator(), bp = ctx.createBiquadFilter(), g = ctx.createGain();
+    o.type = 'square';
+    o.frequency.setValueAtTime(150 * pitch, t);
+    o.frequency.linearRampToValueAtTime(130 * pitch, t + 0.07);
+    bp.type = 'bandpass';
+    bp.frequency.value = 1000;
+    bp.Q.value = 2;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.05, t + 0.01);
+    g.gain.linearRampToValueAtTime(0.0001, t + 0.07);
+    o.connect(bp).connect(g).connect(this.master);
+    o.start(t);
+    o.stop(t + 0.08);
+  }
+
   /**
    * A short, cute yell ("eh-eh!"): two quick voice syllables that go up in pitch. pitch: about
    * 0.8 (low voice) to 1.3 (high voice).
