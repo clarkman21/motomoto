@@ -457,7 +457,7 @@ export class HudScene extends Phaser.Scene {
       // The fuel moto (T): on the way, then here.
       text = ride.rescue.state === 'handover' ? 'THE FUEL MOTO IS HERE' : `FUEL MOTO ON THE WAY · ${Math.ceil(ride.rescue.eta)} S`;
     } else if (ride.hailOffer) {
-      text = `${this.isTouch ? 'TAP' : '1'}: STREET HAIL TO ${ride.hailOffer.to.name}`;
+      text = `${this.isTouch ? 'TAP' : '1'}: ${ride.hailOffer.visitor ? `MUZUNGU ★ ×${MUZUNGU.fareFactor}` : 'STREET HAIL'} TO ${ride.hailOffer.to.name}`;
     } else {
       const offer = ride.stationOffer();
       if (offer) text = this.isTouch ? offer.text.replace('F: ', 'TAP: ') : offer.text;

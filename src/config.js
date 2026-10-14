@@ -725,6 +725,13 @@ export const MUZUNGU = {
   uphillGrade: 0.06,
   gapSeconds: 3.5, // at least this long between two lines
   chatterSeconds: [8, 15], // a random line when nothing happens
+  // Street hails (Alp: both, on the job board and at the roadside): a hail near a start place
+  // (within hailMetres) is a visitor with this chance; at most maxHails visitor hails at a time.
+  hailMetres: 50,
+  hailChance: 0.35,
+  maxHails: 1,
+  hailCallSeconds: 4, // a waving visitor calls "MOTO!" this often when you are near
+  hailCallMetres: 45,
 };
 
 // Hired riders (levels 6 and 8: a second and a third moto). The rider rides your moto in the city and

@@ -28,6 +28,7 @@ export const VISITOR_LINES = {
   pay: ['HOW MUCH? ... OH, KEEP THE CHANGE!', 'AMAFARANGA ANGAHE? ... KEEP THE CHANGE!'], // amafaranga angahe: how much money?
   thanks: 'MURA-COZY CHA-NAY!', // murakoze cyane: thank you very much
   riderThanks: 'MURAKOZE, MUZUNGU!', // the rider: thank you, visitor
+  calls: ['MOTO! MOTO, PLEASE!', 'TAXI? MOTO TAXI?', 'HELLO! MOTO!'], // a visitor who waves at the roadside
 };
 
 const pick = (rng, list) => list[Math.floor(rng() * list.length)];
@@ -55,6 +56,26 @@ export function maybeVisitor(offer, board, world, level, rng) {
     ...offer, type: 'passenger', goods: undefined, heavy: undefined, from, to, distanceMetres, gameKm,
     kg: p.kg, fragile: false, pay: round10((p.base + p.perGameKm * gameKm) * fare), visitor: true,
   };
+}
+
+/**
+ * Maybe make a new street hail a visitor: only near a start place (a hotel or a landmark), at most
+ * MUZUNGU.maxHails at a time. places: the map's places; hails: all hails now (with the new one).
+ * opts: { level, districts }. Returns true when the hail is now a visitor.
+ */
+export function maybeVisitorHail(hail, places, hails, opts, rng) {
+  if (opts.level < MUZUNGU.fromLevel || hail.fromBus) return false;
+  if (hails.filter((h) => h.visitor).length >= MUZUNGU.maxHails) return false;
+  const T = WORLD.tileMetres;
+  const open = (p) => !opts.districts || !p.district || opts.districts.includes(p.district);
+  const start = places.find((p) => MUZUNGU.startIds.includes(p.id) && open(p) && Math.hypot(p.x * T - hail.x, p.y * T - hail.y) < MUZUNGU.hailMetres);
+  if (!start || rng() >= MUZUNGU.hailChance) return false;
+  const ends = places.filter((p) => MUZUNGU.endIds.includes(p.id) && open(p) && p !== start && tripMetres(hail.from, p) >= JOBS.minTripMetres);
+  if (!ends.length) return false;
+  hail.visitor = true;
+  hail.from = { ...hail.from, name: start.name, district: start.district };
+  hail.to = pick(rng, ends);
+  return true;
 }
 
 /** The state of a visitor on the bike (on the job). */

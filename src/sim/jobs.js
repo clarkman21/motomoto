@@ -1,4 +1,4 @@
-import { JOBS, WORLD, RIVALS, DISTRICTS } from '../config.js';
+import { JOBS, WORLD, RIVALS, DISTRICTS, MUZUNGU } from '../config.js';
 import { forwardSpeed } from './bike.js';
 import { round10 } from './economy.js';
 
@@ -78,7 +78,10 @@ export function makeHailJob(hail, id, fareMultiplier = 1) {
   const distanceMetres = tripMetres(hail.from, hail.to);
   const gameKm = distanceMetres / JOBS.gameKmMetres;
   const p = JOBS.passenger;
-  return { id, type: 'passenger', hail: true, from: hail.from, to: hail.to, distanceMetres, gameKm, kg: p.kg, fragile: false, pay: round10((p.base + p.perGameKm * gameKm) * fareMultiplier), age: 0 };
+  // A visitor (the muzungu) pays MUZUNGU.fareFactor times the fare.
+  const visitor = hail.visitor ? { visitor: true } : {};
+  const factor = hail.visitor ? MUZUNGU.fareFactor : 1;
+  return { id, type: 'passenger', hail: true, from: hail.from, to: hail.to, distanceMetres, gameKm, kg: p.kg, fragile: false, pay: round10((p.base + p.perGameKm * gameKm) * fareMultiplier * factor), age: 0, ...visitor };
 }
 
 /** Take a street hail: the customer is on the bike, go to the drop off. */
@@ -86,7 +89,7 @@ export function acceptHail(board, hail, bike) {
   if (board.active) return null;
   board.active = { ...makeHailJob(hail, board.nextId++, board.opts.fareMultiplier ?? 1), stage: 'toDropoff', comfort: 100, damage: 0, clean: true };
   bike.loadKg = board.active.kg;
-  bike.loadType = 'passenger';
+  bike.loadType = board.active.visitor ? 'visitor' : 'passenger';
   return board.active;
 }
 

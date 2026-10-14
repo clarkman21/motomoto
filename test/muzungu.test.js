@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { World } from '../src/world/world.js';
 import { buildKigaliMap } from '../src/world/maps/kigali.js';
-import { createJobBoard, mulberry32, makeOffer, acceptOffer, updateJob } from '../src/sim/jobs.js';
-import { maybeVisitor, stepVisitor, greeting, dropOffLines, sightNear, quietNear, VISITOR_LINES } from '../src/sim/muzungu.js';
+import { createJobBoard, mulberry32, makeOffer, acceptOffer, updateJob, acceptHail } from '../src/sim/jobs.js';
+import { maybeVisitor, maybeVisitorHail, stepVisitor, greeting, dropOffLines, sightNear, quietNear, VISITOR_LINES } from '../src/sim/muzungu.js';
 import { updateStreak, districtsForLevel } from '../src/sim/levels.js';
 import { MUZUNGU, JOBS, WORLD, STREAK } from '../src/config.js';
 import { drawBike, BIKE_LOADS } from '../src/world/sprites.js';
+import { drawWaver, VISITOR_LOOK } from '../src/world/vehicle-sprites.js';
 
 const world = new World(buildKigaliMap());
 const T = WORLD.tileMetres;
@@ -126,5 +127,46 @@ describe('the muzungu on the bike', () => {
     const wallet = { streak: 0 };
     for (let i = 0; i < MUZUNGU.streakRides; i++) updateStreak(wallet, true);
     expect(wallet.streak).toBeCloseTo(STREAK.step * 3);
+  });
+});
+
+describe('the muzungu at the roadside (a street hail)', () => {
+  const serena = world.places.find((p) => p.id === 'serena');
+  const hailAt = (x, y) => ({ id: 1, x: x * T, y: y * T, from: { name: 'Street', x, y }, to: world.places[0], look: 0 });
+  const opts = { level: 6, districts: districtsForLevel(6) };
+
+  it('a hail near a hotel can be a visitor, who goes to a place a visitor wants to see', () => {
+    const h = hailAt(serena.x + 2, serena.y);
+    expect(maybeVisitorHail(h, world.places, [h], opts, always)).toBe(true);
+    expect(h.visitor).toBe(true);
+    expect(h.from.name).toBe(serena.name);
+    expect(MUZUNGU.endIds).toContain(h.to.id);
+  });
+
+  it('not far from the hotels and landmarks, not before level 2, at most one at a time', () => {
+    const far = hailAt(29, 15); // the bus park
+    expect(maybeVisitorHail(far, world.places, [far], opts, always)).toBe(false);
+    const early = hailAt(serena.x + 2, serena.y);
+    expect(maybeVisitorHail(early, world.places, [early], { ...opts, level: 1 }, always)).toBe(false);
+    const h = hailAt(serena.x + 2, serena.y);
+    expect(maybeVisitorHail(h, world.places, [{ visitor: true }, h], opts, always)).toBe(false);
+  });
+
+  it('pays 4 times the fare and gets on the bike as a visitor', () => {
+    const board = boardAt(6);
+    const normal = hailAt(serena.x + 2, serena.y);
+    normal.to = world.places.find((p) => p.id === 'kcc');
+    const visitor = { ...normal, visitor: true };
+    const bike = { loadKg: 0 };
+    const a = acceptHail(boardAt(6), normal, { ...bike });
+    const b = acceptHail(board, visitor, bike);
+    expect(b.pay).toBeCloseTo(a.pay * MUZUNGU.fareFactor, -2);
+    expect(b.visitor).toBe(true);
+    expect(bike.loadType).toBe('visitor');
+  });
+
+  it('has a waving sprite (a sun hat and a backpack)', () => {
+    const c = drawWaver(VISITOR_LOOK);
+    expect(c.width).toBeGreaterThan(0);
   });
 });

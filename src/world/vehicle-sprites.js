@@ -546,8 +546,18 @@ export function drawWaver(look, left = false) {
   const gx = PERSON_CANVAS.groundX, gy = PERSON_CANVAS.groundY;
   if (look.kitenge !== undefined) drawMama(c, look, gx, gy, 0, 0, true);
   else drawBody(c, look, gx, gy, 0, 0, true);
+  if (look.visitor) {
+    // The muzungu: shorts (the shins show), an orange backpack and a wide sun hat.
+    for (const x of [gx - 2, gx + 2]) c.line(x, gy - 5, x, gy - 2, 2, look.skin);
+    for (let y = gy - 15; y <= gy - 9; y++) for (let x = gx - 4; x <= gx - 3; x++) c.plot(x, y, C.kOrange);
+    for (let x = gx - 3; x <= gx + 4; x++) c.plot(x, gy - 21, C.khaki);
+    for (let x = gx - 1; x <= gx + 2; x++) c.plot(x, gy - 22, C.khaki);
+  }
   return finishFigure(c, left);
 }
+
+/** The muzungu who waves for a moto at the roadside (a street hail). */
+export const VISITOR_LOOK = { shirt: C.teal, legs: C.khaki, skin: C.visitorSkin, visitor: true };
 
 // ---------------------------------------------------------------------------
 // Cyclists: slow traffic at the road edge. Variant 0: a rider; 1: a rice sack on the rack;

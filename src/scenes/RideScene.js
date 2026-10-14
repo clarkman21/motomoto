@@ -59,7 +59,7 @@ import { BatteryView } from './BatteryView.js';
 import { isRushHour, rushCounts, markRush, stepRush } from '../sim/rush.js';
 import { pickCheckpoints, stepHelmetCheck } from '../sim/checks.js';
 import { fleetRiders, planFleetDay, attachFleet, stepFleet, waitingRider, fleetDayMoney } from '../sim/fleet.js';
-import { maybeVisitor, stepVisitor, greeting, dropOffLines, sightNear, quietNear } from '../sim/muzungu.js';
+import { maybeVisitor, maybeVisitorHail, stepVisitor, greeting, dropOffLines, sightNear, quietNear, VISITOR_LINES } from '../sim/muzungu.js';
 import { dayStats, pickQuests, recordDelivery, recordFine, checkQuests, maybeMission, stepMission, missionResult, findSecret } from '../sim/missions.js';
 
 const FIXED_DT = 1 / 120; // physics step in seconds
@@ -2093,7 +2093,11 @@ export class RideScene extends Phaser.Scene {
   #updatePeople(dt) {
     const b = this.bike;
     for (const e of stepPeople(this.people, this.world, b, this.world.places, dt)) {
-      if (e.type === 'hailNew') chaseHail(this.traffic, e.hail, this.rng);
+      if (e.type === 'hailNew') {
+        // Near a hotel or a landmark, a street hail can be a muzungu (sim/muzungu.js).
+        maybeVisitorHail(e.hail, this.world.places, this.people.hails, { level: this.level.n, districts: this.level.districts }, this.rng);
+        chaseHail(this.traffic, e.hail, this.rng);
+      }
       if (e.type === 'hailGone') this.#cancelRivalsFor('hail', e.hail.id);
       if (e.type === 'nearMiss') this.#yell(e.person, e.word);
     }
@@ -2113,6 +2117,14 @@ export class RideScene extends Phaser.Scene {
     const near = (p) => Math.abs(p.x - b.x) < 12 && Math.abs(p.y - b.y) < 12;
     this.nearPeople = this.people.walkers.filter(near).concat(this.people.hails.filter(near));
     this.world.dynamicAgents = [...this.nearAgents, ...this.nearPeople, ...this.world.poles.filter((p) => !p.off && near(p))]; // p.off: a traffic light pole not in use
+    // A waving muzungu calls you when you are near.
+    for (const h of this.people.hails) {
+      if (!h.visitor || Math.hypot(h.x - b.x, h.y - b.y) > MUZUNGU.hailCallMetres) continue;
+      h.callWait = (h.callWait ?? 0) - dt;
+      if (h.callWait > 0) continue;
+      h.callWait = MUZUNGU.hailCallSeconds;
+      this.#bubble(h.x, h.y, 34, VISITOR_LINES.calls[Math.floor(this.rng() * VISITOR_LINES.calls.length)], 0xffffff, 1200);
+    }
     // A customer within reach of a stopped bike (only when you have no job).
     this.hailOffer = this.board.active ? null : hailInReach(this.people, b, Math.abs(forwardSpeed(b)));
     // People on the road are obstacles for traffic.
@@ -2154,7 +2166,10 @@ export class RideScene extends Phaser.Scene {
     h.life = 0;
     this.#cancelRivalsFor('hail', h.id);
     this.hailOffer = null;
-    this.events.emit('bark', `Street hail! Go to ${h.to.name}`);
+    if (h.visitor) {
+      this.events.emit('bark', `A muzungu! Fare ×${MUZUNGU.fareFactor}. Ride slowly past the sights for photos. Go to ${h.to.name}`);
+      this.#visitorSays(greeting(this.clockHours).map((text) => ({ who: 'visitor', text })));
+    } else this.events.emit('bark', `Street hail! Go to ${h.to.name}`);
     return true;
   }
 

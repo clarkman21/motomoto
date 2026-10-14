@@ -1,6 +1,6 @@
 import { WORLD } from '../config.js';
 import { toScreen } from '../world/iso.js';
-import { drawPerson, drawWaver, PERSON_LOOKS, PERSON_CANVAS } from '../world/vehicle-sprites.js';
+import { drawPerson, drawWaver, PERSON_LOOKS, PERSON_CANVAS, VISITOR_LOOK } from '../world/vehicle-sprites.js';
 import { packShelves } from './chunks.js';
 
 // Draws walkers and waving customers. All frames are in one atlas.
@@ -25,6 +25,7 @@ export class PeopleView {
       }
       frames.push({ name: `wave-${i}`, canvas: drawWaver(look) });
     });
+    frames.push({ name: 'wave-visitor', canvas: drawWaver(VISITOR_LOOK) });
     const { width, height, places } = packShelves(frames.map((f) => f.canvas));
     const tex = this.scene.textures.createCanvas('people', width, height);
     frames.forEach((f, i) => {
@@ -62,7 +63,7 @@ export class PeopleView {
       alive.add(h.id);
       let img = this.hailSprites.get(h.id);
       if (!img) {
-        img = this.scene.add.image(0, 0, 'people', `wave-${h.look}`).setOrigin(this.origin.ox, this.origin.oy);
+        img = this.scene.add.image(0, 0, 'people', h.visitor ? 'wave-visitor' : `wave-${h.look}`).setOrigin(this.origin.ox, this.origin.oy);
         this.hailSprites.set(h.id, img);
       }
       const s = toScreen(h.x, h.y, world.heightAt(h.x, h.y));
