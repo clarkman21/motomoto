@@ -57,7 +57,15 @@ describe('shops and street life', () => {
         expect(art.canvas.height).toBe(sign.height + Math.ceil(sign.width / 2)); // sheared 2:1
       } else {
         board++;
-        expect(art.groundY).toBe(art.canvas.height - 1); // the legs reach the ground
+        // The board is parallel to the wall (sheared 2:1), and each leg reaches the ground line under it.
+        const w = art.canvas.width, mid = art.groundX;
+        const shift = (x) => (s.sign.face === 'south' ? Math.floor(x / 2) : Math.floor((w - 1 - x) / 2));
+        expect(art.canvas.height).toBeGreaterThanOrEqual(sign.height + Math.ceil(sign.width / 2));
+        for (const lx of [3, w - 5]) {
+          let lowest = -1;
+          for (let y = 0; y < art.canvas.height; y++) if (art.canvas.data[(y * w + lx) * 4 + 3] === 255) lowest = y;
+          expect(lowest).toBe(art.groundY + shift(lx) - shift(mid));
+        }
       }
     }
     expect(wall).toBeGreaterThan(10);

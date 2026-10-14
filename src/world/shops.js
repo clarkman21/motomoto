@@ -133,24 +133,28 @@ export function shopSignArt(shop) {
   const src = sign.canvas, w = src.width, h = src.height;
   const wallPx = shop.wallTiles * (WORLD.tileMetres * 8); // a tile face is 32 screen pixels wide
   if (w <= wallPx - SHOPS.wallMarginPx) return { ...shearOnWall(src, shop.sign.face), mount: 'wall' };
-  // A board on two dark legs; the legs reach the ground.
+  // A board on two dark legs, parallel to the shop wall (Alp, 14 October 2026); the legs reach the ground.
+  const face = shop.sign.face;
+  const shift = (x) => (face === 'south' ? Math.floor(x / 2) : Math.floor((w - 1 - x) / 2));
   const legs = Math.round(SHOPS.boardLevel * 16);
-  const c = new PixelCanvas(w, h + legs);
-  for (let y = 0; y < h; y++) {
+  const board = shearOnWall(src, face).canvas;
+  const c = new PixelCanvas(w, board.height + legs);
+  for (let y = 0; y < board.height; y++) {
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4;
-      if (src.data[i + 3]) c.setPixel(x, y, (src.data[i] << 16) | (src.data[i + 1] << 8) | src.data[i + 2], src.data[i + 3]);
+      if (board.data[i + 3]) c.setPixel(x, y, (board.data[i] << 16) | (board.data[i + 1] << 8) | board.data[i + 2], board.data[i + 3]);
     }
   }
   for (const lx of [3, w - 5]) {
     for (let y = h - 1; y < h + legs; y++) {
-      c.setPixel(lx, y, 0x3a3430);
-      c.setPixel(lx + 1, y, 0x24201c);
+      c.setPixel(lx, y + shift(lx), 0x3a3430);
+      c.setPixel(lx + 1, y + shift(lx + 1), 0x24201c);
     }
-    c.setPixel(lx - 1, h + legs - 1, 0x000000, 80); // a small shadow at the foot
-    c.setPixel(lx + 2, h + legs - 1, 0x000000, 80);
+    c.setPixel(lx - 1, h + legs - 1 + shift(lx - 1), 0x000000, 80); // a small shadow at the foot
+    c.setPixel(lx + 2, h + legs - 1 + shift(lx + 2), 0x000000, 80);
   }
-  return { canvas: c, groundX: Math.floor(w / 2), groundY: h + legs - 1, mount: 'board' };
+  const mid = Math.floor(w / 2);
+  return { canvas: c, groundX: mid, groundY: h + legs - 1 + shift(mid), mount: 'board' };
 }
 
 /**

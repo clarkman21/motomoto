@@ -143,41 +143,64 @@ export function drawOilDrum() {
   return c;
 }
 
-/**
- * A sign for a landmark building. kind 'roof': big letters (retro font) on a dark panel, for the roof
- * of a tower. kind 'wall': a blue board with white letters (and a second line), for the front wall
- * of an office, a school or a market. Returns { canvas, groundX, groundY } (the bottom centre).
- */
-export function drawBuildingSign(text, line2 = '', kind = 'wall') {
-  if (kind === 'roof') {
-    const w = retroWidth(text) + 8, h = 13;
-    const c = new PixelCanvas(w + 2, h + 6);
-    for (let y = 1; y <= h; y++) for (let x = 1; x <= w; x++) c.setPixel(x, y, y === 1 || y === h ? 0x5a5e62 : 0x14181c);
-    drawRetroText(c, text, 5, 4, 0xf6f5ec, 0x2a3a4a);
-    for (const px of [3, w - 2]) for (let y = h + 1; y <= h + 5; y++) c.setPixel(px, y, 0x5a5e62); // the frame on the roof
-    return { canvas: c, groundX: (w + 2) / 2, groundY: h + 5 };
-  }
-  if (kind === 'brand') {
-    // Ampersand: black board, big Surge Yellow letters (the retro font), white second line.
-    const w = Math.max(retroWidth(text), textWidth(line2)) + 10, h = line2 ? 20 : 13;
-    const c = new PixelCanvas(w + 2, h + 2);
-    for (let y = 1; y <= h; y++) for (let x = 1; x <= w; x++) c.setPixel(x, y, y === 1 || y === h || x === 1 || x === w ? COLOURS.ampersandYellow : 0x0a0a0a);
-    drawRetroText(c, text, Math.round((w + 2 - retroWidth(text)) / 2) + 1, 3, COLOURS.ampersandYellow, 0x3a3200);
-    if (line2) drawText(c, line2, Math.round((w + 2 - textWidth(line2)) / 2), 13, 0xffffff);
-    c.outline(0x161616);
-    return { canvas: c, groundX: (w + 2) / 2, groundY: h + 1 };
-  }
-  const w = Math.max(textWidth(text), textWidth(line2)) + 8;
-  const h = line2 ? 16 : 10;
-  const c = new PixelCanvas(w + 2, h + 2);
-  for (let y = 1; y <= h; y++) for (let x = 1; x <= w; x++) c.setPixel(x, y, y === 1 || y === h || x === 1 || x === w ? 0xe8e8f0 : 0x1f4f9a);
-  drawText(c, text, Math.round((w + 2 - textWidth(text)) / 2), 3, 0xffffff);
-  if (line2) drawText(c, line2, Math.round((w + 2 - textWidth(line2)) / 2), 9, 0xf2c94c);
-  c.outline(0x161616);
-  return { canvas: c, groundX: (w + 2) / 2, groundY: h + 1 };
-}
-
 const retroWidth = (text) => text.length * 6;
+
+/**
+ * A building sign flat on its wall (Alp, 14 October 2026: "they should face the direction of the
+ * building"). The board is sheared 2:1 to lie on the wall (face 'south': down to the right; 'east': down to
+ * the left). Each letter stays upright and steps down with the wall, so the name stays readable.
+ * kind: 'wall' (a blue board), 'brand' (Ampersand: black with Surge Yellow) or 'roof' (the big dark name
+ * of a tower or a hotel, high on its front wall). maxWidth: the width of the wall in pixels; on a long
+ * wall a 'wall' sign uses the big font. Returns { canvas, groundX, groundY, boardHeight }: groundX, groundY is
+ * the bottom middle of the board.
+ */
+export function drawWallSign(text, line2 = '', kind = 'wall', face = 'south', maxWidth = Infinity) {
+  const look = {
+    wall: { board: 0x1f4f9a, rim: 0xe8e8f0, ink: 0xffffff, shadow: 0x0f2a5a, ink2: 0xf2c94c },
+    brand: { board: 0x0a0a0a, rim: COLOURS.ampersandYellow, ink: COLOURS.ampersandYellow, shadow: 0x3a3200, ink2: 0xffffff },
+    roof: { board: 0x14181c, rim: 0x5a5e62, ink: 0xf6f5ec, shadow: 0x2a3a4a, ink2: 0xc8ccd0 },
+  }[kind] ?? null;
+  const L = look ?? { board: 0x1f4f9a, rim: 0xe8e8f0, ink: 0xffffff, shadow: 0x0f2a5a, ink2: 0xf2c94c };
+  // The big font for the brand and roof names, and for a wall name when the wall is long enough.
+  const big = kind !== 'wall' || retroWidth(text) + 12 <= maxWidth;
+  const w1 = big ? retroWidth(text) : textWidth(text);
+  const w = Math.max(w1, line2 ? textWidth(line2) : 0) + 10;
+  const top = 4, h = (big ? 9 : 5) + (line2 ? (big ? 8 : 7) : 0) + 2 * top;
+  const W = w + 2, shiftAt = (x) => (face === 'east' ? Math.floor((W - 1 - x) / 2) : Math.floor(x / 2));
+  const c = new PixelCanvas(W, h + 2 + Math.ceil(W / 2) + 1);
+  for (let y = 1; y <= h; y++) for (let x = 1; x <= w; x++) {
+    c.setPixel(x, y + shiftAt(x), y === 1 || y === h || x === 1 || x === w ? L.rim : L.board);
+  }
+  // The letters: each one upright, moved down by the shear at its middle.
+  const glyphs = [];
+  let x = Math.round((W - w1) / 2);
+  for (const ch of text.toUpperCase()) {
+    const gw = big ? 6 : glyphWidth(ch) + 1;
+    glyphs.push({ ch, x, y: top, big, ink: L.ink, gw });
+    x += gw;
+  }
+  if (line2) {
+    x = Math.round((W - textWidth(line2)) / 2);
+    for (const ch of line2.toUpperCase()) {
+      const gw = glyphWidth(ch) + 1;
+      glyphs.push({ ch, x, y: top + (big ? 11 : 7), big: false, ink: L.ink2, gw });
+      x += gw;
+    }
+  }
+  for (const g of glyphs) {
+    const tmp = new PixelCanvas(8, 10);
+    if (g.big) drawRetroText(tmp, g.ch, 0, 0, g.ink, L.shadow);
+    else drawText(tmp, g.ch, 0, 0, g.ink);
+    const dy = shiftAt(Math.round(g.x + g.gw / 2 - 0.5));
+    for (let j = 0; j < tmp.height; j++) for (let i = 0; i < tmp.width; i++) {
+      const k = (j * tmp.width + i) * 4;
+      if (tmp.data[k + 3]) c.setPixel(g.x + i, g.y + j + dy, (tmp.data[k] << 16) | (tmp.data[k + 1] << 8) | tmp.data[k + 2]);
+    }
+  }
+  c.outline(0x161616);
+  const gx = Math.floor(W / 2);
+  return { canvas: c, groundX: gx, groundY: h + 1 + shiftAt(gx), boardHeight: h + 2 };
+}
 
 /**
  * The price sign of a fuel station: a blue panel on a tall pole, with the brand name in big yellow

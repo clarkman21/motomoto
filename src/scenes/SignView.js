@@ -2,7 +2,7 @@ import { WORLD, COLLISION, CITY_ANIM } from '../config.js';
 import { hash2 } from '../world/pixel-canvas.js';
 import { BUILDING_STYLES } from '../world/world.js';
 import { toScreen } from '../world/iso.js';
-import { drawBuildingSign, drawFuelSign } from '../world/garage-sprites.js';
+import { drawWallSign, drawFuelSign } from '../world/garage-sprites.js';
 import { FUEL_BRAND, flagSpots, drawFlagCloth, fountainSpots, drawFountainSpray, SPRAY } from '../world/sprites.js';
 import { addCanvasTexture, placeOnPixels } from './textures.js';
 import { groupKey } from './chunks.js';
@@ -26,32 +26,49 @@ export class SignView {
       const blocks = world.blocks.filter((b) => b.tx >= lm.x0 && b.tx <= lm.x1 && b.ty >= lm.y0 && b.ty <= lm.y1);
       if (!blocks.length) continue;
       const top = Math.max(...blocks.map((b) => b.topLevel));
-      const roof = BUILDING_STYLES[lm.style] === 'tower' || BUILDING_STYLES[lm.style] === 'hotel'; // towers and hotels: the name on the roof
-      const sign = drawBuildingSign(lm.sign, lm.sign2 ?? '', roof ? 'roof' : lm.brand ? 'brand' : 'wall');
+      const roof = BUILDING_STYLES[lm.style] === 'tower' || BUILDING_STYLES[lm.style] === 'hotel'; // towers and hotels: the big name high up
+      // All the signs lie flat on the front (south) wall, sheared to the wall (Alp, 14 October 2026).
+      const wallPx = (lm.x1 - lm.x0 + 1) * T * 8; // a tile face is 32 screen pixels wide
+      const sign = drawWallSign(lm.sign, lm.sign2 ?? '', roof ? 'roof' : lm.brand ? 'brand' : 'wall', 'south', wallPx - 8);
       const key = `sign-${lm.x0}-${lm.y0}`;
       if (!scene.textures.exists(key)) addCanvasTexture(scene, key, sign.canvas);
-      // A tower: on the roof near the front edge. Others: on the front (south) wall, under the roof edge.
-      const wx = ((lm.x0 + lm.x1 + 1) / 2) * T;
-      const wy = roof ? (lm.y1 + 0.8) * T : (lm.y1 + 1) * T;
-      const z = (roof ? top : top - 0.3) * L;
-      const p = toScreen(wx, wy, z);
-      const img = placeOnPixels(scene.add.image(0, 0, key), p, sign.groundX, sign.groundY)
-        .setDepth(roof ? lm.x1 + lm.y1 + 2.2 : (lm.x0 + lm.x1 + 1) / 2 + lm.y1 + 1.6);
+      // The middle of the front wall; the top of the board stays a little under the roof edge.
+      const wx = ((lm.x0 + lm.x1 + 1) / 2) * T, wy = (lm.y1 + 1) * T;
+      const boardLevels = sign.boardHeight / WORLD.levelPx;
+      const z = (top - 0.25 - boardLevels) * L;
       const keys = new Set(blocks.map(groupKey));
-      this.items.push({ img, keys });
+      const imgs = this.#onWall(scene, key, sign, lm, toScreen(wx, wy, z), keys);
       if (roof) {
-        img.noAmbient = true; // the tower names shine at night (you see them from far away)
-        // The roof is far up: a second sign over the entrance, so you can read the name near the tower.
-        const door = drawBuildingSign(lm.sign, lm.sign2 ?? '', 'wall');
+        for (const img of imgs) img.noAmbient = true; // the tower names shine at night (you see them from far away)
+        // The name is far up: a second sign over the entrance, so you can read the name near the tower.
+        const door = drawWallSign(lm.sign, lm.sign2 ?? '', 'wall', 'south', wallPx - 8);
         const doorKey = `${key}-door`;
         if (!scene.textures.exists(doorKey)) addCanvasTexture(scene, doorKey, door.canvas);
         const base = Math.min(...blocks.map((b) => b.floorLevel ?? b.baseLevel));
-        const q = toScreen(wx, (lm.y1 + 1) * T, (base + 2.6) * L);
-        const doorImg = placeOnPixels(scene.add.image(0, 0, doorKey), q, door.groundX, door.groundY)
-          .setDepth((lm.x0 + lm.x1 + 1) / 2 + lm.y1 + 1.6);
-        this.items.push({ img: doorImg, keys });
+        this.#onWall(scene, doorKey, door, lm, toScreen(wx, wy, (base + 1.4) * L), keys);
       }
     }
+  }
+
+  /**
+   * A sign on the front (south) wall of a landmark: one image slice for each tile of the wall, each with the
+   * depth of its tile, so that no part of the sign goes under the building (the blocks sort by tile).
+   */
+  #onWall(scene, key, sign, lm, p, keys) {
+    const T = WORLD.tileMetres, tilePx = T * 8; // a tile face is 32 screen pixels wide
+    const x0 = Math.round(p.x - sign.groundX), y0 = Math.round(p.y - sign.groundY);
+    const wallLeft = toScreen(lm.x0 * T, (lm.y1 + 1) * T).x;
+    const imgs = [];
+    for (let tx = lm.x0; tx <= lm.x1; tx++) {
+      const from = Math.max(0, Math.round(wallLeft + (tx - lm.x0) * tilePx) - x0);
+      const to = tx === lm.x1 ? sign.canvas.width : Math.min(sign.canvas.width, Math.round(wallLeft + (tx + 1 - lm.x0) * tilePx) - x0);
+      const left = tx === lm.x0 ? 0 : from;
+      if (to <= left) continue;
+      const img = scene.add.image(x0, y0, key).setOrigin(0).setCrop(left, 0, to - left, sign.canvas.height).setDepth(tx + lm.y1 + 1.6);
+      this.items.push({ img, keys });
+      imgs.push(img);
+    }
+    return imgs;
   }
 
   /** The SP price sign at the corner of each fuel station (the tile at the far end of the pumps). */
