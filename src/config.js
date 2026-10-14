@@ -1007,8 +1007,7 @@ export const RADIO = {
 
 // The minimal HUD (Alp, 14 October 2026): when a part shows (see HudScene.js).
 export const HUD_RULES = {
-  // The fuel or battery bar, the service bar and (medium and hard modes) the food bar always show.
-  wcFrom: 0.5, // the WC bar shows from this much (hard mode)
+  // The fuel or battery bar, the service bar, the food bar (medium and hard) and the WC bar (hard) always show.
   messageSeconds: 3, // a message stays this long, then fades
   districtSeconds: 2, // the district name stays this long when you ride into a district
 };
