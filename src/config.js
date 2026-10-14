@@ -189,6 +189,15 @@ export const COLOURS = {
   ampersandYellow: 0xfcdc04, // Surge Yellow
   ampersandBlack: 0x000000, // Eerie Black
   ebonyGrey: 0x5c5c5e,
+  // The swap stations (design canvas "Ampersand swap stations"): the darker tones of Surge Yellow for the
+  // ribs, rails and the dark face; the charge lights; the uniform blue of the station staff (a guess, not
+  // the police blue).
+  ampersandYellowMid: 0xd9bd03,
+  ampersandYellowDark: 0xab9603,
+  chargeGreen: 0x44bc9d,
+  chargeRed: 0xec5825,
+  ampersandBlue: 0x22408a,
+  ampersandBlueDark: 0x162b5e,
   // MTN MoMo agents: MTN yellow and a dark blue. This yellow is more orange than Surge Yellow, so the
   // two do not mix up (Surge Yellow is only for Ampersand).
   mtnYellow: 0xffc20e,
@@ -322,6 +331,7 @@ export const MONEY = {
   fuelQueueMaxSeconds: 8, // random queue 0..8 s — guess
   swapFee: 2500, // spec: flat fee, whatever charge is left in the old battery
   swapSeconds: 15, // spec
+  cabinetSeconds: 8, // a swap cabinet: you swap the battery yourself (design canvas "Ampersand swap stations"; a guess)
   repairs: { wall: 800 }, // a crash costs money at once; potholes and bumps add wear instead (see MAINTENANCE) — guess
   minFuelCash: 10, // the smallest amount of fuel you can buy
 };

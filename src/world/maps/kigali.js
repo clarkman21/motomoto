@@ -219,17 +219,17 @@ export function buildKigaliMap(seed = 7) {
 
   // Stations and garages (2 tiles each, beside a road). facing: the side of the road.
   const places = [];
-  const station = (x, y, c, facing, name, sign) => {
-    set(x, y, c);
-    set(x + 1, y, c);
-    reserve(x - 1, y - 1, x + 2, y + 1);
+  // n: the tiles along x (3 for the 40 ft container of a swap hub).
+  const station = (x, y, c, facing, name, sign, n = 2) => {
+    for (let i = 0; i < n; i++) set(x + i, y, c);
+    reserve(x - 1, y - 1, x + n, y + 1);
     const tag = { F: 'fuel', S: 'swap', G: 'garage' }[c];
-    const p = { north: { x: x + 1, y: y - 0.6 }, south: { x: x + 1, y: y + 1.6 }, west: { x: x - 0.6, y: y + 0.5 }, east: { x: x + 2.6, y: y + 0.5 } }[facing];
+    const p = { north: { x: x + n / 2, y: y - 0.6 }, south: { x: x + n / 2, y: y + 1.6 }, west: { x: x - 0.6, y: y + 0.5 }, east: { x: x + n + 0.6, y: y + 0.5 } }[facing];
     places.push({ id: `${tag}-${x}-${y}`, name, ...p, tags: [tag], ...(sign ? { sign } : {}) });
   };
   station(46, 22, 'F', 'north', 'Nyabugogo fuel');
   station(20, 40, 'F', 'west', 'Gakinjiro fuel');
-  station(38, 14, 'S', 'east', 'Ampersand swap, Nyabugogo');
+  station(37, 14, 'S', 'east', 'Ampersand hub, Nyabugogo', undefined, 3); // a 40 ft container: the busiest station
   station(20, 24, 'G', 'west', 'Kazi ni Kazi garage', 'KAZI NI KAZI'); // Swahili: "work is work"
   station(12, 98, 'F', 'north', 'Town fuel');
   station(34, 98, 'S', 'north', 'Ampersand swap, town');
@@ -242,6 +242,15 @@ export function buildKigaliMap(seed = 7) {
   station(146, 86, 'F', 'north', 'Gikondo fuel');
   station(180, 98, 'S', 'north', 'Ampersand swap, Kicukiro');
   station(180, 108, 'G', 'north', 'Sonatubes moto garage', 'SONATUBES');
+  // Ampersand swap cabinets (design canvas "Ampersand swap stations"): a small cabinet beside a fuel station,
+  // on the free tile east of it, with the road to the north. No attendant: you swap the battery yourself.
+  const cabinet = (x, y, name) => {
+    const cx = x + 2.3, cy = y + 0.35;
+    places.push({ id: `swap-cab-${x}-${y}`, name, x: cx, y: y - 0.6, tags: ['swap'], cabinet: { x: cx, y: cy } });
+  };
+  cabinet(12, 98, 'Ampersand cabinet, Town fuel');
+  cabinet(88, 98, 'Ampersand cabinet, Kimihurura fuel');
+  cabinet(162, 98, 'Ampersand cabinet, Sonatubes fuel');
   // A garage in every district, so a breakdown is never far from help (Alp). The names are inventions.
   station(17, 98, 'G', 'north', 'Umurimo moto garage', 'UMURIMO'); // Kinyarwanda: "work"
   station(86, 45, 'G', 'west', 'Kacyiru moto care', 'MOTO CARE');

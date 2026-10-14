@@ -49,7 +49,7 @@ export class AttendantView {
     if (kind && !this.state) {
       // A new fill up or swap: the attendant comes out.
       const place = ride.stationPlace;
-      if (!place) return;
+      if (!place || place.cabinet) return; // a swap cabinet has no attendant: you swap the battery yourself
       this.kind = kind;
       this.home = this.#home(place, kind);
       this.pos = { ...this.home };

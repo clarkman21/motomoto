@@ -39,6 +39,7 @@ import { BarrierView } from './BarrierView.js';
 import { GarageView } from './GarageView.js';
 import { MarketView } from './MarketView.js';
 import { AttendantView } from './AttendantView.js';
+import { CabinetView } from './CabinetView.js';
 import { PoliceView } from './PoliceView.js';
 import { SignView } from './SignView.js';
 import { daylight } from '../sim/daylight.js';
@@ -156,6 +157,7 @@ export class RideScene extends Phaser.Scene {
     this.hq = null; // the Ampersand HQ mission (sim/hq.js), at the start of level 5
     this.hqView = new HqView(this, this.world); // the HQ yard in Gikondo: Alphas, the track, the staff
     this.foodSigns = new FoodSignView(this, this.world); // food signs over the food stops (medium and hard)
+    this.cabinets = new CabinetView(this, this.world); // the Ampersand swap cabinets beside some fuel stations
     // Shops and street life (world/shops.js): painted shop signs, boutique mannequins, and shops as job places.
     this.shops = shopFronts(this.world);
     // The building painter draws the inside of each shop by its kind (world/sprites.js); the chunks are drawn later.
@@ -537,7 +539,8 @@ export class RideScene extends Phaser.Scene {
     }
     if (this.bike.energy > 0.97) return { ok: false, text: 'The battery is full.' };
     if (this.wallet.cash < MONEY.swapFee) return { ok: false, text: `A swap costs ${MONEY.swapFee.toLocaleString('en')} RWF. Not enough cash.` };
-    return { ok: true, text: `F: Swap battery (${MONEY.swapFee.toLocaleString('en')} RWF, ${MONEY.swapSeconds} s)` };
+    const secs = this.stationPlace?.cabinet ? MONEY.cabinetSeconds : MONEY.swapSeconds;
+    return { ok: true, text: `F: Swap battery (${MONEY.swapFee.toLocaleString('en')} RWF, ${secs} s)` };
   }
 
   /** At the Ampersand HQ in Gikondo, when no mission waits (the mission has its own prompts, see #hqOffer). */
@@ -713,7 +716,7 @@ export class RideScene extends Phaser.Scene {
     }
     const total =
       this.station === 'fuel' ? MONEY.fuelSeconds + Math.random() * MONEY.fuelQueueMaxSeconds :
-      this.station === 'garage' ? MAINTENANCE.serviceSeconds : MONEY.swapSeconds;
+      this.station === 'garage' ? MAINTENANCE.serviceSeconds : this.stationPlace?.cabinet ? MONEY.cabinetSeconds : MONEY.swapSeconds;
     this.refuel = { kind: this.station, timeLeft: total, total };
     this.#passengerAtStop();
   }
@@ -1051,8 +1054,11 @@ export class RideScene extends Phaser.Scene {
         this.foodStop = f;
       }
     }
+    // A swap cabinet stands beside a fuel station: the kind that fits your moto comes first.
+    const fits = (kind) => (kind === 'fuel' ? b.type !== 'electric' : kind === 'swap' ? b.type === 'electric' : true);
     for (const kind of ['fuel', 'swap', 'garage', 'office']) {
       for (const p of this.world.placesWithTag(kind)) {
+        if (this.station && !fits(kind) && kind !== 'garage' && kind !== 'office') continue;
         if (this.#atStation(kind, p)) {
           this.station = kind;
           this.stationPlace = p;
@@ -1722,6 +1728,7 @@ export class RideScene extends Phaser.Scene {
     this.garages.update(this.time.now);
     this.markets.update(this.time.now);
     this.attendant.update(this, dt, this.time.now);
+    this.cabinets.update(this);
     this.#updatePolice(dt);
     this.#updateUmuganda(dt);
     this.#updateStreetEvents(dt);

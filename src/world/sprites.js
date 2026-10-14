@@ -1146,7 +1146,6 @@ function drawMonument(c, block, pt, world) {
 // Stations
 // ---------------------------------------------------------------------------
 
-/** Fuel station (white and red) or Ampersand swap station (Surge Yellow, black, battery bays). */
 // A fuel station: a white canopy on thin pillars with a red fascia, pumps on a concrete island
 // under it, a small shop with a glass front, and a tall price sign. Two tiles: the first tile
 // (smaller x + y) has the shop, the second has the pumps and the sign.
@@ -1209,32 +1208,119 @@ function drawFuelStation(c, block, pt, world, glow) {
     { east: !isFuel(tx + 1, ty), south: !isFuel(tx, ty + 1) });
 }
 
+// An Ampersand swap station (design canvas "Ampersand swap stations"): a shipping container painted
+// Surge Yellow, 20 ft (6 m, on 2 tiles) or 40 ft at a hub (12 m, on 3 tiles). The long side has an
+// opening (two at a hub) with its steel doors open flat against the wall. Inside: a dark room, a lamp
+// and two shelves of yellow batteries with black tops; a green light = charged, red = charging. The
+// name AMPERSAND is painted in black on a clean band at the top. The camera sees only the south and the
+// east faces, so the opening is on the south side. Each tile draws its own part of the container.
+const SW = {
+  Y: COLOURS.ampersandYellow, y: COLOURS.ampersandYellowMid, z: COLOURS.ampersandYellowDark,
+  k: 0x000000, g: COLOURS.ebonyGrey, a: 0x9e9e9e, w: 0xf6f5ec, S: 0x2c2c32, s: 0x1e1e22,
+  l: COLOURS.chargeGreen, r: COLOURS.chargeRed,
+};
+const SWAP_HEIGHT = 2.6 / WORLD.levelMetres; // a container is 2.6 m high
 function drawStation(c, block, pt, world, glow) {
-  const { tx, ty, baseLevel, topLevel } = block;
-  const swap = block.kind === 'swap';
-  const wall = swap ? COLOURS.ampersandYellow : 0xf0efe6;
-  const band = swap ? 0x111111 : 0xc0392b;
-  const wallShade = (k) => (along, z, px, py) => {
-    const zl = z - baseLevel;
-    let col = wall;
-    if (topLevel - z < 0.45) col = band; // sign band at the top
-    else if (zl < 0.15) col = shadeColour(wall, 0.7);
-    else if (swap) {
-      // Battery bays: dark slots with a green charge light.
-      const a = (along * 4) % 1;
-      if (zl > 0.3 && zl < 1.2 && a > 0.2 && a < 0.8) col = zl > 1.0 && a > 0.45 && a < 0.55 ? 0x44bc9d : 0x1a1a1a;
-    } else {
-      // Fuel station: a dark door and a pump in front of each tile.
-      const a = (along * 2) % 1;
-      if (zl > 0.15 && zl < 1.1 && a > 0.35 && a < 0.65) col = 0x3a3f44;
+  const { tx, ty } = block;
+  const base = block.floorLevel ?? block.baseLevel;
+  const isSwap = (x) => world.blockAt(x, ty)?.kind === 'swap';
+  let start = tx;
+  while (isSwap(start - 1)) start--;
+  let n = 1;
+  while (isSwap(start + n)) n++;
+  const hub = n >= 3;
+  const len = hub ? 2.95 : 1.5; // tiles
+  const X0 = start + n / 2 - len / 2, X1 = X0 + len, Y0 = ty + 0.2, Y1 = ty + 0.8;
+  const lenM = len * WORLD.tileMetres;
+  // The concrete pad.
+  const pad = (k) => () => shadeColour(0x9a968c, k);
+  drawBox(c, tx + (isSwap(tx - 1) ? 0 : 0.02), ty + 0.06, tx + (isSwap(tx + 1) ? 1 : 0.98), ty + 0.94, base - 0.02, base + 0.05, pt, () => 0xb8b4aa, pad(0.8), pad(0.9),
+    { east: !isSwap(tx + 1), south: true });
+  const x0 = Math.max(X0, tx), x1 = Math.min(X1, tx + 1);
+  if (x1 <= x0) return;
+  const zb = base + 0.05, zt = zb + SWAP_HEIGHT;
+  const openings = hub ? [1.4, 7.2] : [1.4]; // metres from the west end; each is 3.4 m wide
+  const lit = (col) => col === SW.Y || col === SW.y || col === SW.z || col === SW.w || col === SW.l || col === SW.r;
+  // The long (south) face: m metres from the west end, h metres above the ground.
+  const south = (k) => (u, v, px, py) => {
+    const m = (u - X0) * WORLD.tileMetres, h = (v - zb) * WORLD.levelMetres;
+    let col = SW.Y;
+    const rib = (m / 0.375) % 1 < 0.34;
+    if (h < 0.12) col = SW.z; // the bottom rail
+    else if (h > 2.5) col = SW.y; // the top rail
+    else if (m < 0.2 || m > lenM - 0.2) col = (h < 0.3 || h > 2.3) ? SW.g : SW.y; // the corner posts and castings
+    else if (h > 1.8) col = SW.Y; // the clean band for the name
+    else {
+      col = rib ? SW.y : SW.Y;
+      for (const o of openings) {
+        const i = m - o; // metres into the opening
+        if (i >= -0.8 && i < -0.1 || i >= 3.5 && i < 4.2) {
+          // The two door leaves, open flat against the wall: a dark frame, a mid panel and a locking bar.
+          const d = i < 0 ? i + 0.8 : i - 3.5;
+          col = h < 0.2 || h > 1.7 || d < 0.08 || d > 0.62 ? SW.z : Math.abs(d - 0.35) < 0.07 ? SW.g : SW.y;
+        } else if (i >= -0.1 && i < 3.5) {
+          if (i < 0 || i >= 3.4 || h > 1.7) col = SW.z; // the frame of the opening
+          else if (h < 0.3) col = SW.s; // the floor
+          else if (h > 1.55 && Math.abs(i - 1.7) < 0.4) col = SW.w; // the lamp
+          else {
+            col = SW.S; // the back wall
+            for (const shelf of [0.35, 1.0]) {
+              if (h >= shelf && h < shelf + 0.1) col = SW.g;
+              else if (h >= shelf + 0.1 && h < shelf + 0.6 && i > 0.15 && i < 3.25) {
+                const slot = Math.floor((i - 0.15) / 0.5), s = (i - 0.15) % 0.5;
+                if (s < 0.375 && (slot * 7 + Math.round(shelf * 10) + Math.round(o)) % 9 !== 0) { // an empty slot: that battery is out with a rider
+                  col = h > shelf + 0.48 ? SW.k : SW.Y;
+                  if (h > shelf + 0.48 && s > 0.12 && s < 0.25) col = (slot + Math.round(shelf * 10)) % 4 === 0 ? SW.r : SW.l;
+                }
+              }
+            }
+          }
+        }
+      }
     }
-    // At night the station is lit: the walls and the sign band shine (not the dark parts).
-    if (glow && col !== 0x1a1a1a && col !== 0x3a3f44 && col !== 0x111111) glow.setPixel(px, py, shadeColour(col, k), 230);
+    if (glow && (col === SW.w || col === SW.l || col === SW.r)) glow.setPixel(px, py, col, 255);
+    else if (glow && lit(col) && h > 1.8) glow.setPixel(px, py, shadeColour(col, k), 170); // the lit name band
     return shadeColour(col, k);
   };
-  const roof = swap ? 0x111111 : 0x7a7a7a;
-  const roofShade = (u, v, px, py) => (hash2(px + c.ox, py + c.oy, 4) > 0.9 ? shadeColour(roof, 1.15) : roof);
-  drawBox(c, tx, ty, tx + 1, ty + 1, baseLevel, topLevel, pt, roofShade, wallShade(0.72), wallShade(0.88), visibleFaces(block, world));
+  // The east end: the two closed end doors with four locking bars.
+  const east = (k) => (u, v) => {
+    const w = (u - Y0) * WORLD.tileMetres, h = (v - zb) * WORLD.levelMetres;
+    let col = SW.Y;
+    if (h < 0.12) col = SW.z;
+    else if (h > 2.5) col = SW.y;
+    else if (w < 0.15 || w > 2.25) col = (h < 0.3 || h > 2.3) ? SW.g : SW.y;
+    else if (Math.abs(w - 1.2) < 0.04) col = SW.z; // the gap between the doors
+    else if ([0.45, 0.85, 1.55, 1.95].some((b) => Math.abs(w - b) < 0.05)) col = SW.g; // the locking bars
+    return shadeColour(col, k);
+  };
+  const top = (u) => {
+    const m = (x0 + u * (x1 - x0) - X0) * WORLD.tileMetres;
+    return (m / 0.5) % 1 < 0.25 ? SW.y : SW.Y; // the ribs of the roof
+  };
+  drawBox(c, x0, Y0, x1, Y1, zb, zt, pt, top, east(0.72), south(0.92), { east: x1 >= X1 - 1e-6, south: true });
+  // The name, in black on the band: placed for the whole container; each tile draws its own part.
+  const name = 'AMPERSAND';
+  const A = pt(X0, Y1, zb + 2.42 / WORLD.levelMetres), B = pt(X1, Y1, zb + 2.42 / WORLD.levelMetres);
+  const tw = textWidth(name), gap = hub ? 3 : 1; // the hub has wider letter spacing
+  const fullW = tw + (name.length - 1) * (gap - 1);
+  const sx0 = Math.round(A.x + (B.x - A.x - fullW) / 2);
+  const left = pt(x0, Y1, zb).x, right = pt(x1, Y1, zb).x;
+  const slope = (B.y - A.y) / (B.x - A.x);
+  // Each letter stays upright (a sheared 3 px letter breaks up); the letters step down along the wall.
+  let cx = sx0;
+  for (const ch of name) {
+    const tmp = new PixelCanvas(6, 6);
+    drawText(tmp, ch, 0, 0, 0x000000);
+    const sy = Math.floor(A.y + (cx + textWidth(ch) / 2 - A.x) * slope);
+    for (let j = 0; j < 6; j++) for (let i = 0; i < 6; i++) {
+      if (!tmp.alphaAt(i, j)) continue;
+      const sx = cx + i;
+      if (sx < left || sx >= right) continue;
+      c.plot(sx, sy + j, 0x000000);
+      glow?.plot(sx, sy + j, 0x000000, 0); // the letters stay dark on the lit band at night
+    }
+    cx += textWidth(ch) + gap;
+  }
 }
 
 // ---------------------------------------------------------------------------
