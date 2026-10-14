@@ -1,4 +1,4 @@
-import { BIKES, PHYSICS, HAZARDS, WORLD, GEARBOX, BRAKES, LOAD, FUEL, COLLISION, SURFACES, STORY } from '../config.js';
+import { BIKES, PHYSICS, HAZARDS, WORLD, GEARBOX, BRAKES, LOAD, FUEL, COLLISION, SURFACES, STORY, WET_MURRAM } from '../config.js';
 import { wrapAngle } from '../world/iso.js';
 import { addWear, rideWearKm, hitWearKm, powerFactor, energyFactor, brakeFactor } from './maintenance.js';
 import { collideBike } from './collide.js';
@@ -233,6 +233,26 @@ export function stepBike(bike, input, world, dt) {
   const mods = bike.mods; // parts and upgrades from the garage (sim/shop.js), or undefined
   const grip = surface.grip + (mods && surface === SURFACES.murramWet ? mods.wetGrip : 0);
   lateral *= Math.exp(-PHYSICS.lateralGripRate * grip * dt);
+  // Wet murram: a fast turn makes the rear slide out; a hard turn at speed, held, makes the bike fall.
+  if (surface === SURFACES.murramWet && !crashed) {
+    const omega = clamp(input.steer, -1, 1) * turnRate * Math.sign(v || 1);
+    const load = Math.abs(v * omega); // m/s²
+    const better = 1 + (mods?.wetGrip ?? 0) * 2;
+    const slideAt = WET_MURRAM.slideMs2 * better, fallAt = WET_MURRAM.fallMs2 * better;
+    if (load > slideAt) {
+      // The turn centre is on the side of the turn: the bike slides out, to the other side.
+      lateral -= Math.sign(v * omega) * (load - slideAt) * WET_MURRAM.slideKick * dt;
+      if (!(bike.sliding > 0)) events.push({ type: 'slide' });
+      bike.sliding = 0.3;
+    }
+    bike.slipTime = load > fallAt ? (bike.slipTime ?? 0) + dt : 0;
+    if (bike.slipTime >= WET_MURRAM.fallSeconds) {
+      bike.slipTime = 0;
+      bike.crashed = COLLISION.crashSeconds;
+      events.push({ type: 'crash', speed: Math.abs(v), hit: null, slip: true });
+    }
+  } else bike.slipTime = 0;
+  bike.sliding = Math.max(0, (bike.sliding ?? 0) - dt);
 
   bike.vx = fwdX * v + rightX * lateral;
   bike.vy = fwdY * v + rightY * lateral;

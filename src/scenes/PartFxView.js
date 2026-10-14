@@ -6,7 +6,7 @@ import { toScreen } from '../world/iso.js';
 // under it), whole pixels only, nothing drawn when nothing plays. Only your bike has these effects.
 
 const BIKE_SCALE = 1.25; // as in drawBike (world/sprites.js)
-const C = { gold: 0xffc85a, white: 0xffffff, orange: 0xf08a24, mint: 0x7fe0b8, green: 0x58c040, blue: 0x4ab0ff, sky: 0x7fd0ff, pink: 0xe8a0b8, cream: 0xe8ecf2, net: 0xe07a2a, ink: 0x161616, mud: 0x5a3a24, water: 0x9fc8e8 };
+const C = { gold: 0xffc85a, white: 0xffffff, orange: 0xf08a24, mint: 0x7fe0b8, green: 0x58c040, blue: 0x4ab0ff, sky: 0x7fd0ff, pink: 0xe8a0b8, cream: 0xe8ecf2, net: 0xe07a2a, ink: 0x161616, mud: 0x5a3a24, water: 0x9fc8e8, dust: 0xc9a26e };
 // Small pixel icons ('#' = a pixel), drawn with a dark outline.
 const ICONS = {
   shield: ['#####', '#...#', '#.#.#', '#...#', '.#.#.', '..#..'],
@@ -32,6 +32,7 @@ export class PartFxView {
     this.marks = []; // tread marks on the ground: { x, y, life }
     this.markMetres = 0;
     this.sprayTimer = 0;
+    this.dustTimer = 0;
     this.beat = -1;
     this.idle = true;
   }
@@ -51,7 +52,7 @@ export class PartFxView {
       p = {};
       this.pool.push(p);
     }
-    Object.assign(p, { on: true, rel: true, vx: 0, vy: 0, g: 0, delay: 0, size: 1, kind: 'dot', light: false, r0: 0, r1: 0, icon: null }, o);
+    Object.assign(p, { on: true, rel: true, vx: 0, vy: 0, g: 0, delay: 0, size: 1, kind: 'dot', layer: 'front', light: false, r0: 0, r1: 0, icon: null }, o);
     p.max = p.life;
     return p;
   }
@@ -108,6 +109,7 @@ export class PartFxView {
         for (const hub of ['frontHub', 'rearHub']) this.#spawn({ kind: 'ring', ...at(hub), r0: 5, r1: 5.5, life: 0.6, colour: C.cream, light: true });
         this.#spawn({ kind: 'glint', ...at('frontHub'), life: 0.6, colour: C.white, light: true, delay: 0.05 });
         break;
+      case 'slide': this.#sparks(at('rearHub'), 9, [C.mud, C.water, 0x8c5a3a], 45, 30, 0.45); break; // mud off the rear wheel
       case 'chain':
         this.#travel(at('rearHub'), at('sprocket'), 0.4, 0, C.white);
         this.#spawn({ kind: 'glint', ...at('sprocket'), life: 0.3, delay: 0.35, colour: C.white, light: true });
@@ -138,6 +140,12 @@ export class PartFxView {
         this.sprayTimer = 0.08;
         const r = this.#at(ride, 'rearHub'), back = toScreen(-Math.cos(b.heading) * 30, -Math.sin(b.heading) * 30, 0);
         for (let i = 0; i < 2; i++) this.#spawn({ rel: false, x: s.x + r.x, y: s.y + r.y + 2, vx: back.x * (0.6 + Math.random() * 0.6), vy: back.y * 0.6 - 18 - Math.random() * 10, g: 70, life: 0.35, colour: i ? C.water : C.sky });
+      }
+      // Dust on dry murram (all bikes): soft brown puffs behind the rear tyre, on the ground layer.
+      if (steady.dust && (this.dustTimer -= dt) <= 0) {
+        this.dustTimer = PART_FX.dustEverySeconds;
+        const r = this.#at(ride, 'rearHub'), back = toScreen(-Math.cos(b.heading) * 8, -Math.sin(b.heading) * 8, 0);
+        this.#spawn({ kind: 'puff', layer: 'ground', rel: false, x: s.x + r.x + (Math.random() - 0.5) * 3, y: s.y + r.y + 2, vx: back.x * 0.5, vy: back.y * 0.5 - 5, r0: 1.5, r1: 5 + Math.random() * 2, life: 0.8, colour: C.dust });
       }
       // The speaker on the beat: a ring from the box on each beat (the music notes are in RideScene).
       const bpm = ride.radio?.song?.bpm;
@@ -192,7 +200,10 @@ export class PartFxView {
       const a = Math.min(1, (p.life / p.max) * 2);
       const x = Math.round(p.rel ? ox + p.x : p.x), y = Math.round(p.rel ? oy + p.y : p.y);
       const col = dim(p.colour, p.light);
-      if (p.kind === 'dot') f.fillStyle(col, a).fillRect(x, y, p.size, p.size);
+      if (p.kind === 'puff') {
+        const r = p.r1 + (p.r0 - p.r1) * (p.life / p.max);
+        gr.fillStyle(col, 0.4 * (p.life / p.max)).fillCircle(x, y, r);
+      } else if (p.kind === 'dot') f.fillStyle(col, a).fillRect(x, y, p.size, p.size);
       else if (p.kind === 'ring') {
         const r = p.r1 + (p.r0 - p.r1) * (p.life / p.max);
         f.fillStyle(col, a);

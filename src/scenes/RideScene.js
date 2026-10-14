@@ -16,7 +16,7 @@ import { EngineSound } from '../audio/engine-sound.js';
 import { Radio } from '../audio/radio.js';
 import { createWallet, earn, spend, buyFuel, swapBattery, fuelFillCost, fuelChoices, repairCost, endDay, stranded, payGarage } from '../sim/economy.js';
 import { garageQuote, serviceDue, crashWearShare } from '../sim/maintenance.js';
-import { createJobBoard, makeOffer, updateBoard, acceptOffer, cancelJob, updateJob, jobTarget, acceptHail, tripMetres, passengerWaits, loseJobWhenEmpty } from '../sim/jobs.js';
+import { createJobBoard, makeOffer, updateBoard, acceptOffer, cancelJob, updateJob, jobTarget, acceptHail, tripMetres, passengerWaits, loseJobWhenEmpty, loseJobOnCrash } from '../sim/jobs.js';
 import { createCameraState, checkCameras, speedLimitAt } from '../sim/law.js';
 import { buildRoadGraph, openRoads } from '../sim/roads.js';
 import { createTraffic, stepTraffic, addVehicle, insideVehicle, sendBusToPark, familyOf } from '../sim/traffic.js';
@@ -66,6 +66,7 @@ import { maybeVisitor, maybeVisitorHail, stepVisitor, greeting, dropOffLines, si
 import { hqMissionDue, createHq, hqAction, stepWalk, stepTrack, stepExit, skipTrack, inYard, hqGoal, deskSpot, ribbonAlpha } from '../sim/hq.js';
 import { HqView, parkedKey } from './HqView.js';
 import { PartFxView } from './PartFxView.js';
+import { FoodSignView } from './FoodSignView.js';
 import { createPartFx, partFxTriggers, partFxSteady } from '../sim/partfx.js';
 import { dayStats, pickQuests, recordDelivery, recordFine, checkQuests, maybeMission, stepMission, missionResult, findSecret } from '../sim/missions.js';
 
@@ -154,6 +155,7 @@ export class RideScene extends Phaser.Scene {
     this.signs = new SignView(this, this.world); // names on landmark buildings
     this.hq = null; // the Ampersand HQ mission (sim/hq.js), at the start of level 5
     this.hqView = new HqView(this, this.world); // the HQ yard in Gikondo: Alphas, the track, the staff
+    this.foodSigns = new FoodSignView(this, this.world); // food signs over the food stops (medium and hard)
     // Shops and street life (world/shops.js): painted shop signs, boutique mannequins, and shops as job places.
     this.shops = shopFronts(this.world);
     // The building painter draws the inside of each shop by its kind (world/sprites.js); the chunks are drawn later.
@@ -1108,6 +1110,7 @@ export class RideScene extends Phaser.Scene {
     this.rider = mode.riderEnergy ? createRider(mode.riderEnergy) : null;
     this.bike.riderPower = 1;
     this.foodStops = mode.riderEnergy ? this.#foodStops() : [];
+    this.foodSigns.set(this.foodStops);
     // The map grows with the levels: only the open districts have roads, traffic, people and jobs.
     this.world.setOpenDistricts(L.districts);
     this.barriers.update();
@@ -1626,6 +1629,14 @@ export class RideScene extends Phaser.Scene {
       const crashed = events.some((e) => e.type === 'crash');
       for (const e of events) {
         if (e.type === 'crash' || (e.type === 'wall' && e.speed > 3)) this.fxWall = true; // the crash bars show
+        if (e.type === 'slide') {
+          this.partFxView.play('slide', this); // mud flies off the rear wheel (all bikes)
+          if (this.time.now - (this.slideBarkAt ?? -1e9) > 12000) {
+            this.slideBarkAt = this.time.now;
+            this.events.emit('bark', 'Slippery! The wet murram slides. Turn slowly');
+          }
+          continue;
+        }
         if (e.type === 'crash') {
           this.#crash(e);
           continue;
@@ -1802,12 +1813,23 @@ export class RideScene extends Phaser.Scene {
   // A hard hit: the rider falls off. The passenger is upset, fragile cargo breaks (see jobs), repairs cost money.
   #crash(e) {
     const kmh = Math.round(e.speed * 3.6);
-    const what = !e.hit ? 'a wall' : e.hit.officer ? 'a police officer' : e.hit.kind === 'pole' ? 'a pole' : e.hit.kind === 'person' ? 'a person' : e.hit.kind === 'amp' ? 'an Ampersand rider' : `a ${HIT_NAMES[e.hit.kind] ?? e.hit.kind}`;
+    const what = e.slip ? 'the wet murram' : !e.hit ? 'a wall' : e.hit.officer ? 'a police officer' : e.hit.kind === 'pole' ? 'a pole' : e.hit.kind === 'person' ? 'a person' : e.hit.kind === 'amp' ? 'an Ampersand rider' : `a ${HIT_NAMES[e.hit.kind] ?? e.hit.kind}`;
     this.cameras.main.shake(300, 0.008);
     this.engineSound.crash(e.speed / 12);
     // The crash also fills the service meter (sim/maintenance.js); crash bars make it smaller.
     const wear = Math.round(crashWearShare(e.speed) * (this.bike.mods?.crash ?? 1) * 100);
-    this.events.emit('bark', `Crash! You hit ${what} at ${kmh} km/h and fell off. Service +${wear}%`);
+    // A passenger on the back gets off and does not pay: a bad name for your moto.
+    const lost = loseJobOnCrash(this.board, this.bike);
+    if (lost) {
+      cancelMission(this.raceRival);
+      this.raceRival = null;
+      updateStreak(this.wallet, false);
+      this.sayQueue = [];
+      const words = PEOPLE.crashWords;
+      this.time.delayedCall(700, () => this.#bubble(this.bike.x, this.bike.y, 46, words[Math.floor(this.rng() * words.length)], 0xffa080));
+      this.events.emit('bark', `Crash at ${kmh} km/h! Your passenger gets off and does not pay. You lose the fare`);
+    } else if (e.slip) this.events.emit('bark', `You slid on the wet murram at ${kmh} km/h and fell! Turn slowly when it is wet. Service +${wear}%`);
+    else this.events.emit('bark', `Crash! You hit ${what} at ${kmh} km/h and fell off. Service +${wear}%`);
     for (let i = 0; i < 4; i++) this.#spawnPuff(this.bike.x + (this.rng() - 0.5) * 1.5, this.bike.y + (this.rng() - 0.5) * 1.5, 0.1);
   }
 

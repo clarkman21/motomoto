@@ -143,6 +143,17 @@ export function loseJobWhenEmpty(board, bike, speed) {
   return lost;
 }
 
+/**
+ * A crash (you fall off) with a passenger on the back: the passenger gets off, angry, and does not
+ * pay; a bad name for your moto (Alp, 14 October 2026). Cargo stays on the bike. Returns the lost job, or null.
+ */
+export function loseJobOnCrash(board, bike) {
+  const job = board.active;
+  if (!job || job.type !== 'passenger' || job.stage !== 'toDropoff') return null;
+  cancelJob(board, bike);
+  return job;
+}
+
 /** The place the rider must go to now. */
 /**
  * The passenger waits on the bike (a station stop, or you push the bike): comfort goes down.

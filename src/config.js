@@ -126,6 +126,16 @@ export const SURFACES = {
   water: { name: 'River', grip: 0, speedFactor: 0, energyFactor: 1, rollingMs2: 9, wearFactor: 1 }, // solid: you cannot ride here
 };
 
+// Wet murram is very slippery (Alp, 14 October 2026): a turn at speed makes the bike slide; a hard
+// turn at speed, held, makes it fall. The turn load is the speed times the turn rate (m/s²). Guesses.
+// Better tyres (wetGrip) move both limits up.
+export const WET_MURRAM = {
+  slideMs2: 12, // from this turn load the rear slides out (about a full turn at 15 km/h)
+  slideKick: 0.45, // how much of the extra load pushes the bike sideways
+  fallMs2: 18, // from this turn load, held for fallSeconds, the bike falls (about a full turn at 24 km/h)
+  fallSeconds: 0.15, // a hard turn slows the bike fast, so the time is short
+};
+
 // ---------------------------------------------------------------------------
 // Gearbox and brakes
 // ---------------------------------------------------------------------------
@@ -516,6 +526,7 @@ export const PEOPLE = {
   yellCooldown: 8, // seconds before the same person yells again
   yellGap: 1.5, // seconds between two yells (any people)
   leaveWords: ['MANA WE!', 'UMVA, BE SERIOUS!'], // out of fuel: the passenger gets off (Alp)
+  crashWords: ['AYA!', 'MANA WE!', 'NEVER AGAIN!'], // a crash with a passenger: the passenger gets off and does not pay (guesses)
   yells: ['AYII!', 'WITONDE!', 'EH! EH!', 'MANA WE!', 'BUHORO!'], // Kinyarwanda: "be careful", "oh my God", "slowly"
   // The horn: people in front of the bike and this close step out of the way.
   honkRadius: 16, // metres
@@ -958,6 +969,8 @@ export const PART_FX = {
   treadEveryMetres: 0.7, // one tread mark each this many metres
   treadSeconds: 3, // a tread mark stays this long
   sprayKmh: 8, // spray on wet murram from this speed
+  dustKmh: 12, // a dust cloud off the rear tyre on dry murram from this speed (all bikes)
+  dustEverySeconds: 0.1,
   glowNight: 0.3, // the phone screen shines when the night is darker than this (0..1)
   maxParticles: 160,
 };

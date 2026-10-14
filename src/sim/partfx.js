@@ -53,5 +53,7 @@ export function partFxSteady(input) {
     beat: has('speaker') && !!input.radio,
     glow: has('charger') && input.night >= PART_FX.glowNight,
     smallPuffs: has('filter') && input.type === 'petrol',
+    // Not a part: all bikes throw up dust on dry murram (Alp, 14 October 2026).
+    dust: input.surface === 'murram' && input.kmh >= PART_FX.dustKmh,
   };
 }
