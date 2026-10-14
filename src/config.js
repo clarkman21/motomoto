@@ -488,7 +488,32 @@ export const TRAFFIC = {
     vip: { length: 4.8, width: 1.9, maxKmh: 60, accel: 3.0, brake: 7, limitFactor: 1.2, hillSlowdown: 0.6, minHillFactor: 0.6, exhaust: 0.3, variants: 1, mainRoads: true, family: 'car' },
   },
   turnKmh: 18,
+  ringKmh: 25, // the speed on a roundabout ring (a guess)
   busStopSeconds: 5,
+  // Crossing traffic (sim/traffic.js): a vehicle brakes for a vehicle that is in its path now, or will be
+  // in this many seconds. After crossPatienceSeconds of waiting for turned or crossing traffic it goes anyway, so nothing locks up.
+  crossLookSeconds: 0.6,
+  waitFrontMetres: 3.2, // at a junction or a roundabout, a vehicle waits with its front this far from the middle of the node
+  crossLookMetres: 4, // and only this near (+ 2 × crossLookSeconds of its own speed): a crossing vehicle soon leaves the path
+  crossPatienceSeconds: 5,
+  crossGoSeconds: 2.5, // then it does not brake for turned or crossing traffic for this long
+  // A real crash between two vehicles (Alp, 14 October 2026). Values are a first guess.
+  crash: {
+    conflictMetres: 2, // a conflict: the free gap is less than this ...
+    conflictKmh: 12, // ... and the vehicle closes at more than this speed
+    chance: 0.1, // the chance that a conflict is a crash
+    nearMetres: 80, // only this near the bike (you see it)
+    everySeconds: 240, // at most one crash in this time
+    seconds: 20, // the two vehicles stand still this long, while the drivers argue
+    notKinds: ['police', 'vip', 'fleet', 'cyclist'], // these do not crash (the patrols, the convoy, your riders, bicycles)
+    swerveAfterSeconds: 1.5, // a vehicle behind the crash waits this long, then drives round it
+    swerveKmh: 12, // at this speed
+    swerveRate: 1.5, // metres a second to the side
+    argueEverySeconds: 1.6, // the drivers shout in turn
+    // What they shout (Kinyarwanda and English; a guess): "Reba!" look!, "Wewe!" you!, "Umva!" listen!,
+    // "Ni wowe!" it is you!, "Oya!" no!
+    argueWords: ['EH!', 'REBA!', 'WEWE!', 'UMVA!', 'NI WOWE!', 'OYA!', 'MY CAR!', 'POLICE!'],
+  },
   // Vehicles that wait behind a bike that stands in the road honk (cyclists ring the bell).
   honk: {
     range: 12, // metres behind the bike

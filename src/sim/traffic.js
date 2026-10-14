@@ -28,8 +28,15 @@ export function createTraffic(world, graph, rng, counts = TRAFFIC.counts) {
     for (let i = 0; i < count; i++) {
       const spec = TRAFFIC.kinds[kind];
       const pool = spec.mainRoads ? roadEdges.filter((e) => e.road?.surface !== 'm') : roadEdges;
-      const edge = (pool.length ? pool : roadEdges)[Math.floor(rng() * (pool.length || roadEdges.length))];
-      traffic.vehicles.push(addVehicle(traffic, kind, edge, CORNER + rng() * Math.max(0, edge.length - 2 * CORNER)));
+      // A free place: not on top of a vehicle that is there already (a few tries).
+      const from = pool.length ? pool : roadEdges;
+      let edge, s;
+      for (let k = 0; k < 8; k++) {
+        edge = from[Math.floor(rng() * from.length)];
+        s = CORNER + rng() * Math.max(0, edge.length - 2 * CORNER);
+        if (!traffic.vehicles.some((o) => o.edge === edge && Math.abs(o.s - s) < (o.length + spec.length) / 2 + 2)) break;
+      }
+      traffic.vehicles.push(addVehicle(traffic, kind, edge, s));
     }
   }
   return traffic;
@@ -86,8 +93,10 @@ function chooseNext(v, node, rng, closed = null) {
 
 /** The lane of vehicle v on edge e: metres to the right of the centre line. */
 function laneOf(v, e) {
-  return roadLane(e.road) + (e.road?.ring ? 0 : v.laneExtra ?? 0);
+  return roadLane(e.road) + (e.road?.ring ? 0 : v.laneExtra ?? 0) - (v.swerve ?? 0);
 }
+
+const approach = (a, b, step) => (a < b ? Math.min(b, a + step) : Math.max(b, a - step));
 
 /** Position and heading from the edge and s, with a curve near the nodes. */
 function place(v) {
@@ -107,7 +116,7 @@ function place(v) {
   }
   v.x = p.x;
   v.y = p.y;
-  v.heading = Math.atan2(d.y, d.x);
+  v.heading = Math.atan2(d.y, d.x) + (v.crashTilt ?? 0);
 }
 
 /**
@@ -178,38 +187,90 @@ function nearAhead(grid, v, look) {
   return out;
 }
 
-/** Anything in front of vehicle v, in its lane: returns the free distance (metres) and the speed of the thing ahead. */
-function gapAhead(v, others) {
+/**
+ * Anything in front of vehicle v, in its path: returns the free distance (metres), the speed of the thing
+ * ahead, and cross (true when the thing ahead is a vehicle that crosses the path of v).
+ */
+function gapAhead(v, others, now) {
   const fx = Math.cos(v.heading), fy = Math.sin(v.heading);
-  let gap = Infinity, aheadSpeed = 0, ahead = null;
+  let gap = Infinity, aheadSpeed = 0, ahead = null, cross = false, turned = false;
+  const going = now < (v.goUntil ?? 0);
   const look = 8 + v.speed * 2;
+  const swerving = (v.swerve ?? 0) > 0.5;
   for (const o of others) {
-    if (o === v) continue;
+    if (o === v || o === v.passing) continue;
     const rx = o.x - v.x, ry = o.y - v.y;
     const along = rx * fx + ry * fy;
     if (along <= 0 || along > look + (o.length ?? 1)) continue;
-    // Other vehicles count only when they go the same way. Crossing traffic is handled by the
-    // junction claims; if two are about to touch, the lower id goes first. The bike and people always count.
-    if (o.heading !== undefined && o.edge !== undefined) {
-      const same = Math.cos(o.heading) * fx + Math.sin(o.heading) * fy;
-      if (same < 0.3 && !(along < 3 && o.id < v.id)) continue;
-      // Two vehicles that wait for each other (for example when they merge into one lane): the lower id goes.
-      if (o.blocker === v && v.id < o.id) continue;
-    }
-    const side = Math.abs(-rx * fy + ry * fx);
+    let side = Math.abs(-rx * fy + ry * fx);
+    let alongExt = (o.length ?? 1) / 2, crossing = false, crossSame = 0;
     // A cyclist at the road edge and a car in the lane can pass each other when there is room.
     // A moto that stands at the roadside (o.roadside: a hired rider who waits for help) counts the same.
     const cyclist = o.kind === 'cyclist' || v.kind === 'cyclist' || o.roadside;
-    const room = cyclist ? (v.width + (o.width ?? 0.8)) / 2 + 0.25 : 1.6 + (o.width ?? 0.8) / 2;
+    let room = cyclist ? (v.width + (o.width ?? 0.8)) / 2 + 0.25 : 1.6 + (o.width ?? 0.8) / 2;
+    if (o.heading !== undefined && o.edge !== undefined) {
+      const same = Math.cos(o.heading) * fx + Math.sin(o.heading) * fy;
+      // Oncoming vehicles keep to their own lane. They count only when v swerves into that lane.
+      if (same < -0.7 && !swerving) continue;
+      // Two vehicles that wait for each other (at a junction, or where two lanes merge): the one that is
+      // already further into the path of the other goes first (it can clear the way). Else the lower id goes.
+      if (o.blocker === v) {
+        const mine = Math.abs(-rx * fy + ry * fx);
+        const theirs = Math.abs(rx * Math.sin(o.heading) - ry * Math.cos(o.heading));
+        if (mine > theirs + 0.2 || (Math.abs(mine - theirs) <= 0.2 && v.id < o.id)) continue;
+      }
+      // A vehicle that waited too long for turned or crossing traffic goes anyway, so that nothing locks up.
+      if (same < 0.8 && going) continue;
+      if (same < 0.3 && same >= -0.7) {
+        // Crossing traffic (Alp, 14 October 2026: "I saw a truck run through a motorcycle"): its footprint
+        // turned to the heading of v, now and a short time later.
+        if (along > TRAFFIC.crossLookMetres + v.speed * TRAFFIC.crossLookSeconds * 2) continue; // it leaves the path soon
+        crossing = true;
+        crossSame = same;
+        const sin = Math.sqrt(Math.max(0, 1 - same * same));
+        alongExt = Math.abs(same) * (o.length ?? 1) / 2 + sin * (o.width ?? 0.8) / 2;
+        room = v.width / 2 + sin * (o.length ?? 1) / 2 + Math.abs(same) * (o.width ?? 0.8) / 2 + 0.25;
+        const t = TRAFFIC.crossLookSeconds, ox = Math.cos(o.heading) * (o.speed ?? 0) * t, oy = Math.sin(o.heading) * (o.speed ?? 0) * t;
+        side = Math.min(side, Math.abs(-(rx + ox) * fy + (ry + oy) * fx));
+      }
+    }
     if (side > room) continue;
-    const free = along - v.length / 2 - (o.length ?? 1) / 2;
+    const free = along - v.length / 2 - alongExt;
     if (free < gap) {
       gap = free;
-      aheadSpeed = o.speed ?? 0;
+      aheadSpeed = crossing ? Math.max(0, (o.speed ?? 0) * crossSame) : o.speed ?? 0; // only the part of its speed along the path of v
       ahead = o;
+      cross = crossing;
+      turned = o.heading !== undefined && o.edge !== undefined && Math.cos(o.heading) * fx + Math.sin(o.heading) * fy < 0.8;
     }
   }
-  return { gap, aheadSpeed, ahead };
+  return { gap, aheadSpeed, ahead, cross, turned };
+}
+
+/**
+ * A rare real crash (Alp, 14 October 2026: "other vehicles should have a collision probability"): when two
+ * vehicles come too near too fast, near the bike (traffic.focus) and not too often. Both stop, and the
+ * drivers argue. Returns true if they crash.
+ */
+function rollCrash(traffic, v, o, gap, cross) {
+  const C = TRAFFIC.crash;
+  if (!traffic.focus || !o.edge || o.crashed > 0 || v.mission || o.mission) return false;
+  if (C.notKinds.includes(v.kind) || C.notKinds.includes(o.kind)) return false;
+  const closing = cross ? v.speed : v.speed - (o.speed ?? 0);
+  if (gap > C.conflictMetres || closing < C.conflictKmh / 3.6) return false;
+  // One roll for each meeting of the two.
+  if (v.rolledWith === o.id) return false;
+  v.rolledWith = o.id;
+  if (traffic.time < (traffic.nextCrashAt ?? 0)) return false;
+  if (Math.hypot(v.x - traffic.focus.x, v.y - traffic.focus.y) > C.nearMetres) return false;
+  if (traffic.rng() >= C.chance) return false;
+  traffic.nextCrashAt = traffic.time + C.everySeconds;
+  for (const w of [v, o]) {
+    w.crashed = C.seconds;
+    w.speed = 0;
+    w.crashTilt = (traffic.rng() - 0.5) * 0.5;
+  }
+  return true;
 }
 
 /**
@@ -233,6 +294,8 @@ export function stepTraffic(traffic, world, obstacles, dt) {
     const toEnd = v.edge.length - v.s;
     const turning = v.next && v.edge.dx * v.next.dx + v.edge.dy * v.next.dy < 0.5;
     if (turning && toEnd < 10) target = Math.min(target, TRAFFIC.turnKmh * KMH);
+    // On a roundabout ring (a tight curve) and when it comes onto one.
+    if (v.edge.road?.ring || (v.next?.road?.ring && toEnd < 10)) target = Math.min(target, TRAFFIC.ringKmh * KMH);
     // Road works (sim/roadevents.js): slow past the cones and the workers.
     if (traffic.slowZones?.length) target = Math.min(target, slowZoneLimit(traffic.slowZones, v.x, v.y));
     // Speed bumps and potholes: slow down before them, as the bike must.
@@ -254,9 +317,24 @@ export function stepTraffic(traffic, world, obstacles, dt) {
       v.stopTimer -= dt;
       target = 0;
     }
+    // After a crash the vehicle stands still while the drivers argue.
+    if (v.crashed > 0) {
+      v.crashed -= dt;
+      v.speed = 0;
+      v.why = 'crash';
+      if (v.crashed <= 0) v.crashTilt = 0;
+      place(v);
+      if (v.crashed > 0) continue;
+    }
     // Keep a gap to whatever is ahead.
     v.why = 'free';
-    const { gap, aheadSpeed, ahead } = gapAhead(v, nearAhead(grid, v, 8 + v.speed * 2));
+    const { gap, aheadSpeed, ahead, cross, turned } = gapAhead(v, nearAhead(grid, v, 8 + v.speed * 2 + (v.swerve ?? 0)), now);
+    if (ahead?.edge && rollCrash(traffic, v, ahead, gap, cross)) {
+      events.push({ type: 'vehicleCrash', a: v, b: ahead });
+      place(v);
+      place(ahead);
+      continue;
+    }
     if (gap < Infinity) {
       const t2 = Math.max(0, Math.min(aheadSpeed + (gap - 2) * 0.8, (gap - 1.5) * 1.5));
       if (t2 < target) {
@@ -265,13 +343,36 @@ export function stepTraffic(traffic, world, obstacles, dt) {
         v.blocker = ahead;
       }
     }
+    v.crossWait = turned && v.why === 'gap' && v.speed < 0.5 ? (v.crossWait ?? 0) + dt : 0;
+    if (v.crossWait > TRAFFIC.crossPatienceSeconds) {
+      v.crossWait = 0;
+      v.goUntil = now + TRAFFIC.crossGoSeconds;
+    }
+    // Behind a crash: wait a moment, then drive round it on the left side.
+    const sw = TRAFFIC.crash;
+    if (ahead?.crashed > 0 && !cross && v.why === 'gap' && v.speed < 0.5) {
+      v.crashWait = (v.crashWait ?? 0) + dt;
+      if (v.crashWait > sw.swerveAfterSeconds) {
+        v.passing = ahead;
+        v.swerveTo = (ahead.width ?? 2) / 2 + v.width / 2 + 0.4;
+      }
+    } else v.crashWait = 0;
+    if (v.passing) {
+      const p = v.passing, fx = Math.cos(v.heading), fy = Math.sin(v.heading);
+      // Past it (or it drives on again): back into the lane.
+      if (!(p.crashed > 0) || (p.x - v.x) * fx + (p.y - v.y) * fy < -(p.length + v.length) / 2 - 1) { v.passing = null; v.swerveTo = 0; }
+      else target = Math.min(target, sw.swerveKmh / 3.6);
+    }
+    v.swerve = approach(v.swerve ?? 0, v.swerveTo ?? 0, sw.swerveRate * dt);
     // Give way to the traffic on a roundabout: wait at the ring until no vehicle on the ring is near.
+    // Where it waits: the front of the vehicle stays out of the cross lanes (a long truck waits further back).
+    const waitAt = TRAFFIC.waitFrontMetres + v.length / 2;
     const node0 = v.edge.to;
-    if (v.next?.road?.ring && !v.edge.road?.ring && toEnd < 9) {
+    if (v.next?.road?.ring && !v.edge.road?.ring && toEnd < waitAt + 4) {
       const busy = vehicles.some((w) => w !== v && w.edge.road?.ring && w.edge.from !== node0
         && (w.edge.to === node0 || w.next?.to === node0) && Math.hypot(w.x - node0.x, w.y - node0.y) < TRAFFIC.ringGiveWayMetres);
       if (busy && (v.ringWait ?? 0) < TRAFFIC.ringPatienceSeconds) {
-        target = Math.min(target, Math.max(0, (toEnd - 5) * 1.5));
+        target = Math.min(target, Math.max(0, (toEnd - waitAt) * 1.5));
         v.why = 'giveWay';
         v.ringWait = (v.ringWait ?? 0) + dt;
       }
@@ -293,12 +394,13 @@ export function stepTraffic(traffic, world, obstacles, dt) {
       nodeClaims.delete(node.id);
       claim = null;
     }
-    if (toEnd < 7 && node.out.length > 2) {
+    // It sees the claim early enough to stop (its stopping distance).
+    if (toEnd < waitAt + 2 + (v.speed * v.speed) / (2 * spec.brake) && node.out.length > 2) {
       if (claim && claim.id !== v.id && (v.waited ?? 0) < PATIENCE_SECONDS) {
-        target = Math.min(target, Math.max(0, (toEnd - 5) * 1.5));
+        target = Math.min(target, Math.max(0, (toEnd - waitAt) * 1.5));
         v.why = 'junction';
         v.waited = (v.waited ?? 0) + dt;
-      } else if (toEnd < 5 && !claim) {
+      } else if (toEnd < waitAt && !claim) {
         nodeClaims.set(node.id, { id: v.id, time: now });
       }
     }

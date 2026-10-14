@@ -2363,9 +2363,14 @@ export class RideScene extends Phaser.Scene {
     const b = this.bike;
     this.#updateBusPark(dt);
     const bikeObstacle = { x: b.x, y: b.y, length: 2, width: 0.9, speed: Math.abs(forwardSpeed(b)) };
+    this.traffic.focus = { x: b.x, y: b.y }; // a crash between two vehicles happens only near you (sim/traffic.js)
     for (const e of stepTraffic(this.traffic, this.world, [bikeObstacle, ...(this.trafficPeople ?? [])], dt)) {
       if (e.type === 'busArrived') {
         this.#busArrived(e);
+        continue;
+      }
+      if (e.type === 'vehicleCrash') {
+        this.#vehicleCrash(e);
         continue;
       }
       const v = e.vehicle;
@@ -2374,8 +2379,38 @@ export class RideScene extends Phaser.Scene {
       const back = v.length / 2;
       this.#spawnPuff(v.x - Math.cos(v.heading) * back, v.y - Math.sin(v.heading) * back, 0.4, isDiesel(v));
     }
+    this.#updateArguments(dt);
     this.nearAgents = this.traffic.vehicles.filter((v) => Math.abs(v.x - b.x) < 12 && Math.abs(v.y - b.y) < 12);
     this.#updatePeople(dt);
+  }
+
+  /** Two vehicles crashed near you: a bang, smoke, and then the two drivers argue until they drive on. */
+  #vehicleCrash(e) {
+    const b = this.bike, { a, b: o } = e;
+    const mx = (a.x + o.x) / 2, my = (a.y + o.y) / 2, d = Math.hypot(mx - b.x, my - b.y);
+    this.engineSound.crash(0.9 - d / 120);
+    for (let i = 0; i < 5; i++) this.#spawnPuff(mx + (this.rng() - 0.5) * 2, my + (this.rng() - 0.5) * 2, 0.1);
+    if (d < 40) this.cameras.main.shake(150, 0.003);
+    const an = (k) => { const w = HIT_NAMES[k] ?? k; return (/^[aeiou]/i.test(w) ? 'an ' : 'a ') + w; };
+    const say = an(a.kind);
+    this.events.emit('bark', `Crash! ${say[0].toUpperCase() + say.slice(1)} and ${an(o.kind)} hit each other. Ride round them with care`);
+    (this.arguments ??= []).push({ a, b: o, next: 0.8, turn: 0 });
+  }
+
+  #updateArguments(dt) {
+    if (!this.arguments?.length) return;
+    const C = TRAFFIC.crash;
+    this.arguments = this.arguments.filter((g) => g.a.crashed > 0 && g.b.crashed > 0 && this.traffic.vehicles.includes(g.a));
+    for (const g of this.arguments) {
+      g.next -= dt;
+      if (g.next > 0) continue;
+      g.next = C.argueEverySeconds * (0.8 + this.rng() * 0.4);
+      const v = g.turn++ % 2 ? g.b : g.a;
+      if (Math.hypot(v.x - this.bike.x, v.y - this.bike.y) > 70) continue;
+      this.engineSound.yell(0.85 + (v.id % 5) / 12);
+      const fam = familyOf(v.kind);
+      this.#bubble(v.x, v.y, fam === 'bus' || fam === 'truck' ? 40 : 28, C.argueWords[Math.floor(this.rng() * C.argueWords.length)], 0xffa080);
+    }
   }
 
   #updatePeople(dt) {
