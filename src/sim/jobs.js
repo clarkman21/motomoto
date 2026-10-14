@@ -189,7 +189,7 @@ export function updateJob(board, bike, bikeEvents, dt) {
   if (job.stage === 'toPickup') {
     job.stage = 'toDropoff';
     bike.loadKg = job.kg;
-    bike.loadType = job.type === 'cargo' ? (job.goods === 'bananas' ? 'bananas' : 'rice') : job.type; // the bike shows bananas or a sack (ikivuguto cans: a sack for now)
+    bike.loadType = job.type === 'cargo' ? (job.goods === 'bananas' ? 'bananas' : 'rice') : job.visitor ? 'visitor' : job.type; // the bike shows bananas or a sack (ikivuguto cans: a sack for now)
     return [{ type: 'pickup', job }];
   }
   board.active = null;

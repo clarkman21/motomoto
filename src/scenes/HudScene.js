@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BIKES, COLOURS, GEARBOX, LAW, JOBS, SAVINGS_FLOAT, DISTRICTS, RIDER, HARD_RULES } from '../config.js';
+import { BIKES, COLOURS, GEARBOX, LAW, JOBS, SAVINGS_FLOAT, DISTRICTS, RIDER, HARD_RULES, MUZUNGU } from '../config.js';
 import { forwardSpeed } from '../sim/bike.js';
 import { serviceDue } from '../sim/maintenance.js';
 import { wrapRetro, retroText, RETRO_CELL } from '../world/retro-font.js';
@@ -322,7 +322,7 @@ export class HudScene extends Phaser.Scene {
     const textW = box.w - 22; // virtual pixels on a line
     const iconOf = (j) => (j.type === 'passenger' ? 'person' : j.goods === 'bananas' ? 'bananas' : j.goods === 'batteries' ? 'battery' : 'sack');
     const goods = (j) => (j.goods === 'bananas' ? 'BANANAS' : j.goods === 'ikivuguto' ? 'IKIVUGUTO' : j.goods === 'batteries' ? 'BATTERIES' : 'RICE');
-    const what = (j) => (j.mission ? `${j.mission.title}${j.type === 'cargo' && j.goods !== 'ikivuguto' ? ` ${j.kg}KG` : ''}` : j.type === 'passenger' ? 'PASSENGER' : `${goods(j)} ${j.kg}KG`);
+    const what = (j) => (j.visitor ? `MUZUNGU ★ ×${MUZUNGU.fareFactor}` : j.mission ? `${j.mission.title}${j.type === 'cargo' && j.goods !== 'ikivuguto' ? ` ${j.kg}KG` : ''}` : j.type === 'passenger' ? 'PASSENGER' : `${goods(j)} ${j.kg}KG`);
     const clock = (t) => `${Math.floor(Math.max(0, t) / 60)}:${String(Math.floor(Math.max(0, t) % 60)).padStart(2, '0')}`;
     const fuel = (j) => (j.fuel === undefined ? '' : ` · FUEL ${Math.max(1, Math.round(j.fuel * 100))}%`);
     const short = (j) => j.fuel !== undefined && j.fuel > bike.energy;
@@ -372,6 +372,7 @@ export class HudScene extends Phaser.Scene {
         racing ? 'A RIVAL IS RACING YOU!' :
         missionLine ? missionLine :
         job.stage !== 'toDropoff' ? 'STOP AT THE GREEN MARKER' :
+        job.visitor ? `COMFORT ${Math.round(job.comfort)}% · PHOTOS ${job.visitorState?.photos ?? 0}/${MUZUNGU.maxPhotos}` :
         job.type === 'passenger' ? `COMFORT ${Math.round(job.comfort)}%` :
         job.fragile ? `DAMAGE ${Math.round(job.damage * 100)}%` : 'STOP AT THE WHITE MARKER';
       const route = wrapSmall(`${job.from.name} → ${job.to.name}`, textW).slice(0, 2);
@@ -379,7 +380,7 @@ export class HudScene extends Phaser.Scene {
       card.icon.setFrame(iconOf(job));
       const lines = [`${what(job)} · ${money(job.pay)}`, ...route, `${dist} M${fuel(job)}`];
       const shown = lines.slice(0, 4);
-      fill(card, 0, shown, shown.map((_, li) => (li === 0 ? UI.white : li === shown.length - 1 ? (short(job) ? UI.red : UI.white) : UI.dim)), false);
+      fill(card, 0, shown, shown.map((_, li) => (li === 0 ? (job.visitor ? UI.gold : UI.white) : li === shown.length - 1 ? (short(job) ? UI.red : UI.white) : UI.dim)), false);
       const q = this.cards[1];
       q.icon.setVisible(false);
       q.lines.forEach((l, li) => l.setVisible(li === 0 || (li === 1 && !this.isTouch)));
@@ -402,7 +403,7 @@ export class HudScene extends Phaser.Scene {
         const route = wrapSmall(`${o.from.name} → ${o.to.name}`, textW).slice(0, this.vh < 240 ? 1 : 2);
         const lines = [`${i + 1} ${what(o)} · ${money(o.pay)}`, ...route, `${o.gameKm.toFixed(1)} KM${fuel(o)}${short(o) ? ' LOW!' : ''}`];
         if (y + lines.length * SMALL_LINE > this.jobLimit) return hide(card);
-        fill(card, i, lines, lines.map((_, li) => (li === 0 ? (o.mission ? UI.gold : UI.white) : li === lines.length - 1 && short(o) ? UI.red : UI.dim)), true);
+        fill(card, i, lines, lines.map((_, li) => (li === 0 ? (o.mission || o.visitor ? UI.gold : UI.white) : li === lines.length - 1 && short(o) ? UI.red : UI.dim)), true);
       });
     }
     // The daily app quests (from level 3): progress and reward, ticked when done.

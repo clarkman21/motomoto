@@ -36,8 +36,9 @@ export function bikeFrameForHeading(heading) {
   return ((Math.round(heading / step) % BIKE_DIRECTIONS) + BIKE_DIRECTIONS) % BIKE_DIRECTIONS;
 }
 
-/** Load shown on the bike: none, a passenger behind the rider, or cargo on the rear rack (bananas or a rice sack). */
-export const BIKE_LOADS = ['none', 'passenger', 'bananas', 'rice'];
+/** Load shown on the bike: none, a passenger behind the rider, cargo on the rear rack (bananas or a rice sack), or a visitor. */
+// 'visitor': the muzungu passenger (a teal shirt, a white helmet, an orange backpack, a phone up for a video).
+export const BIKE_LOADS = ['none', 'passenger', 'bananas', 'rice', 'visitor'];
 const PASSENGER = { shirt: PALETTE.blue, trousers: PALETTE.mud, helmet: PALETTE.reflect };
 
 /**
@@ -109,6 +110,7 @@ export function drawBike(type, frame, load = 'none', rider = true, pose = 'ride'
     blob([0.44, 0.54, 1.58], 1.1, PALETTE.visor, 0.05); // visor
     if (step > 0) blob([0.3, 0.75, 1.82], 0.9, PALETTE.visor, 0.06); // sweat
     if (load === 'passenger') drawPassenger(seg, blob, false); // the passenger stays on the seat
+    if (load === 'visitor') drawPassenger(seg, blob, false, VISITOR);
     if (load === 'bananas' || load === 'rice') return drawBikeLoad(c, parts, P, seg, blob, load);
     parts.sort((a, b) => a.depth - b.depth);
     for (const p of parts) p.draw();
@@ -133,6 +135,8 @@ export function drawBike(type, frame, load = 'none', rider = true, pose = 'ride'
 
   if (load === 'passenger') {
     drawPassenger(seg, blob, true);
+  } else if (load === 'visitor') {
+    drawPassenger(seg, blob, true, VISITOR);
   } else if (load === 'bananas' || load === 'rice') {
     return drawBikeLoad(c, parts, P, seg, blob, load);
   }
@@ -147,16 +151,24 @@ export function drawBike(type, frame, load = 'none', rider = true, pose = 'ride'
  * The passenger on the back seat, with a helmet (the law in Kigali). holdRider: the arms go round the
  * rider; else (the rider walks beside the bike) the hands hold the seat.
  */
-function drawPassenger(seg, blob, holdRider) {
+function drawPassenger(seg, blob, holdRider, look = PASSENGER) {
+  const skin = look.skin ?? SKIN;
   for (const side of [-1, 1]) {
-    seg([-0.48, 0.12 * side, 0.9], [-0.22, 0.2 * side, 0.74], 2.6, PASSENGER.trousers); // thigh
-    seg([-0.22, 0.2 * side, 0.74], [-0.32, 0.24 * side, 0.44], 2.2, PASSENGER.trousers); // shin to the foot peg
-    if (holdRider) seg([-0.36, 0.18 * side, 1.36], [-0.08, 0.16 * side, 1.12], 2, SKIN); // arm round the rider
-    else seg([-0.4, 0.2 * side, 1.34], [-0.3, 0.22 * side, 0.92], 2, SKIN); // hand on the seat
+    seg([-0.48, 0.12 * side, 0.9], [-0.22, 0.2 * side, 0.74], 2.6, look.trousers); // thigh
+    // Shorts: the shin shows the skin.
+    seg([-0.22, 0.2 * side, 0.74], [-0.32, 0.24 * side, 0.44], 2.2, look.shorts ? skin : look.trousers); // shin to the foot peg
+    if (look.phone && side > 0 && holdRider) {
+      // The visitor holds the phone up for a video.
+      seg([-0.36, 0.18 * side, 1.36], [-0.22, 0.3 * side, 1.86], 2, skin);
+      blob([-0.2, 0.31 * side, 1.92], 1.3, PALETTE.ink, 0.02);
+    } else if (holdRider) seg([-0.36, 0.18 * side, 1.36], [-0.08, 0.16 * side, 1.12], 2, skin); // arm round the rider
+    else seg([-0.4, 0.2 * side, 1.34], [-0.3, 0.22 * side, 0.92], 2, skin); // hand on the seat
   }
-  seg([-0.5, 0, 0.92], [-0.38, 0, 1.4], 4.4, PASSENGER.shirt, -0.02); // torso
-  blob([-0.36, 0, 1.64], 2.5, PASSENGER.helmet, -0.01); // helmet
+  if (look.backpack) seg([-0.66, 0, 1.0], [-0.62, 0, 1.36], 5, look.backpack, -0.03); // the backpack
+  seg([-0.5, 0, 0.92], [-0.38, 0, 1.4], 4.4, look.shirt, -0.02); // torso
+  blob([-0.36, 0, 1.64], 2.5, look.helmet, -0.01); // helmet
 }
+const VISITOR = { shirt: PALETTE.teal, trousers: PALETTE.khaki, shorts: true, helmet: PALETTE.cloth, skin: PALETTE.visitorSkin, backpack: PALETTE.kOrange, phone: true };
 
 /** Cargo on the rear rack (bananas or a rice sack), then draw all the parts. */
 function drawBikeLoad(c, parts, P, seg, blob, load) {

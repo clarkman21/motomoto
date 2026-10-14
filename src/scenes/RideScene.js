@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS, FLEET, RIDER, TRAFFIC_LIGHTS, HELMET_CHECKS, CROSSINGS, STORY, MODES, RUSH, ROAD_EVENTS, HARD_RULES } from '../config.js';
+import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS, FLEET, RIDER, TRAFFIC_LIGHTS, HELMET_CHECKS, CROSSINGS, STORY, MODES, RUSH, ROAD_EVENTS, HARD_RULES, MUZUNGU } from '../config.js';
 import { World } from '../world/world.js';
 import { buildKigaliMap } from '../world/maps/kigali.js';
 import { ChunkStreamer, groupKey } from './chunks.js';
@@ -15,7 +15,7 @@ import { readControls } from '../sim/controls.js';
 import { EngineSound } from '../audio/engine-sound.js';
 import { createWallet, earn, spend, buyFuel, swapBattery, fuelFillCost, fuelChoices, repairCost, endDay, stranded, payGarage } from '../sim/economy.js';
 import { garageQuote, serviceDue, crashWearShare } from '../sim/maintenance.js';
-import { createJobBoard, updateBoard, acceptOffer, cancelJob, updateJob, jobTarget, acceptHail, tripMetres, passengerWaits, loseJobWhenEmpty } from '../sim/jobs.js';
+import { createJobBoard, makeOffer, updateBoard, acceptOffer, cancelJob, updateJob, jobTarget, acceptHail, tripMetres, passengerWaits, loseJobWhenEmpty } from '../sim/jobs.js';
 import { createCameraState, checkCameras, speedLimitAt } from '../sim/law.js';
 import { buildRoadGraph, openRoads } from '../sim/roads.js';
 import { createTraffic, stepTraffic, addVehicle, insideVehicle, sendBusToPark, familyOf } from '../sim/traffic.js';
@@ -59,6 +59,7 @@ import { BatteryView } from './BatteryView.js';
 import { isRushHour, rushCounts, markRush, stepRush } from '../sim/rush.js';
 import { pickCheckpoints, stepHelmetCheck } from '../sim/checks.js';
 import { fleetRiders, planFleetDay, attachFleet, stepFleet, waitingRider, fleetDayMoney } from '../sim/fleet.js';
+import { maybeVisitor, stepVisitor, greeting, dropOffLines, sightNear, quietNear } from '../sim/muzungu.js';
 import { dayStats, pickQuests, recordDelivery, recordFine, checkQuests, maybeMission, stepMission, missionResult, findSecret } from '../sim/missions.js';
 
 const FIXED_DT = 1 / 120; // physics step in seconds
@@ -96,6 +97,8 @@ export class RideScene extends Phaser.Scene {
 
   /** data.menu: the welcome menu is on top. The ride waits (the city moves behind the menu) until startGame(). */
   create(data = {}) {
+    this.sayQueue = []; // the lines of a visitor passenger that wait to show (see #visitorSays)
+    this.sayBusy = false;
     this.started = !data.menu;
     this.world = new World(buildKigaliMap());
     this.cameras.main.setBackgroundColor('#1d2a33');
@@ -751,7 +754,9 @@ export class RideScene extends Phaser.Scene {
           cancelMission(this.raceRival);
           this.raceRival = null;
         }
-        this.events.emit('bark', e.job.type === 'passenger' ? `Passenger on board. Go to ${e.job.to.name}` : `${e.job.kg} kg of ${e.job.goods ?? 'rice'} loaded. Go to ${e.job.to.name}`);
+        this.events.emit('bark', e.job.visitor ? `A muzungu on board! Fare ×${MUZUNGU.fareFactor}. Ride slowly past the sights for photos. Go to ${e.job.to.name}`
+          : e.job.type === 'passenger' ? `Passenger on board. Go to ${e.job.to.name}` : `${e.job.kg} kg of ${e.job.goods ?? 'rice'} loaded. Go to ${e.job.to.name}`);
+        if (e.job.visitor) this.#visitorSays(greeting(this.clockHours).map((text) => ({ who: 'visitor', text })));
         if (overloaded(e.job)) this.time.delayedCall(2200, () => this.events.emit('bark', `Overloaded: ${e.job.kg} kg (the limit is ${HARD_RULES.overload.limitKg} kg). Keep away from the police!`));
       } else {
         // A side mission: a bonus when you meet its condition, or less pay (a late rush).
@@ -781,12 +786,22 @@ export class RideScene extends Phaser.Scene {
           this.time.delayedCall(1300, () => this.events.emit('money', bonus, `Streak bonus ×${streakMultiplier(this.wallet).toFixed(1)}`));
         }
         const clean = e.job.clean && (e.job.type !== 'passenger' || e.job.comfort >= STREAK.minComfort) && e.job.damage < 0.05;
-        updateStreak(this.wallet, clean);
+        // A muzungu: a clean ride counts as MUZUNGU.streakRides rides for the streak.
+        for (let i = 0; i < (clean && e.job.visitor ? MUZUNGU.streakRides : 1); i++) updateStreak(this.wallet, clean);
         recordDelivery(this.dayStats, e.job, e.fare, this.clockHours, clean);
         this.#checkQuests();
         if (e.tip > 0) {
           earn(this.wallet, 'tips', e.tip);
           this.time.delayedCall(700, () => this.events.emit('money', e.tip, `Tip (comfort ${Math.round(e.job.comfort)}%)`));
+        }
+        if (e.job.visitor) {
+          const [pay, thanks, reply] = dropOffLines(this.rng);
+          this.#visitorSays([{ who: 'visitor', text: pay }, { who: 'visitor', text: thanks }, { who: 'rider', text: reply }]);
+          const photoTip = e.job.visitorState?.photoTip ?? 0;
+          if (photoTip > 0) {
+            earn(this.wallet, 'tips', photoTip);
+            this.time.delayedCall(1600, () => this.events.emit('money', photoTip, `Photo stops (${e.job.visitorState.photos})`));
+          }
         }
         // Parts from the garage: the speaker and the phone charger bring extra tips.
         const extra = partsTip(e.job, b.mods ?? partEffects(this.wallet, b.type));
@@ -797,6 +812,7 @@ export class RideScene extends Phaser.Scene {
       }
     }
     const kmh = Math.abs(forwardSpeed(b)) * 3.6;
+    this.#visitorStep(bikeEvents, kmh);
     const cameraEvents = this.level.cameras && this.mode.cameras ? checkCameras(this.world, this.cameraState, b, kmh) : [];
     for (const e of cameraEvents) {
       this.events.emit('camera', e);
@@ -967,7 +983,8 @@ export class RideScene extends Phaser.Scene {
     // Side missions: some new offers become special jobs (sim/missions.js).
     // Hard mode: some cargo is too heavy for a moto (overloading: more pay, but the police fine it).
     const decorate = (offer, board) => {
-      const o = maybeMission(offer, board, this.world, L.n, board.rng);
+      // The muzungu (a foreign visitor who pays 4 times the fare): about 1 new offer in 15.
+      const o = maybeVisitor(maybeMission(offer, board, this.world, L.n, board.rng), board, this.world, L.n, board.rng);
       return mode.fines ? maybeHeavy(o, board.rng) : o;
     };
     this.board = createJobBoard(this.world, Date.now() & 0xffff, { fareMultiplier: L.fare, offerLife: L.offerLife, districts: L.districts, maxOffers: L.maxOffers, decorate });
@@ -1152,6 +1169,7 @@ export class RideScene extends Phaser.Scene {
       ['YELLOW BATTERY: 25 S BOOST', 'boost'],
       [`CAR FREE MORNING: ${this.carFree?.day ? 'ON' : 'OFF'}`, 'carFree'],
       ['VIP CONVOY NOW', 'convoy'],
+      ['MUZUNGU ON THE BIKE NOW', 'muzungu'],
       ['GO TO: AMPERSAND SHOWROOM', 'goOffice'],
       ['GO TO: NEAREST GARAGE', 'goGarage'],
       [`GO TO: NEAREST ${this.bike.type === 'electric' ? 'SWAP' : 'FUEL'} STATION`, 'goStation'],
@@ -1237,6 +1255,18 @@ export class RideScene extends Phaser.Scene {
         const start = plan.route[0];
         this.teleport((start.from.x + start.dx * 30 - start.dy * 9) / T, (start.from.y + start.dy * 30 + start.dx * 9) / T, 0);
         return { text: 'THE CONVOY COMES: PULL OVER AND STOP', close: 'resume' };
+      }
+      case 'muzungu': {
+        // A visitor job at once: the muzungu is on the bike at a hotel or a landmark.
+        const offer = maybeVisitor(makeOffer(this.world, this.rng, this.board.nextId++, this.board.opts), { ...this.board, offers: [] }, this.world, MUZUNGU.fromLevel, () => 0);
+        if (!offer.visitor) return { text: 'NO VISITOR PLACES OPEN: GO TO LEVEL 2 OR MORE' };
+        cancelJob(this.board, b);
+        this.teleport(offer.from.x, offer.from.y, 0);
+        this.board.active = { ...offer, stage: 'toDropoff', comfort: 100, damage: 0, clean: true };
+        b.loadKg = offer.kg;
+        b.loadType = 'visitor';
+        this.time.delayedCall(400, () => this.#visitorSays(greeting(this.clockHours).map((text) => ({ who: 'visitor', text }))));
+        return { text: `MUZUNGU ON BOARD: GO TO ${offer.to.name.toUpperCase()}`, close: 'resume' };
       }
       case 'boost':
         b.boost = STORY.boostSeconds;
@@ -1544,14 +1574,66 @@ export class RideScene extends Phaser.Scene {
     this.#bubble(person.x, person.y, 34, word, 0xfff2c8);
   }
 
+  /** The muzungu on the bike: lines, photo stops (sim/muzungu.js). */
+  #visitorStep(bikeEvents, kmh) {
+    const job = this.board.active;
+    if (!job?.visitor || job.stage !== 'toDropoff') return;
+    const b = this.bike, T = WORLD.tileMetres;
+    const near = (list, metres) => list.some((o) => Math.hypot(o.x - b.x, o.y - b.y) < metres);
+    const ctx = {
+      kmh,
+      bump: bikeEvents.some((e) => e.type === 'bumpHard' || e.type === 'pothole'),
+      sight: sightNear(b.x, b.y),
+      quiet: quietNear(this.world.places, b.x, b.y),
+      police: near(this.police.police.officers, MUZUNGU.policeMetres),
+      market: near(this.world.placesWithTag('market').map((p) => ({ x: p.x * T, y: p.y * T })), MUZUNGU.marketMetres),
+      uphill: (b.grade ?? 0) > MUZUNGU.uphillGrade,
+    };
+    const says = [];
+    for (const e of stepVisitor(job, ctx, FIXED_DT, this.rng)) {
+      if (e.type === 'say') says.push(e);
+      else if (e.type === 'photo') {
+        this.cameras.main.flash(90, 255, 255, 255);
+        this.events.emit('bark', `Photo at ${e.sight.name}! The tip goes up: +${e.tip.toLocaleString('en')} RWF`);
+      }
+    }
+    if (says.length) this.#visitorSays(says);
+  }
+
+  /** Lines over the bike, one after the other (a queue, so two lines never overlap): the visitor in white, you (the rider) in gold. */
+  #visitorSays(lines) {
+    this.sayQueue = [...(this.sayQueue ?? []), ...lines].slice(-4); // drop old lines when too many wait
+    if (!this.sayBusy) this.#nextLine();
+  }
+
+  #nextLine() {
+    const l = this.sayQueue?.shift();
+    this.sayBusy = !!l;
+    if (!l) return;
+    if (l.who === 'visitor') this.engineSound.yell(1.35);
+    this.#bubble(this.bike.x, this.bike.y, 46, l.text, l.who === 'rider' ? 0xffc85a : 0xffffff, 1500, true);
+    this.time.delayedCall(2000, () => this.#nextLine());
+  }
+
   /** A word in the pixel font that floats over a point in the world (metres), then fades. */
-  #bubble(x, y, above, word, tint) {
+  // hold: milliseconds before it fades. onBike: it moves with the bike (the words of your passenger).
+  #bubble(x, y, above, word, tint, hold = 600, onBike = false) {
     if (!this.cache.bitmapFont.exists('retro')) return;
     const s = toScreen(x, y, this.world.heightAt(x, y));
     const text = this.add.bitmapText(Math.round(s.x), Math.round(s.y - above), 'retro', word).setOrigin(0.5, 1)
       .setTint(tint).setDepth(100000);
+    if (onBike) text.setMaxWidth(150).setCenterAlign(); // long lines of your passenger: two lines, so they fit on a phone
     text.noAmbient = true;
-    this.tweens.add({ targets: text, y: text.y - 10, alpha: 0, delay: 600, duration: 700, onComplete: () => text.destroy() });
+    const rise = { y: 0 };
+    const follow = () => {
+      if (onBike && this.bikeScreen) text.setPosition(Math.round(this.bikeScreen.x), Math.round(this.bikeScreen.y - above + rise.y));
+    };
+    this.tweens.add({ targets: rise, y: -10, delay: hold, duration: 700, onUpdate: follow });
+    this.tweens.add({ targets: text, alpha: 0, delay: hold, duration: 700, onComplete: () => text.destroy() });
+    if (onBike) {
+      this.events.on('update', follow);
+      text.once('destroy', () => this.events.off('update', follow));
+    } else this.tweens.add({ targets: text, y: text.y - 10, delay: hold, duration: 700 });
   }
 
   /** A stop at a station with a passenger on the bike: the passenger is not happy. */

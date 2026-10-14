@@ -229,6 +229,8 @@ export const PALETTE = {
   // People
   skinLight: 0x7a4a2a, skin: 0x6b4226, skinDeep: 0x5a3820,
   hair: 0x1a1a1a, shoe: 0x2a2a2a,
+  // The muzungu (a foreign visitor): light skin, light brown hair, khaki shorts.
+  visitorSkin: 0xf2c6a8, visitorHair: 0x7a5230, khaki: 0xc8a060,
   // Cloth (shirts, trousers, kitenge)
   red: 0xc0392b, green: 0x3f8f4a, orange: 0xe0a030, purple: 0x6a4aa0, cloth: 0xe8e8e4, blue: 0x2f6fb0,
   navy: 0x2a3550, charcoal: 0x3a3a3a, mud: 0x5a4a3a, teal: 0x2a8a8a, pink: 0xb0306a, cream: 0xf2efe6,
@@ -685,6 +687,44 @@ export const MISSIONS = {
     patrolsPerDistrict: 1, patrolSeeMetres: 24, patrolEscapeMetres: 34, patrolGraceSeconds: 3,
   },
   secretBonus: 2500, // a secret place, found once in a game
+};
+
+// The muzungu (Alp, 14 October 2026): a foreign visitor who loves everything, tries to say Kinyarwanda
+// words and pays 4 times the fare. The joke is on the tourist, never on the people. Place ids are the
+// job places of the Kigali map; sight positions are in tiles.
+export const MUZUNGU = {
+  fromLevel: 2, // when Kigali town and its hotels open (guess)
+  chance: 1 / 15, // the chance that a new offer is a visitor
+  maxOnBoard: 2,
+  fareFactor: 4,
+  streakRides: 3, // a clean ride counts as 3 rides for the clean ride streak ("3× delivery")
+  startIds: ['milleCollines', 'serena', 'umubano', 'radisson', 'marriott', 'kcc', 'kigaliHeights', 'carFree', 'cityTower', 'airportRoad'],
+  endIds: ['carFree', 'townMarket', 'market', 'kcc', 'golf', 'milleCollines', 'serena', 'umubano', 'radisson', 'marriott', 'kigaliHeights', 'chic', 'mtn', 'gakinjiro'],
+  // Photo stops. line: what the visitor says when you ride past too fast for a photo.
+  sights: [
+    { id: 'kcc', name: 'the KCC', x: 110, y: 90.5, line: 'IS THAT THE CONVENTION CENTRE?!' },
+    { id: 'love', name: 'I LOVE KIGALI', x: 43, y: 103.5, line: 'I LOVE KIGALI! I LOVE IT!' },
+    { id: 'tower', name: 'Kigali City Tower', x: 34, y: 87, line: 'OH WOW, LOOK AT THAT TOWER!' },
+    { id: 'fountain', name: 'the MTN fountain', x: 41, y: 79.5, line: 'OH WOW, A FOUNTAIN!' },
+    { id: 'heights', name: 'Kigali Heights', x: 117.5, y: 86.5, line: 'OH WOW! SO MODERN!' },
+    { id: 'milleCollines', name: 'the Mille Collines', x: 55, y: 114.5, line: 'OH WOW, WHAT A VIEW!' },
+    { id: 'golfLake', name: 'the golf lake', x: 150, y: 36.5, line: 'OH WOW, THE HILLS!' },
+    { id: 'townMarket', name: 'the town market', x: 16, y: 102, line: 'EE-GEE-TOH-KEE! BANANA!' },
+  ],
+  sightMetres: 26, // near a sight
+  photoKmh: 20, // ride past a sight under this speed: a photo (a flash) and a bigger tip
+  photoTipFactor: 0.1, // each photo adds this part of the fare to the tip
+  maxPhotos: 3,
+  // No visitor lines near these places (respect). Parliament holds the Campaign Against Genocide Museum.
+  quietIds: ['parliament'],
+  quietTags: ['memorial', 'church'],
+  quietMetres: 40,
+  fastKmh: 50, // "BUHORO BUHORO!"
+  marketMetres: 30,
+  policeMetres: 22,
+  uphillGrade: 0.06,
+  gapSeconds: 3.5, // at least this long between two lines
+  chatterSeconds: [8, 15], // a random line when nothing happens
 };
 
 // Hired riders (levels 6 and 8: a second and a third moto). The rider rides your moto in the city and
