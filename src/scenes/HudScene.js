@@ -1,24 +1,35 @@
 import Phaser from 'phaser';
-import { BIKES, COLOURS, GEARBOX, LAW, JOBS, SAVINGS_FLOAT, DISTRICTS, RIDER, HARD_RULES, MUZUNGU } from '../config.js';
+import { BIKES, COLOURS, GEARBOX, LAW, SAVINGS_FLOAT, DISTRICTS, RIDER, HARD_RULES, MUZUNGU, HUD_RULES } from '../config.js';
 import { forwardSpeed } from '../sim/bike.js';
 import { serviceDue } from '../sim/maintenance.js';
 import { wrapRetro, retroText, RETRO_CELL } from '../world/retro-font.js';
 import { MinimapView } from './MinimapView.js';
-import { questLabel, missionRule } from '../sim/missions.js';
-import { eventLine } from '../sim/events.js';
 import { textBit, textWidth } from '../world/garage-sprites.js';
-import { UI, pixelScale, ensureRetroFont, ensureIcons, retroLabel, retroWidth, drawWindow, drawSegBar, smallLabel, wrapSmall, SMALL_LINE } from './retro-ui.js';
+import { UI, pixelScale, ensureRetroFont, ensureIcons, retroLabel, retroWidth, drawWindow, drawSegBar, smallLabel, wrapSmall } from './retro-ui.js';
 
 // The HUD in a retro 16-bit console style, like the menus: everything is drawn at a low
 // resolution (about 480 × 270 virtual pixels, like the game view) with the pixel font, pixel icons, blue windows and
 // segmented bars, then scaled up by a whole number. It reads the ride scene state each frame and
 // writes the touch controls back.
+// Minimal HUD (Alp, 14 October 2026): a thing shows only when it helps you now. Always: the speed and
+// the gear, the fuel or battery bar, the cash and the clock, the savings bar, the minimap. Only when
+// low: the service, food and WC bars. Only with a job: one job line at the top centre. Only with no
+// job: a small job list (one line for each offer). Only on a change: the speed limit, the district
+// name, the warnings and one message line at the bottom. The level, the goal and the quests are in
+// the pause menu; the keys are in How to play (the keys line shows only in the first minute).
 
-const PANEL_W = 150;
-const JOBS_W = 144;
+const LEFT_W = 98;
+const LIST_W = 160;
 const LINE = RETRO_CELL.height + 1; // virtual pixels between text lines
 const PETROL_RED = UI.petrol;
+const HELP_SECONDS = 60; // the keys line shows for this long after the start
+const SIGN_SECONDS = 3; // the speed limit sign shows for this long after the limit changes
 const money = (n) => `${Math.round(n).toLocaleString('en')}`;
+/** A short place name for the small job lines. */
+const shortName = (name, max = 15) => {
+  const s = String(name).toUpperCase().replace(/ MARKET\b/g, ' MKT').replace(/\bROUNDABOUT\b/g, 'RBT').replace(/\bHOTEL\b/g, '').replace(/\s+/g, ' ').trim();
+  return s.length > max ? `${s.slice(0, max - 1).trim()}.` : s;
+};
 
 export class HudScene extends Phaser.Scene {
   constructor() {
@@ -45,59 +56,39 @@ export class HudScene extends Phaser.Scene {
     this.ui = this.add.container(0, 0);
     const add = (o) => (this.ui.add(o), o);
     const label = (tint = UI.white, scale = 1) => add(retroLabel(this, 0, 0, '', tint, scale));
+    const small = (tint = UI.white) => add(smallLabel(this, tint));
     const icon = (name) => add(this.add.image(0, 0, 'hud-icons', name).setOrigin(0));
-    this.bg = add(this.add.graphics()); // the windows (drawn again on a resize)
-    this.fg = add(this.add.graphics()); // bars and signs (drawn each frame)
+    this.bg = add(this.add.graphics()); // the fixed windows (drawn again on a resize)
+    this.fg = add(this.add.graphics()); // windows that change, bars and signs (drawn each frame)
 
-    // Left window: speed, gear, fuel or battery, revs, service, where you are.
+    // Left window: speed, gear, the revs (petrol), then one bar for each need that shows now.
     this.speedText = label(UI.white, 2);
     this.unitText = label(UI.dim);
-    this.gearIcon = icon('cog');
     this.gearText = label(UI.white, 2);
-    this.energyIcon = icon('fuel');
-    this.energyText = label();
-    this.revsLabel = label(UI.dim);
-    this.useText = label(UI.dim);
-    this.serviceIcon = icon('spanner');
-    this.serviceText = label();
-    this.foodIcon = icon('food'); // rider energy (medium and hard modes)
-    this.foodText = label();
-    this.wcIcon = icon('wc'); // the bathroom need (hard mode)
-    this.wcText = label();
-    this.groundIcon = icon('mountain');
-    this.groundText = label();
-    this.placeText = label(UI.dim);
+    this.rows = ['energy', 'service', 'food', 'wc'].map((key) => ({ key, icon: icon({ energy: 'fuel', service: 'spanner', food: 'food', wc: 'wc' }[key]), text: small(UI.red) }));
     // The pause button.
     this.pauseIcon = icon('pause');
     this.#zone(() => this.ride.openPause(), (z) => (this.pauseZone = z));
 
-    // Right window: cash, clock, speed limit, level and savings.
+    // Right: the cash chip (cash, clock, streak), the savings bar under it, the speed limit beside it.
     this.coinIcon = icon('coin');
     this.cashText = label(UI.white, 2);
-    this.rwfText = label(UI.dim);
-    this.clockIcon = icon('clock');
-    this.clockText = label();
-    this.starIcon = icon('star');
-    this.levelText = label();
+    this.clockText = label(UI.dim);
     this.flameIcon = icon('flame');
-    this.streakText = label(UI.orange);
-    this.goalText = label(UI.dim);
+    this.streakText = small(UI.orange);
 
-    // Jobs window: a title and up to four cards. Each card has an icon and up to four lines.
-    this.jobIcon = icon('pin');
-    // The job cards use the small 3 × 5 font, so the window takes less of the screen.
-    const small = (tint = UI.white) => add(smallLabel(this, tint));
-    this.jobTitle = small(UI.dim);
-    this.cards = [0, 1, 2, 3].map((i) => {
-      const card = { icon: icon('person'), lines: [0, 1, 2, 3].map(() => small()), y: 0, h: 0 };
-      this.#zone(() => this.ride.acceptJob(i), (z) => (card.zone = z));
-      return card;
+    // The job list (no job): one line for each offer. The job line (with a job): at the top centre.
+    this.listRows = [0, 1, 2, 3].map((i) => {
+      const row = { key: small(), icon: icon('person'), to: small(), dist: small(UI.dim), pay: small() };
+      this.#zone(() => this.ride.acceptJob(i), (z) => (row.zone = z));
+      return row;
     });
-    this.questLines = [0, 1, 2].map(() => small()); // the daily app quests, under the jobs
-    this.eventText = small(); // the day event (Umuganda, rain), under the jobs title
-    this.riderHelpText = small(UI.orange); // a hired rider who waits for your help
+    this.pill = { icon: icon('pin'), parts: [0, 1, 2, 3].map(() => small()) };
+    this.warnText = small(UI.white); // a warning chip under the job line
+    this.districtTitle = label(UI.white, 2);
+    this.districtShadow = label(UI.textShadow, 2);
 
-    // Bottom: station prompt (tap = F), fuel choices (tap = 1, 2, 3), the help line.
+    // Bottom: station prompt (tap = F), fuel choices (tap = 1, 2, 3), the keys line (first minute).
     this.promptLines = [0, 1, 2].map(() => label());
     this.#zone(() => { if (!this.ride.acceptHail()) this.ride.startRefuel(); }, (z) => (this.promptZone = z));
     this.fuelRows = [0, 1, 2].map((i) => {
@@ -106,14 +97,15 @@ export class HudScene extends Phaser.Scene {
       return row;
     });
     this.helpText = label(UI.grey);
-    // Barks (short messages) and money pop ups.
-    this.barkLines = [0, 1, 2].map(() => label());
+    this.helpUntil = this.time.now + HELP_SECONDS * 1000;
+    // The message line (short barks) and the money pop ups.
+    this.barkLines = [0, 1].map(() => small());
     this.popups = [];
 
     this.minimap = new MinimapView(this, this.ui);
-    // Prompts, fuel choices and barks are on top of everything (also on top of the minimap).
+    // Prompts, fuel choices and messages are on top of everything (also on top of the minimap).
     this.over = add(this.add.graphics());
-    for (const l of [...this.promptLines, ...this.fuelRows.map((r) => r.text), ...this.barkLines]) this.ui.bringToTop(l);
+    for (const l of [...this.promptLines, ...this.fuelRows.map((r) => r.text), ...this.barkLines, this.districtShadow, this.districtTitle]) this.ui.bringToTop(l);
     for (const z of [this.promptZone, ...this.fuelRows.map((r) => r.zone)]) this.ui.bringToTop(z);
     this.flash = this.add.rectangle(0, 0, 10, 10, UI.white, 1).setOrigin(0).setAlpha(0);
     this.isTouch = this.sys.game.device.input.touch;
@@ -139,71 +131,19 @@ export class HudScene extends Phaser.Scene {
     const vw = (this.vw = Math.floor(width / k)), vh = (this.vh = Math.floor(height / k));
     this.hudScale = k / 3;
     const g = this.bg.clear();
-
-    // Left window.
-    // Medium and hard modes add a row for the rider's energy (FOOD) under the service bar.
-    const food = (this.hasRider = !!this.ride?.rider);
-    const wc = (this.hasWc = food && !!this.ride?.mode?.bladder);
-    const extra = (food ? 11 : 0) + (wc ? 11 : 0);
-    const L = (this.left = { x: 4, y: 4, w: PANEL_W, h: 82 + extra });
-    drawWindow(g, L.x, L.y, L.w, L.h);
-    this.speedText.setPosition(L.x + 7, L.y + 5);
-    this.gearIcon.setPosition(L.x + L.w - 34, L.y + 7);
-    this.gearText.setPosition(L.x + L.w - 23, L.y + 5);
-    this.energyIcon.setPosition(L.x + 6, L.y + 26);
-    this.energyText.setPosition(L.x + L.w - 32, L.y + 26);
-    this.energyBar = { x: L.x + 18, y: L.y + 27, w: L.w - 54, h: 8 };
-    this.revsLabel.setPosition(L.x + 6, L.y + 37);
-    this.revsBar = { x: L.x + 30, y: L.y + 38, w: 62, h: 6 };
-    this.useText.setPosition(L.x + 96, L.y + 37);
-    this.serviceIcon.setPosition(L.x + 6, L.y + 47);
-    this.serviceText.setPosition(L.x + L.w - 32, L.y + 47);
-    this.serviceBar = { x: L.x + 18, y: L.y + 48, w: L.w - 54, h: 8 };
-    this.foodIcon.setPosition(L.x + 6, L.y + 58).setVisible(food);
-    this.foodText.setPosition(L.x + L.w - 32, L.y + 58).setVisible(food);
-    this.foodBar = { x: L.x + 18, y: L.y + 59, w: L.w - 54, h: 8 };
-    this.wcIcon.setPosition(L.x + 6, L.y + 69).setVisible(wc);
-    this.wcText.setPosition(L.x + L.w - 32, L.y + 69).setVisible(wc);
-    this.wcBar = { x: L.x + 18, y: L.y + 70, w: L.w - 54, h: 8 };
-    this.groundIcon.setPosition(L.x + 6, L.y + 59 + extra);
-    this.groundText.setPosition(L.x + 18, L.y + 59 + extra);
-    this.placeText.setPosition(L.x + 18, L.y + 69 + extra);
+    this.left = { x: 4, y: 4, w: LEFT_W, h: 40 }; // the height follows the bars that show (see #updateLeft)
     // Pause button: a small window beside the left window.
-    drawWindow(g, L.x + L.w + 3, L.y, 15, 15);
-    this.pauseIcon.setPosition(L.x + L.w + 6, L.y + 3);
-    this.pauseZone.setPosition(L.x + L.w + 3, L.y).setSize(15, 15);
-
-    // Right window.
-    const R = (this.right = { x: vw - JOBS_W - 4, y: 4, w: JOBS_W, h: 58 });
-    drawWindow(g, R.x, R.y, R.w, R.h);
-    this.coinIcon.setPosition(R.x + 6, R.y + 8);
-    this.cashText.setPosition(R.x + 17, R.y + 5);
-    this.clockIcon.setPosition(R.x + 6, R.y + 25);
-    this.clockText.setPosition(R.x + 17, R.y + 25);
-    this.limitPos = { x: R.x + R.w - 15, y: R.y + 15, r: 11 };
-    this.starIcon.setPosition(R.x + 6, R.y + 36);
-    this.levelText.setPosition(R.x + 17, R.y + 36);
-    this.flameIcon.setPosition(R.x + R.w - 38, R.y + 36);
-    this.streakText.setPosition(R.x + R.w - 28, R.y + 36);
-    this.savingsBar = { x: R.x + 6, y: R.y + 47, w: R.w - 60, h: 7 };
-    this.goalText.setPosition(R.x + R.w - 51, R.y + 46);
-    this.jobBox = { x: R.x, y: R.y + R.h + 3, w: R.w };
-    // Barks: at the top between the windows, or under the left window when there is no room.
-    const gapX = L.x + L.w + 22, gapW = R.x - 4 - gapX;
-    this.barkTop = gapW >= 110 ? { x: gapX, y: 4, w: gapW } : null;
-    this.barkLow = { x: 4, y: L.y + L.h + 4, w: Math.min(R.x - 8, 300) };
-    this.barkArea = this.barkTop ?? this.barkLow;
-
-    // Bottom: the help line, the station prompt and the minimap.
+    drawWindow(g, 4 + LEFT_W + 3, 4, 15, 15);
+    this.pauseIcon.setPosition(4 + LEFT_W + 6, 7);
+    this.pauseZone.setPosition(4 + LEFT_W + 3, 4).setSize(15, 15);
+    // Bottom: the keys line (first minute only), the minimap.
     this.helpText.setText(this.isTouch ? 'STICK: STEER · GO · STOP · + − GEAR · TAP A JOB' : '↑↓←→ RIDE · 1-4 JOB · F STATION · H HORN · ESC: MENU AND HELP');
-    // The help line: at the bottom, right of the minimap (if there is room).
     this.helpText.setPosition(vw - this.helpText.width - 4, vh - LINE - 1);
-    this.helpText.setVisible(vw >= this.helpText.width + 146 || this.isTouch);
+    this.helpFits = vw >= this.helpText.width + 120 || this.isTouch;
     this.minimap.layout(4, vh - 4);
     this.flash.setSize(width, height);
-    this.jobLimit = vh - 6; // the lowest line of the jobs window (touch: above the buttons)
+    this.jobLimit = vh - 6; // the lowest line of the job list (touch: above the buttons)
     if (this.isTouch) this.#layoutTouch(width, height);
-    if (this.helpText.visible) g.fillStyle(UI.helpBack, 0.8).fillRect(this.helpText.x - 3, this.helpText.y - 2, this.helpText.width + 6, LINE + 2);
   }
 
   update(_time, deltaMs) {
@@ -213,228 +153,206 @@ export class HudScene extends Phaser.Scene {
       this.ride.openPause();
       return;
     }
-    const ride = this.ride, bike = ride.bike, spec = BIKES[bike.type];
     const g = this.fg.clear();
-    const L = this.left;
-    const electric = bike.type === 'electric';
-
-    // Speed and gear.
-    const kmh = Math.abs(forwardSpeed(bike)) * 3.6;
-    this.speedText.setText(String(Math.round(kmh)));
-    this.unitText.setText('KM/H').setPosition(L.x + 9 + this.speedText.width, L.y + 12);
-    this.gearIcon.setFrame(spec.gears ? 'cog' : 'battery');
-    this.gearText.setText(spec.gears ? `${bike.gear + 1}` : 'E').setTint(bike.autoShift ? UI.green : UI.white);
-
-    // Fuel or battery: a segmented bar. Live use against full throttle on flat tarmac.
-    this.energyIcon.setFrame(electric ? 'battery' : 'fuel');
-    const low = bike.energy < 0.25;
-    this.energyText.setText(`${Math.round(bike.energy * 100)}%`).setTint(low ? UI.red : UI.white);
-    const eb = this.energyBar;
-    const blinkLow = bike.energy < 0.1 && Math.floor(this.time.now / 300) % 2 === 0;
-    drawSegBar(g, eb.x, eb.y, eb.w, eb.h, bike.energy, blinkLow ? UI.white : electric || bike.boost > 0 ? COLOURS.ampersandYellow : low ? UI.red : PETROL_RED, 12); // a yellow battery boost: the bar is yellow
-    const ratio = (bike.energyRate ?? 0) * spec.energySeconds;
-    this.useSmooth = (this.useSmooth ?? 0) + (ratio - (this.useSmooth ?? 0)) * Math.min(1, deltaMs / 250);
-    this.useText.setText(this.useSmooth < -0.02 ? 'CHARGE' : `USE ${Math.max(0, this.useSmooth).toFixed(1)}×`).setTint(this.useSmooth < -0.02 ? UI.green : UI.dim);
-
-    // Revs: green, then gold, then the red zone (petrol). Electric: the motor load.
-    this.revsLabel.setText(spec.gears ? 'RPM' : 'MTR');
-    const rb = this.revsBar, segs = 10;
-    // Petrol: green is good for fuel (shift up before the gold), red wastes the most fuel.
-    const redFrom = spec.gears ? Math.round(GEARBOX.peakRevsEnd * segs) : segs;
-    const goldFrom = spec.gears ? Math.round(GEARBOX.ecoRevs * segs) : segs - 2;
-    drawSegBar(g, rb.x, rb.y, rb.w, rb.h, Math.min(1, bike.revs), (i) => (i >= redFrom ? UI.red : i >= goldFrom ? UI.gold : UI.green), segs);
-
-    // The moto service (oil, brake pads, chain, tyres): white, orange from 80%, red when due.
-    const due = serviceDue(bike);
-    const late = due >= 1;
-    const blink = bike.brokenDown && Math.floor(this.time.now / 300) % 2 === 0;
-    const sb = this.serviceBar;
-    drawSegBar(g, sb.x, sb.y, sb.w, sb.h, Math.min(1, due), blink ? UI.white : late ? UI.red : due >= 0.8 ? UI.orange : UI.frameLight, 12);
-    this.serviceText.setText(bike.brokenDown ? 'OUT' : `${Math.round(due * 100)}%`).setTint(late || bike.brokenDown ? UI.red : due >= 0.8 ? UI.orange : UI.white);
-
-    // Medium and hard modes: the rider's energy. Green, orange when hungry, red and blinking when weak.
-    if (!!ride.rider !== this.hasRider || (!!ride.rider && !!ride.mode?.bladder) !== this.hasWc) this.#layout();
-    if (ride.rider) {
-      const e = ride.rider.energy, fb = this.foodBar;
-      const hungry = e < RIDER.hungryAt, weak = e <= 0.05 && Math.floor(this.time.now / 300) % 2 === 0;
-      drawSegBar(g, fb.x, fb.y, fb.w, fb.h, e, weak ? UI.white : hungry ? UI.red : e < 0.5 ? UI.orange : UI.green, 12);
-      this.foodText.setText(`${Math.round(e * 100)}%`).setTint(hungry ? UI.red : UI.white);
-    }
-    // Hard mode: the bathroom need. Blue, orange when urgent, red and blinking when full.
-    if (this.hasWc) {
-      const v = ride.rider.bladder ?? 0, wb = this.wcBar;
-      const urgent = v >= HARD_RULES.bladder.urgentAt, full = v >= 1 && Math.floor(this.time.now / 300) % 2 === 0;
-      drawSegBar(g, wb.x, wb.y, wb.w, wb.h, v, full ? UI.white : v >= 1 ? UI.red : urgent ? UI.orange : UI.water, 12);
-      this.wcText.setText('WC').setTint(urgent ? UI.red : UI.white);
-    }
-
-    // Where you are: slope and surface, then the district and the height above the valley.
-    const grade = Math.round(bike.grade * 100);
-    const slope = grade === 0 ? 'FLAT' : `${grade > 0 ? '↑' : '↓'}${Math.abs(grade)}%`;
-    this.groundText.setText(bike.surface.offRoad ? 'OFF ROAD: 4× WEAR' : `${slope} · ${bike.surface.name}`).setTint(bike.surface.offRoad ? UI.red : UI.white);
-    const t = ride.world.tileAt(bike.x, bike.y);
-    this.placeText.setText(`${DISTRICTS[t?.district]?.name ?? ''} · ${Math.round(bike.z)} M UP`);
-
+    this.helpText.setVisible(this.helpFits && this.time.now < this.helpUntil);
+    this.#updateLeft(g);
     this.minimap.update(this.time.now);
     this.#updateMoney(g);
     this.#updateJobs(g);
     const o = this.over.clear();
-    this.#updateStation(o);
-    this.#updateMessages(o, deltaMs);
+    const promptTop = this.#updateStation(o);
+    this.#updateMessages(o, deltaMs, promptTop);
     if (this.flash.alpha > 0) this.flash.setAlpha(Math.max(0, this.flash.alpha - deltaMs / 300));
     if (this.isTouch) this.#drawStick();
   }
 
+  /** The left window: speed, gear, revs (petrol), and the bars that show now. */
+  #updateLeft(g) {
+    const ride = this.ride, bike = ride.bike, spec = BIKES[bike.type], L = this.left;
+    const electric = bike.type === 'electric';
+    const blinkOn = Math.floor(this.time.now / 300) % 2 === 0;
+    const kmh = Math.abs(forwardSpeed(bike)) * 3.6;
+    // Which bars show: the fuel or battery always; the others only when they need you.
+    const due = serviceDue(bike);
+    const food = ride.rider ? ride.rider.energy : 1;
+    const wc = this.ride.mode?.bladder && ride.rider ? ride.rider.bladder ?? 0 : 0;
+    const eating = ride.refuel?.kind === 'food';
+    const show = {
+      energy: true,
+      service: bike.brokenDown || due >= HUD_RULES.serviceFrom,
+      food: !!ride.rider && (food < HUD_RULES.foodBelow || eating),
+      wc: !!this.ride.mode?.bladder && !!ride.rider && wc >= HUD_RULES.wcFrom,
+    };
+    const rowsTop = L.y + (spec.gears ? 33 : 27);
+    const shown = this.rows.filter((r) => show[r.key]);
+    L.h = rowsTop - L.y + shown.length * 10 + 2;
+    drawWindow(g, L.x, L.y, L.w, L.h);
+    // Speed and the gear in a small black box.
+    this.speedText.setText(String(Math.round(kmh))).setPosition(L.x + 6, L.y + 5);
+    this.unitText.setText('KM/H').setPosition(L.x + 8 + this.speedText.width, L.y + 12);
+    const gx = L.x + L.w - 21, gy = L.y + 4;
+    g.fillStyle(UI.frameLight, 1).fillRect(gx - 1, gy - 1, 18, 22).fillStyle(UI.frame, 1).fillRect(gx, gy, 16, 20);
+    this.gearText.setText(spec.gears ? `${bike.gear + 1}` : 'E').setPosition(gx + 2, gy + 2);
+    // Revs (petrol): a thin strip, green, then gold, then the red zone. No label.
+    if (spec.gears) {
+      const segs = 10;
+      const redFrom = Math.round(GEARBOX.peakRevsEnd * segs), goldFrom = Math.round(GEARBOX.ecoRevs * segs);
+      drawSegBar(g, L.x + 6, L.y + 26, L.w - 12, 5, Math.min(1, bike.revs), (i) => (i >= redFrom ? UI.red : i >= goldFrom ? UI.gold : UI.green), segs);
+    }
+    let y = rowsTop;
+    for (const r of this.rows) {
+      const on = show[r.key];
+      r.icon.setVisible(on);
+      r.text.setVisible(false);
+      if (!on) continue;
+      r.icon.setPosition(L.x + 5, y);
+      const bx = L.x + 17, bw = L.w - 23;
+      if (r.key === 'energy') {
+        const low = bike.energy < 0.25;
+        r.icon.setFrame(electric ? 'battery' : 'fuel');
+        drawSegBar(g, bx, y + 1, bw, 7, bike.energy, low && blinkOn ? UI.white : low ? UI.red : electric || bike.boost > 0 ? COLOURS.ampersandYellow : PETROL_RED, 8);
+        if (low) r.text.setText(`${Math.round(bike.energy * 100)}%`).setVisible(true);
+      } else if (r.key === 'service') {
+        const late = due >= 1;
+        drawSegBar(g, bx, y + 1, bw, 7, Math.min(1, due), bike.brokenDown && blinkOn ? UI.white : late || bike.brokenDown ? UI.red : UI.orange, 8);
+        if (bike.brokenDown) r.text.setText('OUT').setVisible(true);
+      } else if (r.key === 'food') {
+        const hungry = food < RIDER.hungryAt;
+        drawSegBar(g, bx, y + 1, bw, 7, food, food <= 0.05 && blinkOn ? UI.white : hungry ? UI.red : UI.orange, 8);
+        if (hungry) r.text.setText(`${Math.round(food * 100)}%`).setVisible(true);
+      } else {
+        const urgent = wc >= HARD_RULES.bladder.urgentAt;
+        drawSegBar(g, bx, y + 1, bw, 7, wc, wc >= 1 && blinkOn ? UI.white : wc >= 1 ? UI.red : urgent ? UI.orange : UI.water, 8);
+      }
+      // A number only when it matters: outside the window, on the right.
+      r.text.setPosition(L.x + L.w + 4, y + 2);
+      y += 10;
+    }
+    // The district name: large in the centre for a moment when you ride into a district.
+    const t = ride.world.tileAt(bike.x, bike.y);
+    const district = t?.district ?? null;
+    if (district && district !== this.lastDistrict) {
+      if (this.lastDistrict !== undefined) this.districtAlpha = HUD_RULES.districtSeconds + 0.6;
+      this.lastDistrict = district;
+      const name = (DISTRICTS[district]?.name ?? '').toUpperCase();
+      this.districtTitle.setText(name);
+      this.districtShadow.setText(name);
+    }
+  }
+
   #updateMoney(g) {
-    const ride = this.ride, R = this.right;
+    const ride = this.ride, vw = this.vw;
     const cash = ride.wallet.cash;
-    this.cashText.setText(money(cash)).setTint(cash < 0 ? UI.red : UI.white);
-    this.rwfText.setText('RWF').setPosition(R.x + 19 + this.cashText.width, R.y + 12);
     const h = ride.clockHours;
-    const day = ride.dayOver ? ride.wallet.day - 1 : ride.wallet.day; // during the day end, wallet.day counts the next day
     const clock = ride.dayOver ? `${String(ride.level.shift.end % 24).padStart(2, '0')}:00` : `${String(Math.floor(h)).padStart(2, '0')}:${String(Math.floor((h % 1) * 60)).padStart(2, '0')}`;
-    this.clockText.setText(`DAY ${day} · ${clock}`);
-    // Speed limit sign: a red ring. It flashes when you are over the limit by more than the camera tolerance.
+    this.cashText.setText(money(cash)).setTint(cash < 0 ? UI.red : UI.white);
+    this.clockText.setText(clock);
+    const streak = ride.wallet.streak ?? 0;
+    this.streakText.setText(streak > 0 ? `×${(1 + streak).toFixed(1)}` : '');
+    this.flameIcon.setVisible(streak > 0);
+    this.streakText.setVisible(streak > 0);
+    const streakW = streak > 0 ? 12 + this.streakText.width : 0;
+    const w = 6 + 9 + 3 + this.cashText.width + 5 + this.clockText.width + streakW + 6;
+    const R = (this.right = { x: vw - 4 - w, y: 4, w, h: 22 });
+    drawWindow(g, R.x, R.y, R.w, R.h);
+    this.coinIcon.setPosition(R.x + 6, R.y + 7);
+    this.cashText.setPosition(R.x + 18, R.y + 3);
+    this.clockText.setPosition(R.x + 18 + this.cashText.width + 5, R.y + 10);
+    this.flameIcon.setPosition(R.x + R.w - 6 - streakW, R.y + 7);
+    this.streakText.setPosition(R.x + R.w - 6 - streakW + 11, R.y + 9);
+    // The savings goal: a thin bar under the chip (the number is in the pause menu).
+    const Lv = ride.level;
+    const target = Lv.freePlay ? 0 : Lv.goal + SAVINGS_FLOAT;
+    const frac = target ? Math.max(0, Math.min(1, cash / target)) : 1;
+    this.savings = { x: vw - 4 - 74, y: R.y + R.h + 2, w: 74, h: 5 };
+    drawSegBar(g, this.savings.x, this.savings.y, this.savings.w, this.savings.h, frac, frac >= 1 ? UI.green : UI.gold, 12);
+    // Speed limit sign: beside the chip, for a moment when the limit changes, and while you ride faster.
     const kmh = Math.abs(forwardSpeed(ride.bike)) * 3.6;
     const limit = ride.speedLimit.limitKmh;
+    if (limit !== this.lastLimit) {
+      this.lastLimit = limit;
+      this.signUntil = this.time.now + SIGN_SECONDS * 1000;
+    }
+    if (kmh <= limit && this.time.now > (this.signUntil ?? 0)) return;
     const blink = kmh > limit + LAW.toleranceKmh && Math.floor(this.time.now / 250) % 2 === 0;
-    const { x, y, r } = this.limitPos;
+    const r = 10, x = R.x - r - 5, y = R.y + 11;
     g.fillStyle(UI.frame, 1).fillCircle(x, y, r + 1).fillStyle(UI.signRed, 1).fillCircle(x, y, r).fillStyle(blink ? UI.signBlink : UI.white, 1).fillCircle(x, y, r - 3);
     // The number in the small sign font (3 × 5 pixels a digit), like a real road sign.
     const num = String(limit), nw = textWidth(num);
     g.fillStyle(UI.signInk, 1);
     for (let py = 0; py < 5; py++) for (let px = 0; px < nw; px++) if (textBit(num, px, py)) g.fillRect(Math.round(x - nw / 2) + px, Math.round(y - 2) + py, 1, 1);
-    // Level and savings toward the milestone.
-    const Lv = ride.level;
-    const target = Lv.freePlay ? 0 : Lv.goal + SAVINGS_FLOAT;
-    this.levelText.setText(`L${Lv.n} ${Lv.name}`);
-    const streak = ride.wallet.streak ?? 0;
-    this.flameIcon.setVisible(streak > 0);
-    this.streakText.setText(streak > 0 ? `×${(1 + streak).toFixed(1)}` : '');
-    const frac = target ? Math.max(0, Math.min(1, cash / target)) : 1;
-    const sp = this.savingsBar;
-    drawSegBar(g, sp.x, sp.y, sp.w, sp.h, frac, frac >= 1 ? UI.green : UI.gold, 12);
-    this.goalText.setText(Lv.freePlay ? 'FREE PLAY' : money(target)).setTint(frac >= 1 ? UI.green : UI.dim);
   }
 
   #updateJobs(g) {
-    const ride = this.ride, bike = ride.bike, job = ride.board.active, box = this.jobBox;
-    const textW = box.w - 22; // virtual pixels on a line
+    const ride = this.ride, bike = ride.bike, job = ride.board.active;
     const iconOf = (j) => (j.type === 'passenger' ? 'person' : j.goods === 'bananas' ? 'bananas' : j.goods === 'batteries' ? 'battery' : 'sack');
-    const goods = (j) => (j.goods === 'bananas' ? 'BANANAS' : j.goods === 'ikivuguto' ? 'IKIVUGUTO' : j.goods === 'batteries' ? 'BATTERIES' : 'RICE');
-    const what = (j) => (j.visitor ? `MUZUNGU ★ ×${MUZUNGU.fareFactor}` : j.mission ? `${j.mission.title}${j.type === 'cargo' && j.goods !== 'ikivuguto' ? ` ${j.kg}KG` : ''}` : j.type === 'passenger' ? 'PASSENGER' : `${goods(j)} ${j.kg}KG`);
     const clock = (t) => `${Math.floor(Math.max(0, t) / 60)}:${String(Math.floor(Math.max(0, t) % 60)).padStart(2, '0')}`;
-    const fuel = (j) => (j.fuel === undefined ? '' : ` · FUEL ${Math.max(1, Math.round(j.fuel * 100))}%`);
     const short = (j) => j.fuel !== undefined && j.fuel > bike.energy;
-    let y = box.y + 15;
-    // The day event: one line under the title.
-    const ev = eventLine(ride.dayEvent, ride.clockHours)
-      ?? (ride.carFree?.active ? { text: 'CAR FREE DAY · BOULEVARD CLOSED', tone: 'info' } : null)
-      ?? (ride.rushNow ? { text: 'RUSH HOUR · HEAVY TRAFFIC', tone: 'warn' } : null);
-    this.eventText.setVisible(!!ev);
-    if (ev) {
-      this.eventText.setText(ev.text).setTint(ev.tone === 'warn' ? UI.orange : ev.tone === 'good' ? UI.green : UI.dim).setPosition(box.x + 6, y);
-      y += SMALL_LINE + 3;
-    }
-    // A hired rider calls for help: the name, the time left and the distance.
-    const help = ride.helpWait;
-    this.riderHelpText.setVisible(!!help);
-    if (help) {
-      const t = Math.max(0, help.rider.help.timeLeft), d = Math.round(Math.hypot(help.vehicle.x - bike.x, help.vehicle.y - bike.y));
-      const blink = t < 20 && Math.floor(this.time.now / 300) % 2 === 0;
-      this.riderHelpText.setText(`HELP ${help.rider.name.toUpperCase()} · ${clock(t)} · ${d} M`).setTint(blink ? UI.red : UI.orange).setPosition(box.x + 6, y);
-      y += SMALL_LINE + 3;
-    }
-    const fill = (card, i, lines, tints, tap) => {
-      card.icon.setVisible(true).setPosition(box.x + 6, y - 1);
-      card.lines.forEach((l, li) => l.setText(lines[li] ?? '').setTint(tints[li] ?? UI.white).setPosition(box.x + 18, y + li * SMALL_LINE).setVisible(li < lines.length));
-      card.y = y;
-      card.h = Math.max(9, lines.length * SMALL_LINE);
-      card.zone.setPosition(box.x + 2, y - 1).setSize(box.w - 4, card.h + 2);
-      card.zone.input.enabled = tap;
-      y += card.h + 3;
-    };
-    const hide = (card) => {
-      card.icon.setVisible(false);
-      card.lines.forEach((l) => l.setVisible(false));
-      card.zone.input.enabled = false;
-    };
-    if (job) {
-      this.jobIcon.setFrame('pin');
-      this.jobTitle.setText(job.stage === 'toPickup' ? 'GO TO THE PICKUP' : 'GO TO THE DROP OFF').setTint(job.stage === 'toPickup' ? UI.green : UI.white);
-      const dist = Math.round(ride.targetDistance ?? 0);
-      const racing = job.stage === 'toPickup' && ride.raceRival?.mission;
-      const m = job.mission;
-      const missionLine = m && job.stage === 'toDropoff'
-        ? (m.limit ? `TIME ${clock(m.timeLeft ?? m.limit)} · +${money(m.bonus)} BONUS` : `${missionRule(m)}`)
-        : null;
-      const quality =
-        racing ? 'A RIVAL IS RACING YOU!' :
-        missionLine ? missionLine :
-        job.stage !== 'toDropoff' ? 'STOP AT THE GREEN MARKER' :
-        job.visitor ? `COMFORT ${Math.round(job.comfort)}% · PHOTOS ${job.visitorState?.photos ?? 0}/${MUZUNGU.maxPhotos}` :
-        job.type === 'passenger' ? `COMFORT ${Math.round(job.comfort)}%` :
-        job.fragile ? `DAMAGE ${Math.round(job.damage * 100)}%` : 'STOP AT THE WHITE MARKER';
-      const route = wrapSmall(`${job.from.name} → ${job.to.name}`, textW).slice(0, 2);
-      const card = this.cards[0];
-      card.icon.setFrame(iconOf(job));
-      const lines = [`${what(job)} · ${money(job.pay)}`, ...route, `${dist} M${fuel(job)}`];
-      const shown = lines.slice(0, 4);
-      fill(card, 0, shown, shown.map((_, li) => (li === 0 ? (job.visitor ? UI.gold : UI.white) : li === shown.length - 1 ? (short(job) ? UI.red : UI.white) : UI.dim)), false);
-      const q = this.cards[1];
-      q.icon.setVisible(false);
-      q.lines.forEach((l, li) => l.setVisible(li === 0 || (li === 1 && !this.isTouch)));
-      const late = m?.limit && (m.timeLeft ?? m.limit) < 0;
-      q.lines[0].setText(quality).setTint(racing || late ? UI.red : UI.gold).setPosition(box.x + 6, y);
-      q.lines[1].setText('BACKSPACE: CANCEL').setTint(UI.grey).setPosition(box.x + 6, y + SMALL_LINE);
-      q.zone.input.enabled = false;
-      y += (this.isTouch ? 1 : 2) * SMALL_LINE + 2;
-      hide(this.cards[2]);
-      hide(this.cards[3]);
-    } else {
-      this.jobIcon.setFrame('pin');
-      const count = ride.board.offers.length;
-      this.jobTitle.setText(count ? (this.isTouch ? 'JOBS · TAP ONE' : `JOBS · PRESS 1-${count}`) : 'NO JOBS NOW').setTint(UI.dim);
-      this.cards.forEach((card, i) => {
-        const o = ride.board.offers[i];
-        if (!o) return hide(card);
-        card.icon.setFrame(iconOf(o));
-        // On a short screen (a phone): one line for the route, and only the cards that fit.
-        const route = wrapSmall(`${o.from.name} → ${o.to.name}`, textW).slice(0, this.vh < 240 ? 1 : 2);
-        const lines = [`${i + 1} ${what(o)} · ${money(o.pay)}`, ...route, `${o.gameKm.toFixed(1)} KM${fuel(o)}${short(o) ? ' LOW!' : ''}`];
-        if (y + lines.length * SMALL_LINE > this.jobLimit) return hide(card);
-        fill(card, i, lines, lines.map((_, li) => (li === 0 ? (o.mission || o.visitor ? UI.gold : UI.white) : li === lines.length - 1 && short(o) ? UI.red : UI.dim)), true);
-      });
-    }
-    // The daily app quests (from level 3): progress and reward, ticked when done.
-    const quests = ride.quests ?? [];
-    this.questLines.forEach((l, i) => {
-      if (i === 0 && quests.length && y + (quests.length + 1) * SMALL_LINE < this.jobLimit + 2) {
-        l.setText('APP QUESTS TODAY').setTint(UI.dim).setPosition(box.x + 6, y + 1).setVisible(true);
-        return;
-      }
-      const qq = quests[i - 1];
-      if (!qq || i === 0 || y + (i + 1) * SMALL_LINE >= this.jobLimit + 2) return l.setVisible(false);
-      l.setText(`${questLabel(qq, ride.dayStats)} · +${money(qq.reward)}`)
-        .setTint(qq.done ? UI.green : UI.white).setPosition(box.x + 6, y + 1 + i * SMALL_LINE).setVisible(true);
+    const special = (j) => !!(j.mission || j.visitor);
+    // The job list: only when you have no job. One line for each offer, under the savings bar.
+    const top = this.savings.y + this.savings.h + 3;
+    const offers = job ? [] : ride.board.offers.slice(0, 4).filter((_, i) => top + 4 + (i + 1) * 10 <= this.jobLimit);
+    const x = this.vw - 4 - LIST_W;
+    if (offers.length) drawWindow(g, x, top, LIST_W, offers.length * 10 + 5);
+    this.listRows.forEach((row, i) => {
+      const o = offers[i];
+      for (const part of [row.key, row.icon, row.to, row.dist, row.pay]) part.setVisible(!!o);
+      row.zone.input.enabled = !!o;
+      if (!o) return;
+      const y = top + 3 + i * 10;
+      const tint = special(o) ? UI.gold : UI.white;
+      row.key.setText(String(i + 1)).setTint(tint).setPosition(x + 5, y + 2);
+      row.icon.setFrame(iconOf(o)).setPosition(x + 11, y);
+      row.to.setText(shortName(o.to.name)).setTint(tint).setPosition(x + 23, y + 2);
+      row.dist.setText(`${o.gameKm.toFixed(1)}KM`).setTint(short(o) ? UI.red : UI.dim);
+      row.dist.setPosition(x + LIST_W - 36 - row.dist.width, y + 2);
+      row.pay.setText(money(o.pay)).setTint(tint);
+      row.pay.setPosition(x + LIST_W - 5 - row.pay.width, y + 2);
+      row.zone.setPosition(x + 2, y).setSize(LIST_W - 4, 10);
     });
-    if (this.questLines[0].visible) y += (quests.length + 1) * SMALL_LINE + 3;
-    // The window behind the jobs (its height follows the cards).
-    const h = y - box.y + 1;
-    this.jobWindow = { x: box.x, y: box.y, w: box.w, h };
-    this.#jobWindowGfx().clear();
-    drawWindow(this.#jobWindowGfx(), box.x, box.y, box.w, h);
-    this.jobIcon.setPosition(box.x + 6, box.y + 3);
-    this.jobTitle.setPosition(box.x + 18, box.y + 5);
-  }
-
-  /** The jobs window has its own graphics under the job text (its height changes). */
-  #jobWindowGfx() {
-    if (!this.jobGfx) {
-      this.jobGfx = this.add.graphics();
-      this.ui.addAt(this.jobGfx, 1);
+    // The job line: one line at the top centre. PICKUP or DROP OFF, the place, the distance, and one
+    // more thing when it matters (a rival, the mission clock, low comfort, damage, photos).
+    const p = this.pill;
+    p.icon.setVisible(!!job);
+    p.parts.forEach((t) => t.setVisible(!!job));
+    let warnTop = 4;
+    if (job) {
+      const pickup = job.stage === 'toPickup';
+      const place = shortName(pickup ? job.from.name : job.to.name, 22);
+      const m = job.mission;
+      const late = m?.limit && (m.timeLeft ?? m.limit) < 0;
+      const extra =
+        pickup && ride.raceRival?.mission ? ['RIVAL!', UI.red] :
+        !pickup && m?.limit ? [clock(m.timeLeft ?? m.limit), late ? UI.red : UI.gold] :
+        !pickup && job.type === 'passenger' && job.comfort < 80 ? [`COMFORT ${Math.round(job.comfort)}%`, job.comfort < 50 ? UI.red : UI.orange] :
+        !pickup && job.fragile && job.damage > 0 ? [`DAMAGE ${Math.round(job.damage * 100)}%`, UI.orange] :
+        !pickup && job.visitor && job.visitorState?.photos ? [`PHOTO ${job.visitorState.photos}/${MUZUNGU.maxPhotos}`, UI.gold] : ['', UI.white];
+      const texts = [[job.visitor ? 'MUZUNGU' : pickup ? 'PICKUP' : 'DROP OFF', job.visitor ? UI.gold : pickup ? UI.green : UI.white], [place, UI.white], [`${Math.round(ride.targetDistance ?? 0)} M`, short(job) ? UI.red : UI.dim], extra];
+      p.parts.forEach((t, i) => t.setText(texts[i][0]).setTint(texts[i][1]));
+      const widths = p.parts.map((t) => (t.textValue ? t.width : 0));
+      const w = 6 + 9 + 4 + widths.reduce((a, b) => a + (b ? b + 5 : 0), 0) + 2;
+      const px = Math.round((this.vw - w) / 2);
+      drawWindow(g, px, 4, w, 15);
+      p.icon.setFrame(iconOf(job)).setPosition(px + 5, 7);
+      let tx = px + 19;
+      p.parts.forEach((t, i) => {
+        t.setPosition(tx, 9);
+        if (widths[i]) tx += widths[i] + 5;
+      });
+      warnTop = 22;
     }
-    return this.jobGfx;
+    // A warning chip under the job line, while it is true: off road, a hired rider who needs you.
+    const help = ride.helpWait;
+    const warn = bike.surface?.offRoad ? ['OFF ROAD · 4× WEAR', UI.red]
+      : help ? [`HELP ${help.rider.name.toUpperCase()} · ${clock(Math.max(0, help.rider.help.timeLeft))} · ${Math.round(Math.hypot(help.vehicle.x - bike.x, help.vehicle.y - bike.y))} M`, UI.orange]
+      : null;
+    this.warnText.setVisible(!!warn);
+    if (warn) {
+      this.warnText.setText(warn[0]).setTint(warn[1]);
+      const w = this.warnText.width + 10, wx = Math.round((this.vw - w) / 2);
+      drawWindow(g, wx, warnTop, w, 11, 'dark');
+      this.warnText.setPosition(wx + 5, warnTop + 3);
+    }
   }
 
   #updateStation(g) {
@@ -495,22 +413,35 @@ export class HudScene extends Phaser.Scene {
         r.text.setPosition(x + 8, y + 5 + i * (LINE + 2));
         r.zone.setPosition(x + 2, y + 3 + i * (LINE + 2)).setSize(w - 4, LINE + 2);
       });
+      top = y;
     }
+    return top;
   }
 
-  #updateMessages(g, deltaMs) {
-    // The bark: a dark window at the top centre, one or two lines. It fades out.
+  #updateMessages(g, deltaMs, promptTop) {
+    // The message line: a dark window at the bottom centre (above a prompt), one or two short lines. It fades out.
     const alpha = Math.min(1, this.barkAlpha ?? 0);
     if (alpha > 0) {
-      this.barkAlpha -= deltaMs / 2200;
+      this.barkAlpha -= deltaMs / (HUD_RULES.messageSeconds * 1000);
       const lines = this.barkWrapped;
-      const w = Math.max(...lines.map((l) => retroWidth(l))) + 14;
-      const h = lines.length * LINE + 8;
-      const x = Math.round(this.barkArea.x + (this.barkArea.w - w) / 2), y = this.barkArea.y;
+      this.barkLines.forEach((l, i) => l.setText(lines[i] ?? '').setVisible(i < lines.length).setAlpha(alpha));
+      const w = Math.max(...this.barkLines.filter((l) => l.visible).map((l) => l.width)) + 12;
+      const h = lines.length * 8 + 6;
+      const x = Math.round((this.vw - w) / 2), y = promptTop - h - 3;
       drawWindow(g, x, y, w, h, 'dark', 0.9 * alpha);
-      this.barkLines.forEach((l, i) => l.setText(lines[i] ?? '').setVisible(i < lines.length).setAlpha(alpha).setPosition(Math.round(this.barkArea.x + (this.barkArea.w - retroWidth(lines[i] ?? '')) / 2), y + 5 + i * LINE));
+      this.barkLines.forEach((l, i) => l.setPosition(Math.round((this.vw - l.width) / 2), y + 4 + i * 8));
     } else {
       this.barkLines.forEach((l) => l.setVisible(false));
+    }
+    // The district name: large in the centre, then it fades.
+    const da = Math.min(1, this.districtAlpha ?? 0);
+    this.districtTitle.setVisible(da > 0);
+    this.districtShadow.setVisible(da > 0);
+    if (da > 0) {
+      this.districtAlpha -= deltaMs / 1000;
+      const x = Math.round((this.vw - this.districtTitle.width) / 2), y = Math.round(this.vh * 0.2);
+      this.districtTitle.setPosition(x, y).setAlpha(da);
+      this.districtShadow.setPosition(x + 2, y + 2).setAlpha(da * 0.8);
     }
     // Money pop ups: big numbers that float up and fade.
     for (const p of this.popups) {
@@ -532,12 +463,11 @@ export class HudScene extends Phaser.Scene {
   }
 
   #bark(text) {
-    // At the top between the windows when it fits in three lines; else under the left window.
-    const wrap = (area) => wrapRetro(text, Math.floor((area.w - 14) / RETRO_CELL.width));
-    const top = this.barkTop && wrap(this.barkTop);
-    this.barkArea = top && top.length <= 3 ? this.barkTop : this.barkLow;
-    this.barkWrapped = (top && top.length <= 3 ? top : wrap(this.barkLow)).slice(0, 3);
-    this.barkAlpha = 1.6;
+    // One or two short lines in the small font; a longer message is cut at the end of the second line.
+    const lines = wrapSmall(retroText(text), Math.min(300, this.vw - 16));
+    if (lines.length > 2) lines[1] = `${lines[1].replace(/[ .,:!]*$/, '')}...`;
+    this.barkWrapped = lines.slice(0, 2);
+    this.barkAlpha = 1.4;
   }
 
   // ---------------------------------------------------------------------------

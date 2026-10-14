@@ -1,6 +1,6 @@
 import { WORLD } from '../config.js';
 import { toScreen } from '../world/iso.js';
-import { drawWorker, PERSON_LOOKS, PERSON_CANVAS, CITY_SWEEPER_LOOK } from '../world/vehicle-sprites.js';
+import { drawWorker, PERSON_LOOKS, PERSON_CANVAS, CITY_SWEEPER_LOOKS } from '../world/vehicle-sprites.js';
 import { crewFrame } from '../sim/crews.js';
 import { packShelves } from './chunks.js';
 
@@ -24,7 +24,7 @@ export class CrewView {
       }
     };
     PERSON_LOOKS.forEach((look, i) => add(i, look));
-    add('city', CITY_SWEEPER_LOOK);
+    CITY_SWEEPER_LOOKS.forEach((look, i) => add(`city${i}`, look));
     const { width, height, places } = packShelves(frames.map((f) => f.canvas));
     const tex = this.scene.textures.createCanvas('crew', width, height);
     frames.forEach((f, i) => {
@@ -43,7 +43,7 @@ export class CrewView {
   update(world, view, time) {
     const m = 40;
     this.crews.forEach((w, i) => {
-      const img = (this.sprites[i] ??= this.scene.add.image(0, 0, 'crew', 'w-city-sweep-0-R').setOrigin(this.origin.ox, this.origin.oy));
+      const img = (this.sprites[i] ??= this.scene.add.image(0, 0, 'crew', 'w-city0-sweep-0-R').setOrigin(this.origin.ox, this.origin.oy));
       const s = toScreen(w.x, w.y, world.heightAt(w.x, w.y));
       if (s.x < view.x - m || s.x > view.right + m || s.y < view.y - m || s.y > view.bottom + m) return img.setVisible(false);
       const f = w.hurt > 0 ? 0 : crewFrame(w, time);

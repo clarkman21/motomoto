@@ -2,12 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { World } from '../src/world/world.js';
 import { buildKigaliMap } from '../src/world/maps/kigali.js';
 import { mulberry32 } from '../src/sim/jobs.js';
-import { placeCrews, crewAt, crewFrame, sweepersOut, crewTiles } from '../src/sim/crews.js';
+import { placeCrews, crewAt, crewFrame, sweepersOut, crewTiles, daySweepers } from '../src/sim/crews.js';
 import { createPeople, stepPeople } from '../src/sim/people.js';
 import { eventStage } from '../src/sim/events.js';
 import { districtsForLevel } from '../src/sim/levels.js';
 import { CREWS, WORLD, EVENTS } from '../src/config.js';
-import { drawWorker, PERSON_LOOKS, CITY_SWEEPER_LOOK } from '../src/world/vehicle-sprites.js';
+import { drawWorker, PERSON_LOOKS, CITY_SWEEPER_LOOKS } from '../src/world/vehicle-sprites.js';
 import { drawCargoPile } from '../src/world/sprites.js';
 
 const world = new World(buildKigaliMap());
@@ -59,13 +59,15 @@ describe('Umuganda crews', () => {
 });
 
 describe('city road sweepers', () => {
-  it('a few sweepers in each district, in the early morning only', () => {
+  it('ladies in green sweep all day: all of them in the morning, half after it', () => {
     const s = placeCrews(world, mulberry32(2), 'sweepers', { districts: ['nyabugogo', 'town'] });
     expect(s.length).toBe(CREWS.sweepers.perDistrict * 2);
-    expect(s.every((w) => w.task === 'sweep' && w.look === 'city')).toBe(true);
+    expect(s.every((w) => w.task === 'sweep' && /^city[0-2]$/.test(w.look))).toBe(true);
     expect(sweepersOut(6.5)).toBe(true);
-    expect(sweepersOut(12)).toBe(false);
-    expect(drawWorker(CITY_SWEEPER_LOOK, 'sweep', 1).width).toBeGreaterThan(0);
+    expect(sweepersOut(15)).toBe(true);
+    expect(sweepersOut(21)).toBe(false);
+    expect(daySweepers(s).length).toBe(Math.ceil(s.length * CREWS.sweepers.dayShare));
+    for (const look of CITY_SWEEPER_LOOKS) expect(drawWorker(look, 'sweep', 1).width).toBeGreaterThan(0);
     expect(crewTiles(world, 'sweep', ['town']).length).toBeGreaterThan(20);
   });
 });

@@ -25,7 +25,7 @@ import { createPeople, stepPeople, hailInReach, insidePerson, busArrivalHails, h
 import { startRace, chaseHail, stepRivals, cancelMission } from '../sim/rivals.js';
 import { PeopleView } from './PeopleView.js';
 import { CrewView } from './CrewView.js';
-import { placeCrews, crewAt, sweepersOut, stepCrews } from '../sim/crews.js';
+import { placeCrews, crewAt, sweepersOut, daySweepers, stepCrews } from '../sim/crews.js';
 import { PERSON_LOOKS } from '../world/vehicle-sprites.js';
 import { trafficHonks } from '../sim/honk.js';
 import { levelSettings, milestoneReady, buyMilestone, startAtLevel, setLevel, streakMultiplier, updateStreak, savingsTarget } from '../sim/levels.js';
@@ -993,6 +993,7 @@ export class RideScene extends Phaser.Scene {
       sweepers: placeCrews(this.world, mulberry32(this.wallet.day * 59 + 3), 'sweepers', { districts: L.districts }),
       site: [],
     };
+    this.crews.sweepersDay = daySweepers(this.crews.sweepers); // fewer sweepers after the morning
     this.crossState = { timers: new Map(), seen: new Set() };
     // Side missions: some new offers become special jobs (sim/missions.js).
     // Hard mode: some cargo is too heavy for a moto (overloading: more pay, but the police fine it).
@@ -1602,12 +1603,13 @@ export class RideScene extends Phaser.Scene {
   #activeCrews() {
     if (!this.crews) return [];
     if (this.dayEvent === 'umuganda' && this.eventStage === 'morning') return [...this.crews.umuganda, ...this.crews.site];
-    return sweepersOut(this.clockHours) ? this.crews.sweepers : [];
+    if (!sweepersOut(this.clockHours)) return [];
+    return this.clockHours < CREWS.sweepers.morningEnd ? this.crews.sweepers : this.crews.sweepersDay;
   }
 
   #updateCrews(dt) {
     const list = this.#activeCrews();
-    const key = list === this.crews?.sweepers ? 'sweepers' : list.length ? `umuganda-${this.crews.site.length}` : '';
+    const key = list === this.crews?.sweepers ? 'sweepers' : list === this.crews?.sweepersDay ? 'sweepers-day' : list.length ? `umuganda-${this.crews.site.length}` : '';
     if (key !== this.crewKey) {
       this.crewKey = key;
       this.crewView.setCrews(list);

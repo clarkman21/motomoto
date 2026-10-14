@@ -938,12 +938,23 @@ export const SHOP = {
   talk: ['Muraho! A good speaker brings good tips.', 'Good tyres love murram.', 'Service on time, and the moto lives long.', 'Ceramic pads, smooth stops.', 'Bite the road, not the dust!'],
 };
 
+// The minimal HUD (Alp, 14 October 2026): when a part shows (see HudScene.js).
+export const HUD_RULES = {
+  serviceFrom: 0.6, // the service bar shows from this much of the service meter
+  foodBelow: 0.5, // the food bar shows under this much rider energy (and while you eat)
+  wcFrom: 0.5, // the WC bar shows from this much (hard mode)
+  messageSeconds: 3, // a message stays this long, then fades
+  districtSeconds: 2, // the district name stays this long when you ride into a district
+};
+
 // Work crews (sim/crews.js). On an Umuganda morning nobody walks in the streets (Alp, 14 October 2026):
 // everybody does community work at the road sides: crews with hoes in the fields beside the roads, and
 // crews who sweep the roads. On a normal day, city road sweepers sweep the road sides in the early morning.
 export const CREWS = {
   umuganda: { perDistrict: 36, groupSize: [3, 6], hoeShare: 0.55 }, // the share of the groups with hoes; the others sweep
-  sweepers: { perDistrict: 4, groupSize: [1, 2], hours: [6, 9] }, // city sweepers on a normal day (guess: 06:00 to 09:00)
+  // City sweepers (Alp: ladies in green, all day, most of them from the morning): perDistrict until
+  // morningEnd, then dayShare of them until the end of hours (guesses).
+  sweepers: { perDistrict: 6, groupSize: [2, 3], hours: [6, 20], morningEnd: 10, dayShare: 0.5 },
   siteCrew: 6, // people at the work site of an Umuganda run
   frameMs: [380, 520], // the time of one work stroke (each worker has its own speed)
 };
@@ -1072,8 +1083,8 @@ export const FAMILY = {
 // around you and moves as you ride. It does not turn.
 export const MINIMAP = {
   pxPerTile: 1, // virtual HUD pixels along each diagonal for one tile (the HUD scales them up by a whole number)
-  viewWidth: 124, // the window, in virtual HUD pixels
-  viewHeight: 72,
+  viewWidth: 104, // the window, in virtual HUD pixels (Alp: a smaller HUD; was 124 × 72 with a legend)
+  viewHeight: 60,
   heightContrast: 0.45, // higher ground is up to this much lighter
   padlockSpacing: 40, // map pixels between the padlocks on a closed district
 };

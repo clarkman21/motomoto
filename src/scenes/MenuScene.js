@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { loadGame } from './save.js';
 import { levelDef } from '../sim/levels.js';
-import { MODES, VERSION, UI_PALETTE } from '../config.js';
+import { MODES, VERSION, UI_PALETTE, SAVINGS_FLOAT } from '../config.js';
+import { questLabel } from '../sim/missions.js';
 import { modeOf } from '../sim/modes.js';
 import { drawRetroFontSheet, RETRO_CHARS, RETRO_CELL, RETRO_PER_ROW, retroText, wrapRetro } from '../world/retro-font.js';
 import { PixelCanvas } from '../world/pixel-canvas.js';
@@ -38,7 +39,16 @@ const HELP = [
       'T: phone a moto that brings you 1 litre of fuel (or a charged battery), for 20% more than at a station. You can call at any time.',
       'Cheats (for tests): Settings, then CHEATS: ON. In a ride, pause (Esc) and choose CHEATS.',
       'H: horn.   V: sound.   R: put the bike back on the nearest road (your fuel and the bike wear stay as they are).   M: map on or off.   Esc or P: pause menu.',
-      'Touch: the stick on the left steers. GO and STOP are on the right, + and − shift, T calls the fuel moto. Tap a job card to take it.',
+      'Touch: the stick on the left steers. GO and STOP are on the right, + and − shift, T calls the fuel moto. Tap a job line to take it.',
+    ],
+  },
+  {
+    title: 'The HUD and the map',
+    lines: [
+      'Top left: your speed, the gear, the RPM strip (petrol) and the fuel or battery bar. The SERVICE bar (a wrench) shows only from 60%, the FOOD bar only when you get hungry, the WC bar only when it gets urgent.',
+      'Top right: your cash and the clock, with the streak (a flame) after clean rides. The thin bar under it is your savings goal; the pause menu shows the level, the goal and the quests. The speed limit sign shows when the limit changes and when you ride too fast.',
+      'With no job, a small list shows the job offers: the number key, where to, how far and the pay. Gold = a special job or a muzungu. A red distance = not enough fuel for the job. With a job, one line at the top shows where to go and how far.',
+      'The minimap: SP = a fuel station (blue), yellow squares = swap stations, orange = garages, numbered squares = the pickups of the job offers. A green dot = the pickup of your job, a white dot = the drop off.',
     ],
   },
   {
@@ -249,6 +259,11 @@ export class MenuScene extends Phaser.Scene {
       this.#label(cx, y, line, GREEN).setOrigin(0.5, 0);
       y += 11;
     }
+    // The level, the goal, the streak and the quests (they are not on the minimal HUD).
+    for (const [line, tint] of this.#pauseStatus()) {
+      this.#label(cx, y, line, tint).setOrigin(0.5, 0);
+      y += 10;
+    }
     y += 5;
     // A phone held upright: the ride needs the phone on its side.
     if (this.sys.game.device.input.touch && this.vh > this.vw) {
@@ -449,6 +464,17 @@ export class MenuScene extends Phaser.Scene {
     const w = save.wallet ?? {};
     const def = levelDef(w.level ?? 1);
     return retroText(`Saved: ${modeOf(w).name} · level ${def.n} · day ${w.day ?? 1} · ${money(w.cash ?? 0)}`);
+  }
+
+  /** Lines for the pause menu: [text, tint]. */
+  #pauseStatus() {
+    const r = this.ride, Lv = r.level;
+    if (!Lv) return [];
+    const target = Lv.freePlay ? 0 : Lv.goal + SAVINGS_FLOAT;
+    const streak = r.wallet.streak ?? 0;
+    const lines = [[retroText(`${Lv.name}${target ? ` · goal ${money(r.wallet.cash)} / ${money(target)}` : ' · free play'}${streak > 0 ? ` · streak ×${(1 + streak).toFixed(1)}` : ''}`), GOLD]];
+    for (const q of r.quests ?? []) lines.push([retroText(`${q.done ? 'Done: ' : ''}${questLabel(q, r.dayStats)} · +${money(q.reward)}`), q.done ? GREEN : WHITE]);
+    return lines;
   }
 
   #sessionSummary() {

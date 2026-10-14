@@ -30,7 +30,7 @@ export function crewTiles(world, task, districts) {
   });
 }
 
-/** One worker. look: an index into PERSON_LOOKS, or 'city' (a city road sweeper). */
+/** One worker. look: an index into PERSON_LOOKS, or 'city0' to 'city2' (a city road sweeper: a lady in green). */
 function worker(id, t, task, look, rng) {
   return {
     id, kind: 'person', crew: true, task, look,
@@ -72,7 +72,7 @@ export function placeCrews(world, rng, kind, opts = {}) {
       if (!tiles.length) break;
       const [lo, hi] = spec.groupSize;
       const n = Math.min(left, lo + Math.floor(rng() * (hi - lo + 1)));
-      const look = () => (kind === 'sweepers' ? 'city' : looks[Math.floor(rng() * looks.length)]);
+      const look = () => (kind === 'sweepers' ? `city${Math.floor(rng() * 3)}` : looks[Math.floor(rng() * looks.length)]);
       out.push(...group(world, tiles[Math.floor(rng() * tiles.length)], tiles, n, tiles === byTask.hoe ? 'hoe' : 'sweep', look, rng, nextId));
       left -= n;
     }
@@ -100,6 +100,12 @@ export function crewFrame(w, ms) {
 export function sweepersOut(hour) {
   const [from, to] = CREWS.sweepers.hours;
   return hour >= from && hour < to;
+}
+
+/** The sweepers at work after the morning: a part of them (every second group member, so groups stay). */
+export function daySweepers(sweepers) {
+  const n = Math.round(1 / Math.max(0.01, CREWS.sweepers.dayShare));
+  return sweepers.filter((_, i) => i % n === 0);
 }
 
 /** A knocked-down worker gets up again. */

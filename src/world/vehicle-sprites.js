@@ -556,8 +556,11 @@ export function drawWaver(look, left = false) {
   return finishFigure(c, left);
 }
 
-/** A city road sweeper (a guess: a green work coat with a reflective band). */
-export const CITY_SWEEPER_LOOK = { shirt: C.green, legs: C.green, skin: C.skin };
+/**
+ * The city road sweepers (Alp, 14 October 2026): ladies in green. A green work coat with a reflective
+ * band, a darker green skirt, and a head wrap; each lady has her own head wrap colour.
+ */
+export const CITY_SWEEPER_LOOKS = [C.red, C.kOrange, C.blue].map((wrap) => ({ shirt: C.green, legs: C.skin, skin: C.skin, dress: true, skirt: C.kGreen, wrap, city: true }));
 
 /**
  * A worker at the road side (sim/crews.js). task 'hoe': frame 0 = the hoe up, 1 = the hoe in the ground.
@@ -569,7 +572,13 @@ export function drawWorker(look, task, frame, left = false) {
   const gx = PERSON_CANVAS.groundX, gy = PERSON_CANVAS.groundY;
   if (look.kitenge !== undefined) drawMama(c, look, gx, gy, 0, 0, false);
   else drawBody(c, look, gx, gy, 0, 0, false);
-  if (look === CITY_SWEEPER_LOOK) for (let x = gx - 2; x <= gx + 2; x++) c.plot(x, gy - 12, C.reflect);
+  if (look.city) {
+    const hip = gy - 9;
+    for (let y = hip; y <= gy - 5; y++) for (let x = gx - 2 - (y - hip) * 0.4; x <= gx + 2 + (y - hip) * 0.4; x++) c.plot(x, y, look.skirt); // the skirt
+    for (let x = gx - 2; x <= gx + 2; x++) c.plot(x, gy - 12, C.reflect); // the reflective band
+    for (let y = gy - 22; y <= gy - 20; y++) for (let x = gx - 2; x <= gx + 3; x++) c.plot(x, y, look.wrap); // the head wrap
+    c.plot(gx - 2, gy - 19, look.wrap);
+  }
   const skin = look.skin;
   if (task === 'hoe') {
     if (frame === 0) {

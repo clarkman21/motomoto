@@ -13,14 +13,15 @@ import { UI, drawWindow, retroLabel } from './retro-ui.js';
 // pixel is one virtual pixel (big, sharp pixels).
 // It shows the district names, the stations for your bike (SP fuel or swap), the garages, the
 // Ampersand showroom, the job target and you. Closed districts are striped, with padlocks.
-// Key M (or the Settings menu) shows or hides it.
+// Key M (or the Settings menu) shows or hides it. No legend (the legend is in How to play). With no job,
+// the job offers show as numbered squares at their pickups (the numbers of the job list).
 
 const FUEL = COLOURS.spBlue; // SP: a blue badge with yellow letters
 const GARAGE = 0xe07a2a; // orange, so it is not like the blue SP badge
 const FOOD = 0xc080ff; // purple: a place to eat (hard mode)
 const JOB_PICKUP = 0x44bc9d;
 const PAD = 4;
-const LEGEND_H = 11;
+const LEGEND_H = 0; // no legend under the map (Alp: a smaller HUD)
 
 export class MinimapView {
   /** scene: the HUD scene (it has k, the pixel scale). ui: the HUD container (virtual pixels). */
@@ -85,21 +86,12 @@ export class MinimapView {
       }
     }
     this.map.add([...this.labels, this.marks]);
-    // Legend under the map: a small mark and a word for each.
-    const ly = this.view.y + this.view.h + 2;
-    const lg = this.legendIcons.clear();
-    const items = [[electric ? 'swap' : 'fuel', electric ? 'SWAP' : 'FUEL'], ['garage', 'GARAGE'], ['job', 'JOB']];
-    let x = this.view.x + 5;
-    items.forEach(([kind, word], i) => {
-      if (kind === 'fuel') drawSpBadge(lg, x, ly + 4);
-      else square(lg, x, ly + 4, kind === 'swap' ? COLOURS.ampersandYellow : kind === 'garage' ? GARAGE : JOB_PICKUP);
-      this.legend[i].setText(word).setPosition(x + 7, ly);
-      x += 7 + this.legend[i].width + 7;
-    });
+    this.legendIcons.clear();
+    for (const l of this.legend) l.setVisible(false);
   }
 
   #setVisible(v) {
-    for (const o of [this.panel, this.map, ...this.legend, this.legendIcons]) o.setVisible(v);
+    for (const o of [this.panel, this.map, this.legendIcons]) o.setVisible(v);
   }
 
   update(time) {
@@ -167,6 +159,16 @@ export class MinimapView {
       const out = cx !== Math.round(m.at.x) || cy !== Math.round(m.at.y);
       const r = out ? 1.5 : 2 + Math.round((Math.sin(time / 160) + 1) / 2);
       g.fillStyle(0x000000, 1).fillCircle(cx, cy, r + 1).fillStyle(m.colour, 1).fillCircle(cx, cy, r);
+    }
+    // No job: the offers as numbered squares at their pickups (gold: a special job or a muzungu).
+    if (!job) {
+      (ride.board?.offers ?? []).slice(0, 4).forEach((o, i) => {
+        const at = minimapPoint(world, f, o.from.x * WORLD.tileMetres, o.from.y * WORLD.tileMetres);
+        const cx = Math.round(Math.max(ox + 3, Math.min(ox + v.w - 4, at.x))), cy = Math.round(Math.max(oy + 4, Math.min(oy + v.h - 4, at.y)));
+        g.fillStyle(0x000000, 1).fillRect(cx - 3, cy - 4, 7, 9).fillStyle(o.mission || o.visitor ? UI.gold : JOB_PICKUP, 1).fillRect(cx - 2, cy - 3, 5, 7).fillStyle(0x000000, 1);
+        const n = String(i + 1);
+        for (let py = 0; py < 5; py++) for (let px = 0; px < 3; px++) if (textBit(n, px, py)) g.fillRect(cx - 1 + px, cy - 2 + py, 1, 1);
+      });
     }
     // You: a white arrow in the direction of the bike.
     const d = minimapDirection(b.heading);
