@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS, FLEET, RIDER, TRAFFIC_LIGHTS, HELMET_CHECKS, CROSSINGS, STORY, MODES, RUSH, ROAD_EVENTS, HARD_RULES, MUZUNGU, CREWS, HQ, RADIO, VISIBLE_PARTS, LESSON } from '../config.js';
+import { VIEW, WORLD, BIKES, MONEY, MAINTENANCE, PEOPLE, TRAFFIC, STREAK, DISTRICTS, BUS_PARK, FUEL, LEVELS, POLICE, SURFACES, GAME_OVER, PHYSICS, MISSIONS, EVENTS, JOBS, FLEET, RIDER, TRAFFIC_LIGHTS, HELMET_CHECKS, CROSSINGS, STORY, MODES, RUSH, ROAD_EVENTS, HARD_RULES, MUZUNGU, CREWS, HQ, RADIO, VISIBLE_PARTS, LESSON, BABBLE } from '../config.js';
 import { World } from '../world/world.js';
 import { buildKigaliMap } from '../world/maps/kigali.js';
 import { ChunkStreamer, groupKey } from './chunks.js';
@@ -17,6 +17,10 @@ import { Radio } from '../audio/radio.js';
 import { createWallet, earn, spend, buyFuel, swapBattery, fuelFillCost, fuelChoices, repairCost, endDay, stranded, payGarage } from '../sim/economy.js';
 import { garageQuote, serviceDue, crashWearShare } from '../sim/maintenance.js';
 import { createLesson, stepLesson, lessonEvent, skipLesson as skipLessonNow, stepClosing } from '../sim/lesson.js';
+import { createCalls, callEvent, stepCalls, hangUp } from '../sim/calls.js';
+import { lineSeconds } from '../sim/phone.js';
+import { babblePlan } from '../sim/babble.js';
+import { createLineBags, nextLines } from '../sim/rider-lines.js';
 import { createJobBoard, makeOffer, updateBoard, acceptOffer, cancelJob, updateJob, jobTarget, acceptHail, tripMetres, passengerWaits, loseJobWhenEmpty, loseJobOnCrash } from '../sim/jobs.js';
 import { createCameraState, checkCameras, speedLimitAt } from '../sim/law.js';
 import { buildRoadGraph, openRoads } from '../sim/roads.js';
@@ -374,7 +378,7 @@ export class RideScene extends Phaser.Scene {
         case 'KeyH': this.horn(); break;
         case 'KeyV': this.toggleSound(); break;
         case 'KeyN': this.nextStation(); break;
-        case 'KeyL': this.skipLesson(); break;
+        case 'KeyL': this.skipCall(); break;
         case 'KeyE': case 'KeyX': this.shift(1); break;
         case 'KeyQ': case 'KeyZ': this.shift(-1); break;
         case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': this.acceptJob(Number(e.code.slice(5)) - 1); break;
@@ -392,18 +396,51 @@ export class RideScene extends Phaser.Scene {
     return (this.wallet?.level ?? 1) <= 1;
   }
 
-  /** The Motari lesson: Rukundo's tips on the first shift (sim/lesson.js). Level 1 only, until skipped or done. */
+  /**
+   * Rukundo's phone calls: the Motari lesson (sim/lesson.js; level 1 only, until skipped or done) and the
+   * first-time calls (sim/calls.js; at any level, each one time in a game).
+   */
   #startLesson() {
     const saved = this.wallet.lesson ?? {};
     const on = this.wallet.level === 1 && !saved.skipped && !(saved.seen ?? []).includes('bye');
     this.lesson = on ? createLesson(saved.seen ?? [], this.sys.game.device.input.touch) : null;
+    this.calls = createCalls(this.wallet.calls ?? []);
+    this.#stopVoice();
+  }
+
+  /** The call on the phone now (the HUD shows it), or null. */
+  get phoneCall() {
+    return this.lesson?.call ?? this.calls?.call ?? null;
+  }
+
+  /** True while Rukundo's voice talks (his mouth moves). */
+  get phoneTalking() {
+    return this.time.now < (this.phoneTalkUntil ?? 0);
+  }
+
+  /** The first time of something with a first-time call (sim/calls.js). */
+  #firstTime(id) {
+    callEvent(this.calls, id);
+  }
+
+  #updatePhone(dt) {
+    this.#updateLesson(dt);
+    if (!this.calls) return;
+    const busy = !!this.lesson?.call;
+    // The first time of a kind of job: when you take it (the muzungu: on the way to the pickup).
+    const job = this.board?.active;
+    if (job) this.#firstTime(job.visitor ? 'muzungu' : job.mission?.kind);
+    for (const e of stepCalls(this.calls, dt, busy)) {
+      if (e.type === 'ring') this.wallet.calls = [...this.calls.seen]; // saved with the day
+      this.#phoneEvent(e, this.calls.call);
+    }
   }
 
   #updateLesson(dt) {
     const lesson = this.lesson;
     if (!lesson) return;
     if (lesson.closing) {
-      stepClosing(lesson, dt);
+      if (!stepClosing(lesson, dt)) this.#stopVoice();
       return;
     }
     if (lesson.done && !lesson.call) return;
@@ -418,30 +455,44 @@ export class RideScene extends Phaser.Scene {
       murram: tile?.surface === 'murram' || tile?.surface === 'murramWet', bumpAhead,
       officerNear: this.police.police.officers.some((o) => Math.hypot(o.x - b.x, o.y - b.y) < LESSON.officerNearMetres),
       overLimitSeconds: this.overLimitT, petrol: b.type === 'petrol', energy: b.energy, service: serviceDue(b), night: this.daylight?.night ?? 0,
+      busy: !!this.calls?.call,
     };
     for (const e of stepLesson(lesson, ctx, dt)) {
-      if (e.type === 'ring') {
-        this.engineSound.ring();
-        this.wallet.lesson = { seen: [...lesson.seen], skipped: false }; // saved with the day
-      }
-      if (e.type === 'line') this.lessonTalk = (lesson.call?.lines[lesson.call.line]?.length ?? 0) / LESSON.charsPerSecond;
-    }
-    // His voice on the phone while the line types out.
-    if (this.lessonTalk > 0) {
-      this.lessonTalk -= dt;
-      if (this.time.now - (this.murmurAt ?? 0) > 95) {
-        this.murmurAt = this.time.now;
-        this.engineSound.murmur(0.9 + Math.random() * 0.2);
-      }
+      if (e.type === 'ring') this.wallet.lesson = { seen: [...lesson.seen], skipped: false }; // saved with the day
+      this.#phoneEvent(e, lesson.call);
     }
   }
 
-  /** L or the SKIP button: no more tips (the lesson is in the game, not in Settings). */
-  skipLesson() {
+  /** A phone event: the ring, his voice for a new line (muffled babble), and silence at the end. */
+  #phoneEvent(e, call) {
+    if (e.type === 'ring') this.engineSound.ring();
+    else if (e.type === 'line' && call) this.#speakPhone(call.lines[call.line]);
+    else if (e.type === 'hangUp') this.#stopVoice();
+  }
+
+  #speakPhone(text) {
+    this.#stopVoice();
+    const plan = babblePlan(text, this.rng, lineSeconds(text) - 0.4);
+    this.phoneVoice = this.engineSound.speak(plan, 'phone');
+    this.phoneTalkUntil = this.time.now + plan.seconds * 1000;
+  }
+
+  #stopVoice() {
+    this.phoneVoice?.stop();
+    this.phoneVoice = null;
+    this.phoneTalkUntil = 0;
+  }
+
+  /** L or the SKIP button: hang up a first-time call, or end the lesson (no more tips). */
+  skipCall() {
+    if (hangUp(this.calls)) {
+      this.#stopVoice();
+      return;
+    }
     if (!this.lesson || this.lesson.done) return;
     skipLessonNow(this.lesson);
-    this.lessonTalk = 0;
     this.wallet.lesson = { seen: [...this.lesson.seen], skipped: true };
+    this.#speakPhone(this.lesson.call.lines[0]);
   }
 
   toggleBike() {
@@ -771,7 +822,8 @@ export class RideScene extends Phaser.Scene {
     }
     if (this.station === 'food') {
       const f = RIDER.foods[this.foodStop.food];
-      this.refuel = { kind: 'food', food: this.foodStop.food, timeLeft: f.seconds, total: f.seconds };
+      this.refuel = { kind: 'food', food: this.foodStop.food, timeLeft: f.seconds, total: f.seconds, bite: 0.15 };
+      if (this.foodStop.food === 'drink') this.engineSound.canOpen();
       this.#passengerAtStop();
       return;
     }
@@ -976,6 +1028,7 @@ export class RideScene extends Phaser.Scene {
       eat(this.rider, food, this.clockHours);
       if (this.mode.bladder) drinkToBladder(this.rider, food);
       this.events.emit('bark', food === 'ikivuguto' ? 'Ikivuguto! Cold, thick and filling. Energy for hours' : food === 'buffet' ? 'A full plate from the buffet: rice, beans, matoke. Back to work!' : food === 'drink' ? 'An energy drink: a quick boost, but it wears off soon' : 'Sweet bananas: a small snack');
+      this.#riderSays(food); // something funny (sim/rider-lines.js)
       return;
     }
     const r =
@@ -984,6 +1037,20 @@ export class RideScene extends Phaser.Scene {
     const label = kind === 'fuel' ? 'Fuel' : kind === 'swap' ? 'Battery swap' : 'Service';
     if (r.ok) this.events.emit('money', -r.cost, label);
     else this.events.emit('bark', 'Not enough cash');
+  }
+
+  /** At a food stop: a bite or a gulp now and then while you eat or drink (BABBLE.food). */
+  #eatSounds(dt) {
+    const r = this.refuel, f = BABBLE.food[r.food];
+    if (!f || (r.bite -= dt) > 0) return;
+    r.bite = f.every * (0.8 + this.rng() * 0.4);
+    this.engineSound[f.sound]();
+  }
+
+  /** You say something over the moto (gold): the next line of a kind from sim/rider-lines.js. */
+  #riderSays(kind) {
+    this.lineBags ??= createLineBags();
+    this.#visitorSays(nextLines(this.lineBags, kind, this.rng).map((text) => ({ who: 'rider', text })));
   }
 
   #pay(category, amount, label) {
@@ -1096,7 +1163,10 @@ export class RideScene extends Phaser.Scene {
     const cameraEvents = this.level.cameras && this.mode.cameras ? checkCameras(this.world, this.cameraState, b, kmh) : [];
     for (const e of cameraEvents) {
       this.events.emit('camera', e);
-      if (e.fine) this.#pay('fines', e.fine, `Speed camera: ${Math.round(e.speedKmh)} km/h in a ${e.limitKmh} zone`);
+      if (e.fine) {
+        this.#pay('fines', e.fine, `Speed camera: ${Math.round(e.speedKmh)} km/h in a ${e.limitKmh} zone`);
+        this.#riderSays('camera'); // motaris call the speed cameras "Maria"
+      }
     }
   }
 
@@ -1224,6 +1294,7 @@ export class RideScene extends Phaser.Scene {
     const dayEvent = this.cheatEvent !== undefined ? this.cheatEvent : pickDayEvent(L, this.wallet.day);
     if (dayEvent === 'umuganda') counts.police = patrolCount(L.districts);
     this.umuganda = { done: 0, gap: 3, spot: { spot: null }, jobId: null };
+    if (dayEvent === 'umuganda') this.#firstTime('umuganda');
     // The story arc: in the petrol levels 3 and 4 an Ampersand rider rides in the traffic (a fleet moto with no
     // hired rider), and yellow battery pickups lie on the roads.
     const yellow = STORY.batteryLevels.includes(L.n) && L.bikeType === 'petrol';
@@ -1775,10 +1846,11 @@ export class RideScene extends Phaser.Scene {
       this.accumulator -= FIXED_DT;
     }
     if (this.refuel || this.bike.engineDead) this.#passengerWaiting(dt);
+    if (this.refuel?.kind === 'food') this.#eatSounds(dt);
     if (this.refuel && (this.refuel.timeLeft -= dt) <= 0) this.#finishRefuel();
     this.#updateHq(dt);
     this.#updateRadio(dt);
-    this.#updateLesson(dt);
+    this.#updatePhone(dt);
     this.#updateRescue(dt);
     this.#updateTilt(dt);
     this.#updateStation();
@@ -1909,6 +1981,9 @@ export class RideScene extends Phaser.Scene {
     // A passenger on the back gets off and does not pay: a bad name for your moto.
     lessonEvent(this.lesson, 'crash');
     const lost = loseJobOnCrash(this.board, this.bike);
+    // You say a catchphrase from the ground (after the words of a passenger who gets off).
+    const kind = e.slip ? 'slip' : e.hit?.officer ? 'officer' : 'crash';
+    this.time.delayedCall(lost ? 1900 : 600, () => this.#riderSays(kind));
     if (lost) {
       cancelMission(this.raceRival);
       this.raceRival = null;
@@ -1987,6 +2062,7 @@ export class RideScene extends Phaser.Scene {
     this.sayBusy = !!l;
     if (!l) return;
     if (l.who === 'visitor') this.engineSound.yell(1.35);
+    else this.engineSound.speak(babblePlan(l.text, this.rng, BABBLE.rider.maxSeconds), 'rider');
     this.#bubble(this.bike.x, this.bike.y, 46, l.text, l.who === 'rider' ? 0xffc85a : 0xffffff, 1500, true);
     this.time.delayedCall(2000, () => this.#nextLine());
   }
@@ -2344,6 +2420,7 @@ export class RideScene extends Phaser.Scene {
           this.traffic.dormant = this.traffic.dormant ?? [];
           this.traffic.vehicles = this.traffic.vehicles.filter((v) => (closed.has(v.edge.road) ? (this.traffic.dormant.push(v), false) : true));
           this.#carFreeJoggers();
+          this.#firstTime('carFree');
           this.events.emit('bark', `Car Free Day! ${cf.roads.map((r) => r.name).join(', ')} is closed to motos and cars until ${ROAD_EVENTS.carFree.toHour}:00. People run and cycle there`);
         } else {
           this.people.walkers = this.people.walkers.filter((p) => !p.jogger || Math.hypot(p.x - b.x, p.y - b.y) < 60);

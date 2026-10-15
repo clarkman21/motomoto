@@ -152,6 +152,21 @@ export const LESSON = {
   byeAfterTips: 9, // he says goodbye after this many tips
 };
 
+// The babble voice (sim/babble.js): speech sounds without words, for Rukundo on the phone (muffled) and for
+// the lines of the rider in bubbles. Seconds; pitch values are factors. Guesses, tuned by ear.
+export const BABBLE = {
+  syllableSeconds: [0.075, 0.115], // the length of one syllable (from, to)
+  inWordGap: 0.012, wordGap: 0.05, commaPause: 0.16, stopPause: 0.26,
+  maxPerWord: 4, // at most this many syllables in one word
+  fall: 0.16, // the pitch goes down this much over a sentence
+  wobble: 0.1, // a random change of pitch for each syllable
+  questionRise: 0.28, shoutRise: 0.08,
+  phone: { basePitchHz: 118, volume: 0.5, lowCutHz: 380, highCutHz: 1700 }, // Rukundo on the phone: a low voice, muffled
+  rider: { basePitchHz: 135, volume: 0.32, lowCutHz: 160, highCutHz: 3200, maxSeconds: 1.4 }, // you, in a bubble
+  // The sounds while you eat or drink at a food stop: one each 'every' seconds.
+  food: { bananas: { sound: 'munch', every: 0.42 }, buffet: { sound: 'munch', every: 0.55 }, ikivuguto: { sound: 'gulp', every: 0.6 }, drink: { sound: 'gulp', every: 0.4 } },
+};
+
 // Wet murram is very slippery (Alp, 14 October 2026): a turn at speed makes the bike slide; a hard
 // turn at speed, held, makes it fall. The turn load is the speed times the turn rate (m/s²). Guesses.
 // Better tyres (wetGrip) move both limits up.

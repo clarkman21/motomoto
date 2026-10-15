@@ -39,7 +39,7 @@ const HELP = [
       'T: phone a moto that brings you 1 litre of fuel (or a charged battery), for 20% more than at a station. You can call at any time.',
       'F (out of fuel, no station here): stop and tilt the moto: you lay it on its side and rock it, and the last fuel runs to the carburettor. About 30 s of riding, one time for each empty tank (petrol moto).',
       'Developer features (for tests): Settings, then DEVELOPER FEATURES: ON. In a ride, pause (Esc) and choose CHEATS. With them off, a new game starts at level 1.',
-      'H: horn.   V: sound.   N: the next radio station (with the Bluetooth speaker).   L: skip the Motari lesson (level 1).   R: put the bike back on the nearest road (your fuel and the bike wear stay as they are).   M: map on or off.   Esc or P: pause menu.',
+      'H: horn.   V: sound.   N: the next radio station (with the Bluetooth speaker).   L: skip the Motari lesson (level 1), or hang up the call of Rukundo.   R: put the bike back on the nearest road (your fuel and the bike wear stay as they are).   M: map on or off.   Esc or P: pause menu.',
       'Touch: the stick on the left steers. GO and STOP are on the right, + and − shift, T calls the fuel moto. Tap a job line to take it.',
     ],
   },

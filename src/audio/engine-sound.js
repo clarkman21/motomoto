@@ -1,3 +1,6 @@
+import { BABBLE } from '../config.js';
+import { VOWELS } from '../sim/babble.js';
+
 // Engine, horn, crash and voice sounds made with Web Audio, so the prototype needs no audio files.
 // Petrol: a rough, low sawtooth. Electric: a quiet, high hum.
 // Browsers start audio only after the first key press or tap.
@@ -196,8 +199,8 @@ export class EngineSound {
     }
   }
 
-  /** A burst of white noise (seconds long, it starts now), for crashes. */
-  #noise(seconds) {
+  /** A burst of white noise (seconds long, it starts at the audio time 'at', or now), for crashes. */
+  #noise(seconds, at = this.ctx.currentTime) {
     if (!this.noiseBuffer) {
       const n = Math.floor(this.ctx.sampleRate * 0.6);
       this.noiseBuffer = this.ctx.createBuffer(1, n, this.ctx.sampleRate);
@@ -206,8 +209,8 @@ export class EngineSound {
     }
     const src = this.ctx.createBufferSource();
     src.buffer = this.noiseBuffer;
-    src.start();
-    src.stop(this.ctx.currentTime + seconds);
+    src.start(at);
+    src.stop(at + seconds);
     return src;
   }
 
@@ -310,23 +313,114 @@ export class EngineSound {
     }
   }
 
-  /** A soft voice on the phone line (he talks): a short low tone through a narrow band, like a phone speaker. */
-  murmur(pitch = 1) {
+  /**
+   * Babble: speech without words (sim/babble.js gives the plan). kind: 'phone' (Rukundo: a low voice
+   * through a narrow, muffled phone band) or 'rider' (you, in a bubble). Returns { stop() }: the voice
+   * fades out now (a hang up).
+   */
+  speak(plan, kind = 'phone') {
+    if (!this.ctx || !this.enabled || !plan.syllables.length) return { stop() {} };
+    const ctx = this.ctx, t0 = ctx.currentTime + 0.02, V = BABBLE[kind] ?? BABBLE.phone;
+    // The voice bus: a band filter (the phone speaker or the open air), then the volume.
+    const hp = ctx.createBiquadFilter(), lp = ctx.createBiquadFilter(), out = ctx.createGain();
+    hp.type = 'highpass';
+    hp.frequency.value = V.lowCutHz;
+    lp.type = 'lowpass';
+    lp.frequency.value = V.highCutHz;
+    lp.Q.value = 0.9;
+    out.gain.value = V.volume;
+    hp.connect(lp).connect(out).connect(this.master);
+    for (const s of plan.syllables) {
+      const t = t0 + s.at, len = s.len;
+      const [f1, f2] = VOWELS[s.vowel] ?? VOWELS.e;
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sawtooth';
+      const f0 = V.basePitchHz * s.pitch;
+      o.frequency.setValueAtTime(f0 * 1.06, t);
+      o.frequency.linearRampToValueAtTime(f0 * 0.96, t + len);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.5 * s.gain, t + 0.012);
+      g.gain.setValueAtTime(0.5 * s.gain, t + len * 0.6);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+      o.connect(g);
+      // Two vowel filters side by side.
+      for (const [f, q, k] of [[f1, 6, 1], [f2, 9, 0.6]]) {
+        const bp = ctx.createBiquadFilter(), bg = ctx.createGain();
+        bp.type = 'bandpass';
+        bp.frequency.value = f;
+        bp.Q.value = q;
+        bg.gain.value = k * 2.2;
+        g.connect(bp).connect(bg).connect(hp);
+      }
+      o.start(t);
+      o.stop(t + len + 0.02);
+      // A consonant at the start of some syllables: a very short puff of noise.
+      if (s.gain >= 1) {
+        const n = this.#noise(0.03, t), nf = ctx.createBiquadFilter(), ng = ctx.createGain();
+        nf.type = 'bandpass';
+        nf.frequency.value = 2400;
+        ng.gain.setValueAtTime(0.12, t);
+        ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.025);
+        n.connect(nf).connect(ng).connect(hp);
+      }
+    }
+    return {
+      stop: () => {
+        const now = ctx.currentTime;
+        out.gain.cancelScheduledValues(now);
+        out.gain.setValueAtTime(out.gain.value, now);
+        out.gain.linearRampToValueAtTime(0, now + 0.05);
+      },
+    };
+  }
+
+  /** A bite of food: a short, crunchy noise (a chew). */
+  munch() {
+    if (!this.ctx || !this.enabled) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    for (const [dt, f] of [[0, 1100], [0.07, 900]]) {
+      const n = this.#noise(0.06, t + dt), bp = ctx.createBiquadFilter(), g = ctx.createGain();
+      bp.type = 'bandpass';
+      bp.frequency.value = f * (0.9 + Math.random() * 0.2);
+      bp.Q.value = 1.5;
+      g.gain.setValueAtTime(0.0001, t + dt);
+      g.gain.exponentialRampToValueAtTime(0.35, t + dt + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dt + 0.055);
+      n.connect(bp).connect(g).connect(this.master);
+    }
+  }
+
+  /** A gulp of a drink: a low "glug" that falls in pitch. */
+  gulp() {
     if (!this.ctx || !this.enabled) return;
     const ctx = this.ctx, t = ctx.currentTime;
     const o = ctx.createOscillator(), bp = ctx.createBiquadFilter(), g = ctx.createGain();
-    o.type = 'square';
-    o.frequency.setValueAtTime(150 * pitch, t);
-    o.frequency.linearRampToValueAtTime(130 * pitch, t + 0.07);
+    o.type = 'sine';
+    const f = 330 + Math.random() * 60;
+    o.frequency.setValueAtTime(f, t);
+    o.frequency.exponentialRampToValueAtTime(f * 0.45, t + 0.11);
     bp.type = 'bandpass';
-    bp.frequency.value = 1000;
+    bp.frequency.value = 420;
     bp.Q.value = 2;
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(0.05, t + 0.01);
-    g.gain.linearRampToValueAtTime(0.0001, t + 0.07);
+    g.gain.exponentialRampToValueAtTime(0.5, t + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.13);
     o.connect(bp).connect(g).connect(this.master);
     o.start(t);
-    o.stop(t + 0.08);
+    o.stop(t + 0.15);
+  }
+
+  /** A can opens ("pssht"): a short hiss of high noise. */
+  canOpen() {
+    if (!this.ctx || !this.enabled) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    const n = this.#noise(0.3), hp = ctx.createBiquadFilter(), g = ctx.createGain();
+    hp.type = 'highpass';
+    hp.frequency.value = 3500;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.25, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+    n.connect(hp).connect(g).connect(this.master);
   }
 
   /**
