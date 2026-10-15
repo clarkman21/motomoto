@@ -25,7 +25,7 @@ export const TIPS = [
   { id: 'speed', when: (c) => c.overLimitSeconds > 2, lines: ['Too fast, too fast! Watch the round signs.', 'The cameras flash, and the fine eats your day.'] },
   {
     id: 'fuel', when: (c) => c.petrol && c.energy < LESSON.fuelBelow,
-    lines: ['Your tank goes down. Find an SP station.'], keys: ['Stop beside the pumps and press F.', 'Empty? Old motari trick: stop and press G. You rock the moto on its side for the last fuel. One time only!'],
+    lines: ['Your tank goes down. Find an SP station.'], keys: ['Stop beside the pumps and press F.', 'Empty? Old motari trick: stop and press F. You rock the moto on its side for the last fuel. One time only!'],
     touch: ['Stop beside the pumps and tap the station button.', 'Empty? Old motari trick: stop and tap TILT. You rock the moto on its side for the last fuel. One time only!'],
     after: ['Push a moto up a Kigali hill? Oya, not fun!'],
   },

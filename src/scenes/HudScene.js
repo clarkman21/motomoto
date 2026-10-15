@@ -439,7 +439,7 @@ export class HudScene extends Phaser.Scene {
       const offer = ride.stationOffer();
       if (offer) text = this.isTouch ? offer.text.replace('F: ', 'TAP: ') : offer.text;
       else if (ride.tiltReady) {
-        text = `${this.isTouch ? 'TAP' : 'G'}: TILT THE MOTO FOR THE LAST FUEL`;
+        text = `${this.isTouch ? 'TAP' : 'F'}: TILT THE MOTO FOR THE LAST FUEL`;
         this.tiltShown = true;
       }
     }

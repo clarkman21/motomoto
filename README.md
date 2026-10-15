@@ -154,7 +154,7 @@ All 10 levels, the three modes, the story arc (smog, the yellow battery, the swa
 | The muzungu talks less (Alp, 15 October 2026): at most one line in 15 s, a random line every 25 to 35 s, "OUCH!" and "BUHORO BUHORO!" at most every 30 s. A photo at a sight still comes at once | Done |
 | Low fuel and service warnings blink (Alp, 15 October 2026): under 25% of a tank the fuel icon, the bar and the word LOW blink red; under 10% RESERVE blinks faster; EMPTY at 0. The service shows OIL SOON (petrol) or SERVICE SOON (electric) at 80%, and OIL! or SERVICE! blinks when it is late. A short beep when a warning starts | Done |
 | The petrol engine sputters on low fuel: under 10% of a tank it misses now and then (no power for a moment, a cough, a dark puff, PUT... PUT-PUT...), more often as the tank empties | Done |
-| The fuel tilt ("the dance", Alp): out of fuel, stop and press G (touch: tap the prompt). The rider lays the moto on its side and rocks it, so that the last fuel runs to the carburettor (3.5 s, a slosh sound). It gives about 30 s of riding at full throttle. One time for each empty tank: buy fuel to do it again. Rukundo tells you the trick in his fuel tip | Done |
+| The fuel tilt ("the dance", Alp): out of fuel, stop and press F, the same key as at a station (touch: tap the prompt). The rider lays the moto on its side and rocks it, so that the last fuel runs to the carburettor (3.5 s, a slosh sound). It gives about 30 s of riding at full throttle. One time for each empty tank: buy fuel to do it again. Rukundo tells you the trick in his fuel tip | Done |
 | The moto shop look (a container shop) | Later (after v1.0) |
 
 ## Run the game
@@ -219,7 +219,7 @@ In the game, Esc, P or the II button opens the pause menu: Resume, Restart shift
 | Take the street hail next to you (stop close to a waving customer) | 1 | Tap the prompt |
 | Cancel the job (no pay) | Backspace | — |
 | Fill up or swap the battery (stop at the station) | F | Tap the station prompt |
-| Out of fuel: tilt the moto for the last fuel (stop first; one time for each empty tank; petrol moto) | G | Tap the prompt |
+| Out of fuel: tilt the moto for the last fuel (stop first, away from a station; one time for each empty tank; petrol moto) | F | Tap the prompt |
 
 **Steering (GTA 1 style).** Left and right turn the bike. Up is throttle. Down is brake. Hold down when the bike is stopped to push it backwards. There is no other steering option.
 

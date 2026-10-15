@@ -172,7 +172,7 @@ export class RideScene extends Phaser.Scene {
     this.crossPaths = crossingPaths(this.world); // zebra crossings where people cross the road (sim/crossers.js)
     this.kitesView = new KiteView(this, this.world); // brown kites in the sky
     this.planeView = new PlaneView(this, this.world); // the planes at the airport
-    this.tilt = createTilt(); // the fuel tilt: out of fuel, rock the moto on its side for the last fuel (G)
+    this.tilt = createTilt(); // the fuel tilt: out of fuel, rock the moto on its side for the last fuel (F)
     // Night lights and the colour of the day (see LightsView.js).
     this.lights = new LightsView(this, this.world);
     this.rainView = new RainView(this); // rain streaks on a rainy day
@@ -381,7 +381,6 @@ export class RideScene extends Phaser.Scene {
         case 'Backspace': if (this.hq?.stage === 'track') this.#hqF(); else this.cancelJob(); break;
         case 'KeyF': this.startRefuel(); break;
         case 'KeyT': this.callFuelMoto(); break;
-        case 'KeyG': this.tiltBike(); break;
         case 'KeyK': if (this.debug) this.dayTime = this.level.shift.realSeconds; break; // debug: end the shift now
       }
     });
@@ -757,6 +756,7 @@ export class RideScene extends Phaser.Scene {
   startRefuel() {
     if (this.#hqF()) return;
     const offer = this.stationOffer();
+    if (!offer && this.tiltReady) return this.tiltBike(); // out of fuel, no station here: the fuel tilt (Alp: the same F key)
     if (!offer) {
       this.events.emit('bark', this.refuel ? `Wait: ${Math.ceil(this.refuel.timeLeft)} s more at this stop` : this.#stationHint());
       return;
@@ -1722,7 +1722,7 @@ export class RideScene extends Phaser.Scene {
         if (e.type === 'empty' && this.bike.type === 'petrol') {
           this.events.emit('bark', this.tilt.used
             ? 'Out of fuel again! The tank is dry. Push the moto (throttle) to a station, or press T for a fuel moto'
-            : `Out of fuel! The moto rolls to a stop, and a customer on it will leave. Stop and ${this.sys.game.device.input.touch ? 'tap TILT' : 'press G'}: tilt the moto for the last fuel (one time). Or push it, or call a fuel moto (T)`);
+            : `Out of fuel! The moto rolls to a stop, and a customer on it will leave. Stop and ${this.sys.game.device.input.touch ? 'tap TILT' : 'press F'}: tilt the moto for the last fuel (one time). Or push it, or call a fuel moto (T)`);
           continue;
         }
         if (e.type === 'wall' && !e.hit && this.#closedAhead()) {
@@ -2084,7 +2084,7 @@ export class RideScene extends Phaser.Scene {
   }
 
   /**
-   * G: the fuel tilt ("the dance", sim/fuel-tilt.js). Out of fuel, stop, lay the moto on its side and rock
+   * F (with no station here): the fuel tilt ("the dance", sim/fuel-tilt.js). Out of fuel, stop, lay the moto on its side and rock
    * it: the last fuel runs to the carburettor, for about 30 s of riding. Once for each empty tank.
    */
   tiltBike() {
