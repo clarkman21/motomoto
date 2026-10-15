@@ -7,8 +7,8 @@ import { LIGHTS, DISTRICTS, HAZARDS, HQ } from '../../config.js';
 // Kigali is hills with valleys between them. The layout follows the real city, compressed:
 //
 //            x 0-63              x 64-127             x 128-191
-//   y 0-63   Nyabugogo (valley)  Kacyiru (hill)       Nyarutarama (two ridges, golf valley)
-//   y 64-127 Kigali town (ridge) Kimihurura (hill)    Kicukiro (plateau)
+//   y 0-63   Nyabugogo (valley)  Kacyiru (hill)       Nyarutarama (hill; the golf valley on its west side)
+//   y 64-127 Kigali town (ridge) Kimihurura (hill)    Kicukiro (plateau; the Gikondo valley in the south-west)
 //
 // x goes right and down on the screen, y goes left and down. Heights are in levels (1.5 m).
 // Roads: horizontal { y, x0, x1 } uses rows y and y+1; vertical { x, y0, y1 } uses columns x and x+1.
@@ -32,8 +32,8 @@ export const DISTRICT_LOOKS = {
   town: 'Kigali town on the Nyarugenge ridge (level 7). Tall buildings, the MTN roundabout and the big town roundabout, Kigali City Tower, the car free zone, the town market, the hotels. Mount Kigali rises steeply on the west side (forest).',
   kacyiru: 'Kacyiru hill (level 6). Government offices with lawns, the police headquarters, the hospital, the Kacyiru boulevard (a double carriageway with palms, flowers and lamps in the median) that ends at the US Embassy roundabout.',
   kimihurura: 'Kimihurura hill (level 6). The Convention Centre dome at the big roundabout, Parliament, villas on cobblestone lanes. Rugando wetland valley to the west.',
-  nyarutarama: 'Two ridges with the golf course and a lake in the valley between them. Big villas, quiet cobblestone streets, the MTN Centre.',
-  kicukiro: 'A wide plateau (level 4). Sonatubes junction, the busy Kicukiro centre market, murram side streets, Gikondo warehouses and trucks.',
+  nyarutarama: 'One big hill (level 6) with villas and quiet cobblestone streets. The golf course and its lake are in the valley on its west side, which goes north to south. The MTN Centre is on the saddle at the north end of the valley.',
+  kicukiro: 'A wide plateau (level 4): Remera, Sonatubes junction, the busy Kicukiro centre market and the airport. Gikondo is in the south-west: the Ampersand HQ on the saddle by the main road, then the low Gikondo valley with its wetland.',
 };
 
 const RUN1 = { west: 1, east: 1, north: 1, south: 1 };
@@ -42,12 +42,15 @@ const HILLS = [
   { name: 'Nyarugenge ridge (Kigali town)', x0: 0, y0: 78, x1: 50, y1: 128, level: 7, run: { west: 1, east: 2, north: 3.5, south: 1 } },
   { name: 'Kacyiru hill', x0: 76, y0: 0, x1: 120, y1: 54, level: 6, run: { west: 2, east: 2, north: 1, south: 2 } },
   { name: 'Kacyiru–Kimihurura saddle', x0: 80, y0: 54, x1: 118, y1: 72, level: 3, run: RUN1 },
-  { name: 'Kimihurura hill', x0: 76, y0: 72, x1: 120, y1: 128, level: 6, run: { west: 2, east: 2, north: 2, south: 1 } },
-  { name: 'Kacyiru–Nyarutarama saddle', x0: 118, y0: 0, x1: 136, y1: 26, level: 4, run: RUN1 },
-  { name: 'Nyarutarama north ridge', x0: 134, y0: 0, x1: 192, y1: 22, level: 6, run: { west: 2, east: 1, north: 1, south: 2 } },
-  { name: 'Nyarutarama south ridge', x0: 134, y0: 42, x1: 192, y1: 56, level: 5, run: { west: 2, east: 1, north: 2, south: 2 } },
-  { name: 'Kimihurura–Kicukiro saddle', x0: 118, y0: 86, x1: 136, y1: 106, level: 3, run: RUN1 },
-  { name: 'Kicukiro plateau', x0: 134, y0: 72, x1: 192, y1: 128, level: 4, run: { west: 2, east: 1, north: 2, south: 1 } },
+  { name: 'Kimihurura hill', x0: 76, y0: 72, x1: 118, y1: 128, level: 6, run: { west: 2, east: 2, north: 2, south: 1 } },
+  // The east side from Alp's terrain map (15 October 2026). One Nyarutarama hill; the golf valley goes from
+  // north to south on its west side (level 0, x 132-144) down to the saddle of the main road (KCC to
+  // Sonatubes). South of that saddle, the Gikondo valley (a wetland) is between Kimihurura and the Kicukiro
+  // plateau. Remera, Kicukiro centre and the airport are on the plateau.
+  { name: 'Kacyiru–Nyarutarama saddle', x0: 118, y0: 0, x1: 156, y1: 12, level: 4, run: { west: 1, east: 1, north: 1, south: 1.5 } },
+  { name: 'Nyarutarama hill', x0: 156, y0: 0, x1: 192, y1: 63, level: 6, run: { west: 2, east: 1, north: 1, south: 2 } },
+  { name: 'Kimihurura–Kicukiro saddle', x0: 118, y0: 84, x1: 144, y1: 109, level: 3, run: { west: 1, east: 1, north: 2, south: 2 } },
+  { name: 'Kicukiro plateau', x0: 144, y0: 66, x1: 192, y1: 128, level: 4, run: { west: 3, east: 1, north: 2, south: 1 } },
   // Mount Kigali (Alp's terrain map): a high, steep, green ridge on the west side of town. Forest, no houses.
   { name: 'Mount Kigali', x0: 0, y0: 76, x1: 3, y1: 128, level: 12, run: { west: 1, east: 1.3, north: 2, south: 1 } },
 ];
@@ -59,6 +62,7 @@ const onMountKigali = (x, y) => x < 10 && y >= 66;
 // r: the radius of the ring's centre line, in tiles. The roads stop at the ring.
 const ring = (name, cx, cy, r, island) => ({ name, ring: true, cx: cx + 1, cy: cy + 1, r, surface: '#', island });
 const TOWN_RING = { cx: 26, cy: 96, r: 5 }; // the big town roundabout (grass and flowers) to the car free zone
+const GOLF = { x0: 128, y0: 14, x1: 150, y1: 61 }; // the golf course in the valley west of Nyarutarama hill (tiles)
 const KCC_RING = { cx: 100, cy: 96, r: 5 }; // the KCC roundabout (grass and flowers)
 const MTN_RING = { cx: 40, cy: 84, r: 4 }; // the MTN roundabout in the financial centre (the yellow fountain)
 const EMBASSY_RING = { cx: 120, cy: 36, r: 6 }; // the US Embassy roundabout at the east end of the Kacyiru boulevard
@@ -118,7 +122,7 @@ const ROADS = [
   { name: 'Kimihurura east lane', x: 114, y0: 80, y1: 127, surface: 'c' },
   // Short links to the Kicukiro murram roads, which start 2 to 4 tiles to the side.
   { name: 'Kimihurura–Kicukiro link', x: 126, y0: 80, y1: 85, surface: 'm' },
-  { name: 'Kimihurura–Kicukiro link', x: 126, y0: 114, y1: 117, surface: 'm' },
+  { name: 'Kimihurura–Kicukiro link', x: 126, y0: 108, y1: 117, surface: 'm' },
   // Nyarutarama
   { name: 'Nyarutarama cobble', y: 48, x0: 121, x1: 191, surface: 'c' }, // it goes on from Embassy lane
   { name: 'Nyarutarama east street', x: 176, y0: 0, y1: 63, surface: 'c' },
@@ -126,10 +130,10 @@ const ROADS = [
   { name: 'Golf–Gikondo link', y: 62, x0: 142, x1: 145, surface: 'm' },
   { name: 'Nyarutarama–Kicukiro link', y: 62, x0: 176, x1: 179, surface: '#' },
   // Kicukiro
-  { name: 'Kicukiro north murram', y: 84, x0: 126, x1: 191, surface: 'm' },
-  { name: 'Kicukiro south murram', y: 116, x0: 126, x1: 191, surface: 'm' },
+  { name: 'Remera murram', y: 84, x0: 126, x1: 191, surface: 'm' },
+  { name: 'Kicukiro south murram', y: 116, x0: 126, x1: 161, surface: 'm' }, // it stops at the airport fence
   { name: 'Gikondo murram', x: 144, y0: 62, y1: 127, surface: 'm' },
-  { name: 'Kicukiro avenue', x: 178, y0: 62, y1: 127, surface: '#' },
+  { name: 'Kicukiro avenue', x: 178, y0: 62, y1: 97, surface: '#' }, // south of the main road: the airport
   // The ring road round the edge of the map (Alp, 14 October 2026), like the Kigali ring road: the roads
   // that went off the map join it, so you never have to turn back. Not on the river (north of Nyabugogo)
   // or over Mount Kigali (west of town): there it ends on a road.
@@ -137,7 +141,9 @@ const ROADS = [
   { name: 'Ring road', x: 190, y0: 0, y1: 127, surface: '#' },
   { name: 'Ring road', y: 126, x0: 10, x1: 191, surface: '#' },
   { name: 'Ring road', x: 0, y0: 5, y1: 63, surface: '#' },
-  { name: 'Kicukiro centre street', y: 106, x0: 160, x1: 191, surface: '#' },
+  // Kicukiro centre is south-west of Sonatubes, and Gikondo (the valley with the warehouses and the HQ)
+  // west of it (Alp's Kigali map, 15 October 2026). The street joins them.
+  { name: 'Kicukiro centre street', y: 108, x0: 126, x1: 161, surface: '#' },
 ];
 
 // Open areas where many people walk (and wait for motos).
@@ -145,8 +151,30 @@ const CROWD_AREAS = [
   { name: 'Nyabugogo bus park', x0: 22, y0: 7, x1: 37, y1: 18 },
   { name: 'Nyabugogo market', x0: 44, y0: 7, x1: 60, y1: 18 },
   { name: 'Car free zone', x0: 34, y0: 102, x1: 49, y1: 109 },
-  { name: 'Kicukiro centre market', x0: 164, y0: 99, x1: 177, y1: 105 },
+  { name: 'Kicukiro centre market', x0: 146, y0: 99, x1: 159, y1: 106 },
 ];
+
+// Kigali International Airport (tiles): the airfield inside the fence, the terminal on its north side,
+// the apron (rows y0..apronY1), the taxiway and the runway (along x).
+export const AIRPORT = {
+  x0: 166, y0: 103, x1: 189, y1: 125, apronY1: 107, taxiX: 182,
+  terminal: { x0: 168, y0: 100, x1: 177, y1: 102, levels: 3 },
+  runway: { y0: 112, y1: 114 },
+};
+
+/** The fence round the airfield: wall segments on the outer edges (no gate). */
+export function airportFence(A = AIRPORT) {
+  const out = [];
+  for (let x = A.x0; x <= A.x1; x++) {
+    out.push({ tx: x, ty: A.y0, edge: 'n', gate: false, fence: true });
+    out.push({ tx: x, ty: A.y1, edge: 's', gate: false, fence: true });
+  }
+  for (let y = A.y0; y <= A.y1; y++) {
+    out.push({ tx: A.x0, ty: y, edge: 'w', gate: false, fence: true });
+    out.push({ tx: A.x1, ty: y, edge: 'e', gate: false, fence: true });
+  }
+  return out;
+}
 
 export function buildKigaliMap(seed = 7) {
   const W = KIGALI_W, H = KIGALI_H;
@@ -180,19 +208,19 @@ export function buildKigaliMap(seed = 7) {
 
   // Water: the Nyabugogo river along the north edge, and the lake in the Nyarutarama golf valley.
   rect(0, 0, 63, 2, 'r');
-  rect(144, 31, 156, 34, 'r');
-  rect(147, 30, 153, 35, 'r');
+  rect(133, 39, 140, 43, 'r');
+  rect(135, 38, 139, 44, 'r');
 
   // Lots before roads, so roads cut through them.
   rect(22, 7, 36, 17, '#'); // Nyabugogo bus park
   rect(44, 7, 60, 17, 'm'); // Nyabugogo market ground
   for (let y = 8; y <= 16; y += 3) for (let x = 45; x <= 59; x++) if (x % 5 !== 1) set(x, y, '2'); // market stalls
-  rect(164, 99, 176, 104, 'm'); // Kicukiro centre market
-  for (let x = 165; x <= 175; x += 2) set(x, 101, '2');
+  rect(147, 100, 158, 105, 'm'); // Kicukiro centre market
+  for (let x = 148; x <= 157; x += 2) set(x, 102, '2');
   rect(34, 102, 48, 108, 'p'); // the car free zone (pavement, people only)
   set(43, 103, 'L'); // the I LOVE KIGALI sign
   for (const a of CROWD_AREAS) reserve(a.x0, a.y0, a.x1, a.y1);
-  reserve(130, 24, 191, 41); // the golf course: grass, sand and trees, no buildings
+  reserve(GOLF.x0, GOLF.y0, GOLF.x1, GOLF.y1); // the golf course: grass, sand and trees, no buildings
 
   // Marsh tracks (wet murram) on the river bank and in the wetland valleys.
   for (let x = 0; x < 64; x++) if (hash(x, 3, 11) < 0.35) set(x, 3, 'w');
@@ -254,9 +282,9 @@ export function buildKigaliMap(seed = 7) {
   station(162, 22, 'S', 'north', 'Ampersand swap, Nyarutarama');
   station(178, 22, 'F', 'north', 'Nyarutarama fuel');
   station(162, 98, 'F', 'north', 'Sonatubes fuel');
-  station(146, 86, 'F', 'north', 'Gikondo fuel');
-  station(180, 98, 'S', 'north', 'Ampersand swap, Kicukiro');
-  station(180, 108, 'G', 'north', 'Sonatubes moto garage', 'SONATUBES');
+  station(146, 86, 'F', 'north', 'Remera fuel');
+  station(147, 98, 'S', 'north', 'Ampersand swap, Kicukiro');
+  station(146, 110, 'G', 'north', 'Sonatubes moto garage', 'SONATUBES');
   // Ampersand swap cabinets (design canvas "Ampersand swap stations"): a small cabinet beside a fuel station,
   // on the free tile east of it, with the road to the north. No attendant: you swap the battery yourself.
   const cabinet = (x, y, name) => {
@@ -306,7 +334,7 @@ export function buildKigaliMap(seed = 7) {
   // Milk bars (Alp: Inyange Milk Zone, milk and ikivuguto). Side missions start here.
   landmark(50, 46, 53, 47, '2', 's', { sign: 'INYANGE', sign2: 'MILK ZONE' });
   landmark(22, 106, 25, 107, '2', 's', { sign: 'INYANGE', sign2: 'MILK ZONE' });
-  landmark(166, 109, 169, 110, '2', 's', { sign: 'INYANGE', sign2: 'MILK ZONE' });
+  landmark(155, 119, 158, 120, '2', 's', { sign: 'INYANGE', sign2: 'MILK ZONE' });
   // The US Embassy (Alp): a big concrete building like a castle, with an American flag that waves.
   landmark(123, 23, 127, 28, '5', 'e', { sign: 'EMBASSY OF THE', sign2: 'UNITED STATES' });
   landmark(112, 51, 118, 53, '2', 'c', { sign: 'G.S. KACYIRU', sign2: 'WE STRIVE FOR SUCCESS' });
@@ -318,11 +346,21 @@ export function buildKigaliMap(seed = 7) {
     rect(y.x0, y.y0, y.x1, y.y1, '#');
     reserve(y.x0, y.y0, y.x1, y.y1);
     landmark(b.x0, b.y0, b.x1, b.y1, String(b.levels), 'A', { sign: 'AMPERSAND', sign2: 'HQ GIKONDO', brand: true });
-    station(156, 86, 'S', 'south', 'Ampersand swap, HQ Gikondo'); }
+    station(y.x0 + 8, y.y0, 'S', 'south', 'Ampersand swap, HQ Gikondo'); }
+  // Kigali International Airport (Alp, 15 October 2026): south-east of Sonatubes, as in Kigali. The terminal
+  // stands on the main road (the drop-off in front of it); behind it the apron with a plane, and the runway
+  // along the airfield. A fence goes round the airfield (world/compounds.js), so you cannot ride on it.
+  { const A = AIRPORT;
+    rect(A.x0, A.y0 - 5, A.x0 + 13, A.y0 - 4, 'p'); // the drop-off in front of the terminal
+    landmark(A.terminal.x0, A.terminal.y0, A.terminal.x1, A.terminal.y1, String(A.terminal.levels), 'o', { sign: 'KIGALI INTERNATIONAL', sign2: 'AIRPORT' });
+    rect(A.x0, A.y0, A.x1, A.apronY1, 'Q'); // the apron (concrete)
+    rect(A.x0 + 1, A.runway.y0, A.x1 - 1, A.runway.y1, 'R'); // the runway
+    rect(A.taxiX, A.apronY1 + 1, A.taxiX + 1, A.runway.y0 - 1, 'V'); // the taxiway from the apron
+    reserve(A.x0 - 1, A.y0 - 5, A.x1, A.y1); }
   landmark(140, 8, 143, 12, '7', 't', { levels: 10 }); // MTN Centre
   landmark(136, 27, 139, 29, '2', 'v'); // golf club house
-  landmark(181, 87, 187, 93, '4', 'g', { sign: "IBIRO BY'AKARERE", sign2: 'KA KICUKIRO' });
-  landmark(182, 109, 188, 111, '2', 'c', { sign: 'G.S. KICUKIRO', sign2: 'WE STRIVE FOR SUCCESS' });
+  landmark(150, 110, 155, 113, '4', 'g', { sign: "IBIRO BY'AKARERE", sign2: 'KA KICUKIRO' });
+  landmark(146, 119, 152, 121, '2', 'c', { sign: 'G.S. KICUKIRO', sign2: 'WE STRIVE FOR SUCCESS' });
   landmark(7, 41, 13, 42, '2', 'c', { sign: 'G.S. KIMISAGARA', sign2: 'WE STRIVE FOR SUCCESS' });
   rect(7, 43, 13, 45, 'm'); // the school yard (murram)
   reserve(7, 43, 13, 45);
@@ -390,7 +428,7 @@ export function buildKigaliMap(seed = 7) {
   const treeChance = { nyabugogo: 0.04, town: 0.05, kacyiru: 0.1, kimihurura: 0.12, nyarutarama: 0.12, kicukiro: 0.05 };
   for (let y = 4; y < H - 1; y++) for (let x = 0; x < W - 1; x++) {
     if (g[y][x] !== '.' || (reserved[y][x] && !(y >= 24 && y <= 41 && x >= 130))) continue;
-    const golf = y >= 24 && y <= 41 && x >= 130;
+    const golf = y >= GOLF.y0 && y <= GOLF.y1 && x >= GOLF.x0 && x <= GOLF.x1;
     const forest = onMountKigali(x, y) ? 0.38 : 0; // Mount Kigali is green with eucalyptus forest
     if (hash(x, y, 16) < (golf ? 0.06 : forest || treeChance[districtOf(x, y)])) { set(x, y, 't'); if (forest) st[y][x] = 'F'; }
     else if (golf && hash(x >> 1, y >> 1, 17) < 0.06) set(x, y, 's'); // sand bunkers
@@ -416,7 +454,7 @@ export function buildKigaliMap(seed = 7) {
   bumpAcross(18, 14, false);
   bumpAcross(40, 9, false);
   for (const x of [166, 174]) bumpAcross(x, 96, true);
-  bumpAcross(178, 100, false);
+  bumpAcross(160, 104, false); // Remera road, south of Sonatubes (Kicukiro centre)
   bumpAcross(10, 90, false);
 
   // Street lamps beside the tarmac roads, on alternate sides. Murram and cobble lanes stay dark.
@@ -464,7 +502,7 @@ export function buildKigaliMap(seed = 7) {
   // Job places. weight: how often jobs start here (the bus park makes many fares).
   const P = (id, name, x, y, tags = [], weight = 1) => places.push({ id, name, x, y, tags, weight });
   P('busPark', 'Nyabugogo bus park', 29, 15, ['market'], 5);
-  P('ampersandOffice', 'Ampersand HQ, Gikondo', 150.6, 94.6, ['office']); // inside the in gate
+  P('ampersandOffice', 'Ampersand HQ, Gikondo', HQ.yard.x0 + 2.6, HQ.yard.y1 - 0.4, ['office']); // inside the in gate
   P('market', 'Nyabugogo market', 52, 13.5, ['market'], 3);
   P('riverRoad', 'River road', 12, 6, []);
   // 'buffet': a small buffet restaurant here, the cheapest lunch (a food stop in hard mode).
@@ -503,9 +541,9 @@ export function buildKigaliMap(seed = 7) {
   P('nyarutaramaVillas', 'Nyarutarama villas', 168, 49, []);
   P('nyarutaramaEast', 'Nyarutarama east street', 177, 8, []);
   P('sonatubes', 'Sonatubes junction', 158, 98.5, ['buffet'], 2);
-  P('kicukiroCentre', 'Kicukiro centre market', 170, 104, ['market'], 3);
-  P('gikondo', 'Gikondo warehouses', 145, 110, ['market'], 2);
-  P('kicukiroSouth', 'Kicukiro south', 168, 117, []);
+  P('kicukiroCentre', 'Kicukiro centre market', 152.5, 104, ['market'], 3);
+  P('gikondo', 'Gikondo warehouses', 143.6, 113, ['market'], 2);
+  P('kicukiroSouth', 'Kicukiro south', 157, 116.5, []);
   P('gsKimisagara', 'G.S. Kimisagara', 10, 44, [], 1);
   P('lycee', 'Lycee de Kigali', 46, 118.5, [], 1);
   P('nyarugengeOffice', 'Nyarugenge district office', 30, 118.5, [], 1);
@@ -516,11 +554,12 @@ export function buildKigaliMap(seed = 7) {
   P('marriott', 'Kigali Marriott Hotel', 55, 98.5, ['hotel'], 2);
   P('milkValley', 'Inyange Milk Zone, Valley road', 51.5, 45.5, ['milk'], 1);
   P('milkTown', 'Inyange Milk Zone, town', 23.5, 109.5, ['milk'], 1);
-  P('milkKicukiro', 'Inyange Milk Zone, Kicukiro', 167.5, 108.5, ['milk'], 1);
+  P('milkKicukiro', 'Inyange Milk Zone, Kicukiro', 156.5, 118.4, ['milk'], 1);
   P('chic', 'CHIC shopping centre', 47.5, 80.5, ['buffet'], 2);
-  P('kicukiroOffice', 'Kicukiro district office', 184, 94.5, [], 1);
-  P('gsKicukiro', 'G.S. Kicukiro', 187, 108.5, [], 1);
+  P('kicukiroOffice', 'Kicukiro district office', 152.5, 109.6, [], 1);
+  P('gsKicukiro', 'G.S. Kicukiro', 149, 117.6, [], 1);
   P('airportRoad', 'Airport road', 189, 97, []);
+  P('airport', 'Kigali International Airport', AIRPORT.terminal.x0 + 4.5, AIRPORT.terminal.y0 - 2.4, ['airport'], 3); // travellers: many fares
   for (const p of places) p.district = districtOf(Math.floor(p.x), Math.floor(p.y));
 
   return {
@@ -534,6 +573,8 @@ export function buildKigaliMap(seed = 7) {
     hazards,
     lamps,
     crowdAreas: CROWD_AREAS,
+    fences: airportFence(),
+    airport: AIRPORT,
     districts: Object.entries(DISTRICT_RECTS).map(([id, r]) => ({ id, name: DISTRICTS[id]?.name ?? id, ...r, look: DISTRICT_LOOKS[id] })),
     places,
     zones: [
@@ -543,7 +584,7 @@ export function buildKigaliMap(seed = 7) {
       { name: 'Kacyiru', x0: 76, y0: 0, x1: 120, y1: 54, limitKmh: 50 },
       { name: 'Kimihurura', x0: 76, y0: 72, x1: 127, y1: 127, limitKmh: 30 },
       { name: 'Nyarutarama', x0: 128, y0: 0, x1: 191, y1: 63, limitKmh: 30 },
-      { name: 'Kicukiro centre', x0: 156, y0: 92, x1: 191, y1: 112, limitKmh: 30 },
+      { name: 'Kicukiro centre', x0: 140, y0: 98, x1: 163, y1: 125, limitKmh: 30 },
     ],
     cameras: [
       { x: 14, y: 22.3 }, // northern road, Nyabugogo (30)
@@ -567,7 +608,7 @@ export function buildKigaliMap(seed = 7) {
       { id: 'loveNight', name: 'I LOVE KIGALI at night', x: 43.5, y: 105, radius: 1.5, when: 'night' },
       { id: 'mountKigali', name: 'the top of Mount Kigali', x: 1.5, y: 100.5, radius: 2 },
       { id: 'fountainSpray', name: 'the MTN fountain when it sprays', x: 41, y: 79.5, radius: 1.6, when: 'spray' },
-      { id: 'golfLake', name: 'the lake on the golf course', x: 150, y: 36.5, radius: 1.6 },
+      { id: 'golfLake', name: 'the lake on the golf course', x: 137, y: 45.6, radius: 1.6 },
       { id: 'kccNight', name: 'the KCC lit up at night', x: 110, y: 90.5, radius: 1.8, when: 'night' },
       { id: 'riverBank', name: 'the bank of the Nyabugogo river', x: 30, y: 3.5, radius: 1.5 },
     ],

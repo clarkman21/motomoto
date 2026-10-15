@@ -59,7 +59,14 @@ describe('Kigali map (6 districts)', () => {
     expect(level(100, 30)).toBe(6); // Kacyiru hill
     expect(level(100, 110)).toBe(6); // Kimihurura hill
     expect(level(160, 100)).toBe(4); // Kicukiro plateau
-    expect(level(150, 32)).toBeLessThan(level(150, 15) - 4); // Nyarutarama golf valley between two ridges
+    // Alp's terrain map: the golf valley goes north to south on the west side of Nyarutarama hill, and the
+    // Gikondo valley is low between Kimihurura and the Kicukiro plateau. The airport is on the plateau.
+    expect(level(138, 32)).toBe(0); // the golf valley
+    expect(level(170, 32)).toBe(6); // Nyarutarama hill
+    expect(level(131, 120)).toBe(0); // the Gikondo valley
+    expect(level(134, 102)).toBe(3); // the HQ yard on the saddle of the main road: flat
+    expect(level(140, 106)).toBe(3);
+    expect(level(178, 113)).toBe(4); // the airport runway
     expect(level(2, 40)).toBe(5); // Kimisagara hillside, in level 1
     // The road from Nyabugogo to Kacyiru climbs about 19%.
     const slope = world.slopeAt(70 * T, 21 * T);

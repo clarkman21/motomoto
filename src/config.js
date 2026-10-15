@@ -131,6 +131,8 @@ export const SURFACES = {
   grass: { name: 'Off road', grip: 0.6, speedFactor: 0.45, energyFactor: 1.5, rollingMs2: 1.6, wearFactor: 4.0, offRoad: true }, // guess, not in spec
   pavement: { name: 'Pavement', grip: 0.95, speedFactor: 0.5, energyFactor: 1.0, rollingMs2: 0.3, wearFactor: 1.2 }, // for people; slow for bikes
   sand: { name: 'Sand', grip: 0.5, speedFactor: 0.4, energyFactor: 1.6, rollingMs2: 2.0, wearFactor: 2.5, offRoad: true }, // golf bunkers — guess
+  runway: { name: 'Runway', grip: 1.0, speedFactor: 1.0, energyFactor: 1.0, rollingMs2: 0.25, wearFactor: 1.0 }, // behind the airport fence
+  apron: { name: 'Apron', grip: 1.0, speedFactor: 1.0, energyFactor: 1.0, rollingMs2: 0.25, wearFactor: 1.0 },
   water: { name: 'River', grip: 0, speedFactor: 0, energyFactor: 1, rollingMs2: 9, wearFactor: 1 }, // solid: you cannot ride here
 };
 
@@ -770,8 +772,8 @@ export const MUZUNGU = {
   maxOnBoard: 2,
   fareFactor: 4,
   streakRides: 3, // a clean ride counts as 3 rides for the clean ride streak ("3× delivery")
-  startIds: ['milleCollines', 'serena', 'umubano', 'radisson', 'marriott', 'kcc', 'kigaliHeights', 'carFree', 'cityTower', 'airportRoad'],
-  endIds: ['carFree', 'townMarket', 'market', 'kcc', 'golf', 'milleCollines', 'serena', 'umubano', 'radisson', 'marriott', 'kigaliHeights', 'chic', 'mtn', 'gakinjiro'],
+  startIds: ['milleCollines', 'serena', 'umubano', 'radisson', 'marriott', 'kcc', 'kigaliHeights', 'carFree', 'cityTower', 'airportRoad', 'airport'], // visitors come off the plane ...
+  endIds: ['carFree', 'townMarket', 'market', 'kcc', 'golf', 'milleCollines', 'serena', 'umubano', 'radisson', 'marriott', 'kigaliHeights', 'chic', 'mtn', 'gakinjiro', 'airport'], // ... and go back to it
   // Photo stops. line: what the visitor says when you ride past too fast for a photo.
   sights: [
     { id: 'kcc', name: 'the KCC', x: 110, y: 90.5, line: 'IS THAT THE CONVENTION CENTRE?!' },
@@ -919,6 +921,21 @@ export const KITES = {
   minLight: 0.35, rainShare: 0.3,
 };
 
+// Kigali International Airport (sim/planes.js): one plane stands on the apron, and from time to time a
+// plane takes off. It comes into view at the east end of the runway, waits, rolls west faster and faster,
+// lifts, climbs and flies away over the city to the west. The runway is short (the map is compressed), so the speeds are
+// low for a plane. Distances in metres, speeds in m/s, times in seconds.
+export const PLANES = {
+  firstSeconds: 25, everySeconds: 90, // the first take-off, then the time between take-offs
+  fadeSeconds: 1.5, holdSeconds: 4, // it comes into view, then waits at the end of the runway
+  accel: 4.5, liftMs: 20, topMs: 36, // it lifts at 20 m/s (72 km/h)
+  climbRatio: 0.3, // metres up for each metre forward
+  awayMetres: 80, // above this height it fades away
+  gearUpMetres: 4, // the wheels go up above this height
+  parked: { x: 176, y: 105.5 }, // the plane on the apron (tiles)
+  hearMetres: 260, // the jet sound fades to nothing at this distance from the rider
+};
+
 // The story arc (spec "Story arc: petrol to electric"). Smog: a brown haze covers the city at level 1, and
 // each level makes it thinner (the alpha of the haze for each level); at the end, the air is clear.
 // The yellow battery (levels 3 and 4, the petrol moto): an Ampersand rider rides in the traffic, and yellow
@@ -947,6 +964,7 @@ export const GARDEN_WALLS = {
   insetTiles: 0.08, // the wall stands a little inside the tile edge
   topShare: 0.14, footShare: 0.18, // the coping at the top and the darker band at the foot (parts of the height)
   solidMetres: 0.5, // the thickness of the wall for collisions
+  fenceMetres: 2.2, // the airport fence (a chain-link fence round the airfield)
 };
 
 export const SHOPS = {
@@ -1038,15 +1056,17 @@ export const PART_FX = {
 // get your Alpha at the start of level 5 (sim/hq.js). Positions are in tiles (x, y), from the design
 // canvas "Moto Inziza: Ampersand HQ mission and radio". Money and times are guesses.
 export const HQ = {
-  yard: { x0: 148, y0: 86, x1: 159, y1: 95 }, // the fenced yard (tarmac); the fence is on its edge
-  building: { x0: 149, y0: 86, x1: 154, y1: 88, levels: 2 }, // the warehouse with the blue roof
-  gates: { in: [150, 152], out: [156, 159] }, // openings in the south fence (tiles x from, x to)
-  desk: { x: 152.6, y: 93.6 }, // the hand-in desk; the staff stand behind it (north)
-  alphaRows: { x0: 149.0, x1: 154.4, ys: [89.6, 91.0], step: 0.38 }, // rows of new Alphas, nose to the south
+  // In the Gikondo valley, south of the main road (Alp's Kigali map, 15 October 2026: Gikondo is south of
+  // the road from the KCC to Sonatubes). The gates open on Kicukiro centre street.
+  yard: { x0: 129, y0: 98, x1: 140, y1: 107 }, // the fenced yard (tarmac); the fence is on its edge
+  building: { x0: 130, y0: 98, x1: 135, y1: 100, levels: 2 }, // the warehouse with the blue roof
+  gates: { in: [131, 133], out: [137, 140] }, // openings in the south fence (tiles x from, x to)
+  desk: { x: 133.6, y: 105.6 }, // the hand-in desk; the staff stand behind it (north)
+  alphaRows: { x0: 130.0, x1: 135.4, ys: [101.6, 103.0], step: 0.38 }, // rows of new Alphas, nose to the south
   ribbon: { row: 1, index: 9 }, // your Alpha: the teal bow and the name tag
-  tradeRow: { x: 148.45, y0: 89.4, step: 0.5, count: 5 }, // the row of old petrol motos (trade-ins)
+  tradeRow: { x: 129.45, y0: 101.4, step: 0.5, count: 5 }, // the row of old petrol motos (trade-ins)
   // The test track: a ring of cones round an ellipse, a lane between the outer and the inner ring.
-  track: { cx: 157.4, cy: 91.0, rx: 1.75, ry: 2.4, innerRx: 0.6, innerRy: 1.25, coneMetres: 2.6, openings: [Math.PI, Math.PI / 2] },
+  track: { cx: 138.4, cy: 103.0, rx: 1.75, ry: 2.4, innerRx: 0.6, innerRy: 1.25, coneMetres: 2.6, openings: [Math.PI, Math.PI / 2] },
   gateOrder: [Math.PI, Math.PI * 1.5, 0, Math.PI / 2], // the 4 gates (angles on the lane): west, north, east, south
   gateMetres: 3, // ride this near the centre of a gate to pass it
   coneMetres: 0.75, // a cone nearer than this to the bike falls over

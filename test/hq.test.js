@@ -90,7 +90,7 @@ describe('Ampersand HQ mission', () => {
     hqAction(hq, bikeAt(g.x, g.y - 4));
     for (let i = 0; i < 400; i++) stepWalk(hq, { x: 0, y: 1 }, 0.1); // down the screen: to the south fence
     expect(inYard(hq.walker.x, hq.walker.y)).toBe(true);
-    hq.walker.x = 152 * T; // under the hall
+    hq.walker.x = (HQ.building.x0 + 3) * T; // under the hall
     for (let i = 0; i < 800; i++) stepWalk(hq, { x: 1, y: -0.5 }, 0.1); // up the screen along the world y axis: to the hall
     expect(hq.walker.y).toBeGreaterThan((HQ.building.y1 + 1) * T);
     hq.stage = 'track';

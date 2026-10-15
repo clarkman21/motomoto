@@ -58,6 +58,7 @@ import { RoadEventsView } from './RoadEventsView.js';
 import { oneWayRoads, noMotoRoads, pruneOneWay, strictOneWays, streetRule, pickSpeedChecks, speedChecks, overloaded, maybeHeavy, stepBladder, drinkToBladder, bladderPower } from '../sim/hardrules.js';
 import { crossingPaths, stepCrossers } from '../sim/crossers.js';
 import { KiteView } from './KiteView.js';
+import { PlaneView } from './PlaneView.js';
 import { SmogView } from './SmogView.js';
 import { smogAt, batterySpots, takeBattery } from '../sim/story.js';
 import { BatteryView } from './BatteryView.js';
@@ -169,6 +170,7 @@ export class RideScene extends Phaser.Scene {
     this.world.places.push(...shopPlaces(this.shops));
     this.crossPaths = crossingPaths(this.world); // zebra crossings where people cross the road (sim/crossers.js)
     this.kitesView = new KiteView(this, this.world); // brown kites in the sky
+    this.planeView = new PlaneView(this, this.world); // the planes at the airport
     // Night lights and the colour of the day (see LightsView.js).
     this.lights = new LightsView(this, this.world);
     this.rainView = new RainView(this); // rain streaks on a rainy day
@@ -1812,6 +1814,7 @@ export class RideScene extends Phaser.Scene {
       this.#updatePushing(dt);
       this.#loseJobWhenEmpty();
     } else this.engineSound.update(this.bike.type, Math.min(1, this.bike.revs), this.controls.throttle);
+    this.engineSound.jet(this.planeView.update(dt, this.bike)); // a plane takes off: the jet roars near the airport
     this.#updateStuck(dt);
     this.dayTime += dt;
     if (this.jailTimer != null && (this.jailTimer -= dt) <= 0) {

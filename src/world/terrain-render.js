@@ -48,6 +48,12 @@ const PALETTE = {
   water: [0x3b6e86, 0x356379, 0x4a7f96],
   sand: [0xe2cf98, 0xd4c089, 0xeedcaa],
   waterShine: 0x9cc3d3,
+  // The airport: a dark runway with white markings, and a light concrete apron.
+  runway: [0x45484c, 0x3e4145, 0x4d5054],
+  runwayPaint: 0xeceae2,
+  apron: [0xc4c0b6, 0xb8b4aa, 0xccc8be],
+  apronJoint: 0x9a968c,
+  apronLine: 0xd8a823, // the yellow taxi line
 };
 
 /**
@@ -223,7 +229,7 @@ function tileContext(world, tile) {
   const rutAlongX = tile.surface !== 'murram' ? null
     : isMurram(n(-1, 0)) && isMurram(n(1, 0)) && !(isMurram(n(0, -1)) && isMurram(n(0, 1))) ? true
     : isMurram(n(0, -1)) && isMurram(n(0, 1)) && !(isMurram(n(-1, 0)) && isMurram(n(1, 0))) ? false : null;
-  return { tile, ring, outside, curbs, bumpAcrossX: bumpN, nearMonument, lane: crossing ? null : lane, crossing, rutAlongX, rain: !!world.rain };
+  return { world, tile, ring, outside, curbs, bumpAcrossX: bumpN, nearMonument, lane: crossing ? null : lane, crossing, rutAlongX, rain: !!world.rain };
 }
 
 /**
@@ -331,6 +337,28 @@ function surfaceColour(ctx, u, v, sx, sy) {
       const fu = (wu * 3) % 1, fv = (wv * 3) % 1;
       if (fu < 0.06 || fv < 0.06) return PALETTE.pavementJoint;
       return pick(PALETTE.pavement, r, 0.1, 0.9);
+    }
+    case 'runway': {
+      // The runway (R) runs along x: white edge lines, a dashed centre line, and white bars at each end.
+      // The taxiway (V) has a yellow line down its middle.
+      const at = (dx, dy) => ctx.world.tile(tile.tx + dx, tile.ty + dy);
+      if (tile.ch === 'V') {
+        const leftHalf = at(1, 0)?.ch === 'V';
+        if (leftHalf ? u > 0.94 : u < 0.06) return PALETTE.apronLine;
+        return pick(PALETTE.runway, r, 0.1, 0.9);
+      }
+      const isRun = (t) => t?.ch === 'R';
+      const top = !isRun(at(0, -1)), bottom = !isRun(at(0, 1));
+      if ((top && v < 0.1) || (bottom && v > 0.9)) return PALETTE.runwayPaint;
+      const end = !isRun(at(-2, 0)) || !isRun(at(2, 0));
+      if (end && (wv * 6) % 1 < 0.45) return PALETTE.runwayPaint;
+      if (!end && !top && !bottom && v > 0.44 && v < 0.56 && (wu * 1.5) % 1 < 0.5) return PALETTE.runwayPaint;
+      return pick(PALETTE.runway, r, 0.1, 0.9);
+    }
+    case 'apron': {
+      const fu = (wu * 2) % 1, fv = (wv * 2) % 1;
+      if (fu < 0.04 || fv < 0.04) return PALETTE.apronJoint;
+      return pick(PALETTE.apron, r, 0.1, 0.9);
     }
     case 'sand': return pick(PALETTE.sand, r, 0.15, 0.9);
     case 'water': {

@@ -148,6 +148,9 @@ All 10 levels, the three modes, the story arc (smog, the yellow battery, the swa
 | The Motari lesson (level 1): Rukundo Thacien, an older motari, phones you on your first shift. His pixel head with a green helmet shows in a call window; the phone rings, then his tips type out (English with Kinyarwanda words: Muraho, Komera, Murakoze, Buhoro buhoro). Tips come at the right moment: the first job, a passenger, the first fare, murram, a speed bump, a police officer, speeding, low fuel, the service, a crash, the night. L or SKIP ends the lesson. From level 2 the explanation messages stop; only the effects stay | Done |
 | No dead ends (Alp, 14 October 2026): before, 64 road ends. Roads that stopped at a district border now join the next district (a new Nyabugogo–town link along y 62, Kacyiru street goes on south as the Kimihurura west lane, short links to the Kicukiro murram roads, Gikondo and Kicukiro avenue); the Kimihurura lanes cross the stream on bridges to the Rugando road; the town streets go on to the Rugando road; a ring road round the edge of the map joins the roads that went off the map (not over the river or Mount Kigali). The road graph has no 1-tile stubs past junctions (traffic turned back on them) | Done |
 | See the road behind buildings (Alp, 14 October 2026): a building fades (to 25%, smoothly) when it hides the bike, the road ahead (up to 24 m in the direction you ride) or the job pin (when it is within 70 m) | Done |
+| The map follows real Kigali (Alp's Google map and terrain map, 15 October 2026), inside the same 6 districts: Kicukiro centre (the market, the swap container, IBIRO Kicukiro) is south-west of Sonatubes; the Ampersand HQ is in Gikondo, south of the main road from KCC to Sonatubes; the Remera fuel station is north of the main road | Done |
+| Kigali International Airport (south-east of Sonatubes): the terminal with its sign, a drop-off area (a fare place with travellers; the muzungu comes and goes here), a concrete apron, a taxiway and a runway with white paint. The apron, the taxiway and the runway are behind a wire fence. A white plane with a blue tail stands on the apron. About every 90 s a plane rolls west along the runway, lifts, climbs over Kicukiro and Gikondo and flies away, with a shadow on the ground and a jet roar when you are near | Done |
+| Topography from Alp's terrain map: one Nyarutarama hill, with the golf course and the lake in a valley that goes north to south on its west side; the main road crosses a saddle (the HQ is on it, flat); the low Gikondo valley (green, a wetland) is between Kimihurura and the Kicukiro plateau; Remera, Kicukiro centre and the airport are on the plateau | Done |
 | The moto shop look (a container shop) | Later (after v1.0) |
 
 ## Run the game
@@ -316,6 +319,7 @@ All the numbers are in [`src/config.js`](src/config.js). The units are metric (m
 | `HELMET_CHECKS` | How many checks each day, how near, the time to stop and to check, the fine |
 | `CROSSINGS` | People on the zebra crossings: how often, how near, when they wait for traffic, the fine |
 | `KITES` | Brown kites: how many, how high, how wide they circle, how fast, wing beats, rain and night |
+| `PLANES` | The airport planes: the first take-off and the time between take-offs, the wait on the runway, the speeds, the climb, the parked plane and how far you hear the jet |
 | `ROAD_EVENTS` | Road works, VIP convoys and car free mornings: from which level, how often, the speeds and the fine |
 | `HARD_RULES` | Hard mode challenges: the fine, the speed checks, the one-way and no-moto streets, overloading, bus stops, the bathroom need |
 | `GARDEN_WALLS` | The garden walls: the districts, the height, the gate and its pillars |
@@ -355,6 +359,7 @@ src/
     market.js            Where the market vendors, animals and MoMo agents stand
     minimap.js           Draws the minimap (the whole map as a small diamond)
     kite-sprites.js      The brown kite (three wing frames) and its shadow
+    plane-sprites.js     The airliner (a small mesh: round fuselage, wings, engines, fin) and its shadow
     shops.js             Shops and street life: shop kinds and names, painted signs, mannequins, shop fronts and job places
     compounds.js         Garden walls and gates around the villas (the plan, the collisions and the art)
     roadevent-sprites.js Cones, boards, barriers, road workers, the NO MOTOS sign
@@ -393,6 +398,7 @@ src/
     checks.js            Police helmet checks (hard mode)
     crossers.js          People on the zebra crossings
     kites.js             Brown kites that circle in the sky
+    planes.js            The airport planes: the parked plane and the take-off
     rush.js              Rush hours: which hours, the extra traffic, waking it near the bike
     story.js             The story arc: the smog at each level, the yellow battery spots and pickups
     umuganda.js          The Umuganda run: the offer, the patrol cars, being seen on a main road
@@ -425,6 +431,7 @@ src/
     GarageScene.js       The garage screen: service, parts and upgrades (retro)
     TrafficLightView.js  The traffic light poles and their lamps
     KiteView.js          The brown kites and their shadows
+    PlaneView.js         The airport planes, their shadows and the jet sound level
     SmogView.js          The smog layer over the city (thinner at each level)
     BatteryView.js       The yellow batteries on the road (levels 3 and 4)
     PartFxView.js        The effects of the garage parts on your bike (one particle pool, two Graphics layers)

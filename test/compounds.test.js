@@ -11,7 +11,7 @@ const T = WORLD.tileMetres;
 describe('garden walls around the villas', () => {
   it('walls only in the listed districts, only on grass, never on a road', () => {
     expect(world.walls.length).toBeGreaterThan(200);
-    for (const s of world.walls) {
+    for (const s of world.walls.filter((w) => !w.fence)) { // the airport fence is not a garden wall
       const t = world.tile(s.tx, s.ty);
       expect(GARDEN_WALLS.districts).toContain(t.district);
       expect(t.surface).toBe('grass');

@@ -79,6 +79,44 @@ export class EngineSound {
     const t = this.ctx.currentTime;
     this.petrolGain.gain.setTargetAtTime(0, t, 0.05);
     this.elecGain.gain.setTargetAtTime(0, t, 0.05);
+    this.jetGain?.gain.setTargetAtTime(0, t, 0.05);
+  }
+
+  /**
+   * The roar of a jet at the airport (sim/planes.js). level 0..1 (from the distance and the engine power).
+   * Call each frame: a low roar (noise through a low pass filter) and a high whine.
+   */
+  jet(level) {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    if (!this.jetGain) {
+      if (level <= 0) return;
+      const n = Math.floor(ctx.sampleRate * 2);
+      const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+      const roar = ctx.createBufferSource();
+      roar.buffer = buf;
+      roar.loop = true;
+      this.jetFilter = ctx.createBiquadFilter();
+      this.jetFilter.type = 'lowpass';
+      this.jetFilter.frequency.value = 500;
+      this.jetGain = ctx.createGain();
+      this.jetGain.gain.value = 0;
+      roar.connect(this.jetFilter).connect(this.jetGain).connect(this.master);
+      this.jetWhine = ctx.createOscillator();
+      this.jetWhine.type = 'sine';
+      this.jetWhine.frequency.value = 2200;
+      const wg = ctx.createGain();
+      wg.gain.value = 0.06;
+      this.jetWhine.connect(wg).connect(this.jetGain);
+      roar.start();
+      this.jetWhine.start();
+    }
+    const k = Math.max(0, Math.min(1, level));
+    this.jetGain.gain.setTargetAtTime(0.35 * k, t, 0.15);
+    this.jetFilter.frequency.setTargetAtTime(350 + 900 * k, t, 0.15);
+    this.jetWhine.frequency.setTargetAtTime(1800 + 900 * k, t, 0.3);
   }
 
   /**

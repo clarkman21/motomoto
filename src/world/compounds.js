@@ -114,7 +114,7 @@ export function drawWallSegment(seg, world) {
   const L = WORLD.levelMetres;
   const [a, b] = segmentEnds(seg);
   const za = world.heightAt(a.x * T, a.y * T), zb = world.heightAt(b.x * T, b.y * T);
-  const h = GW.heightMetres * (seg.gate ? GW.gateFactor : 1);
+  const h = seg.fence ? GW.fenceMetres : GW.heightMetres * (seg.gate ? GW.gateFactor : 1);
   const A0 = toScreen(a.x * T, a.y * T, za), B0 = toScreen(b.x * T, b.y * T, zb);
   const A1 = toScreen(a.x * T, a.y * T, za + h), B1 = toScreen(b.x * T, b.y * T, zb + h);
   const pillar = (GW.pillarMetres / L) * WORLD.levelPx;
@@ -122,6 +122,17 @@ export function drawWallSegment(seg, world) {
   const minX = Math.floor(Math.min(...pts.map((p) => p.x))) - 2, maxX = Math.ceil(Math.max(...pts.map((p) => p.x))) + 2;
   const minY = Math.floor(Math.min(...pts.map((p) => p.y))) - Math.ceil(pillar) - 3, maxY = Math.ceil(Math.max(...pts.map((p) => p.y))) + 2;
   const c = new PixelCanvas(maxX - minX, maxY - minY, minX, minY);
+  if (seg.fence) {
+    // The airport fence: a steel post at each end, a top rail, and a see-through mesh (every other pixel).
+    const face = seg.edge === 'n' || seg.edge === 's' ? 'left' : 'right';
+    const q = (p, u, v) => ({ x: p.x, y: p.y, u, v });
+    c.fillQuad(q(A1, 0, 0), q(B1, 1, 0), q(B0, 1, 1), q(A0, 0, 1), (u, v, px, py) => {
+      if (u < 0.05) return tone(P.slate, face); // the post
+      if (v < 0.06) return tone(P.stone, 'top'); // the top rail
+      return (px + py) % 2 === 0 ? tone(P.concrete, face) : -1; // the mesh
+    });
+    return { canvas: c, depth: (a.x + b.x) / 2 + (a.y + b.y) / 2 };
+  }
   const look = compoundLook(seg.compound);
   const face = seg.edge === 'n' || seg.edge === 's' ? 'left' : 'right';
   const q = (p, u, v) => ({ x: p.x, y: p.y, u, v });

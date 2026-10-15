@@ -26,6 +26,9 @@ const CHAR_INFO = {
   r: { surface: 'water', solid: true },
   s: { surface: 'sand' },
   K: { surface: 'pavement', block: 'dome', blockLevels: 1 }, // the KCC: a plaza under the dome
+  R: { surface: 'runway' }, // the airport runway (behind the fence)
+  V: { surface: 'runway' }, // the taxiway from the apron to the runway
+  Q: { surface: 'apron' }, // the airport apron: concrete (behind the fence)
 };
 
 // Building styles (map data 'styles': one character per tile). They change the look of a building.
@@ -82,7 +85,8 @@ export class World {
     this.vertexLevels = this.#buildHeights(mapData.hills ?? []);
     this.blocks = this.#buildBlocks();
     // Garden walls around the villas (compounds.js), by tile for the collisions.
-    this.walls = gardenWalls(this);
+    this.walls = [...gardenWalls(this), ...(mapData.fences ?? [])]; // and the airport fence
+    this.airport = mapData.airport ?? null; // the airport rectangles in tiles (the planes use them)
     this.wallIndex = new Map();
     for (const w of this.walls) {
       const k = w.tx + ',' + w.ty;

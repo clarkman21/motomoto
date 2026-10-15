@@ -42,8 +42,8 @@ export class HqView {
       scene.add.image(0, 0, 'hq-child0-0').setOrigin(PX, PY),
       scene.add.image(0, 0, 'hq-child1-0').setOrigin(PX, PY),
     ];
-    this.family.forEach((img, i) => this.#put(img, (155.0 + i * 0.28) * T, (95.45 - i * 0.05) * T).setVisible(false));
-    this.cheer = [this.#person('hq-staff-clap0-L', 159.55, 95.2), this.#person('hq-staff-clap0-R', 155.85, 95.6)];
+    this.family.forEach((img, i) => this.#put(img, (HQ.yard.x0 + 7.0 + i * 0.28) * T, (HQ.yard.y1 + 0.45 - i * 0.05) * T).setVisible(false));
+    this.cheer = [this.#person('hq-staff-clap0-L', HQ.yard.x0 + 11.55, HQ.yard.y1 + 0.2), this.#person('hq-staff-clap0-R', HQ.yard.x0 + 7.85, HQ.yard.y1 + 0.6)];
     for (const img of this.cheer) img.setVisible(false);
     this.confetti = scene.add.graphics().setDepth(1e5);
     this.confetti.noAmbient = true;
