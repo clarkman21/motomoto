@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BIKES, COLOURS, GEARBOX, LAW, SAVINGS_FLOAT, DISTRICTS, RIDER, HARD_RULES, MUZUNGU, HUD_RULES, RADIO } from '../config.js';
+import { BIKES, COLOURS, GEARBOX, LAW, SAVINGS_FLOAT, DISTRICTS, RIDER, HARD_RULES, MUZUNGU, HUD_RULES, RADIO, FUEL } from '../config.js';
 import { forwardSpeed } from '../sim/bike.js';
 import { serviceDue } from '../sim/maintenance.js';
 import { wrapRetro, retroText, RETRO_CELL } from '../world/retro-font.js';
@@ -97,7 +97,10 @@ export class HudScene extends Phaser.Scene {
 
     // Bottom: station prompt (tap = F), fuel choices (tap = 1, 2, 3), the keys line (first minute).
     this.promptLines = [0, 1, 2].map(() => label());
-    this.#zone(() => { if (!this.ride.acceptHail()) this.ride.startRefuel(); }, (z) => (this.promptZone = z));
+    this.#zone(() => {
+      if (this.tiltShown) return this.ride.tiltBike(); // out of fuel: the fuel tilt
+      if (!this.ride.acceptHail()) this.ride.startRefuel();
+    }, (z) => (this.promptZone = z));
     this.fuelRows = [0, 1, 2].map((i) => {
       const row = { text: label() };
       this.#zone(() => this.ride.chooseFuel(i), (z) => (row.zone = z));
@@ -197,11 +200,20 @@ export class HudScene extends Phaser.Scene {
     this.radioZone.setPosition(x, y).setSize(w, h);
   }
 
+  /** A short warning beep when a warning starts or gets worse (level 0 = none). */
+  #warn(key, level) {
+    this.warnLevels ??= {};
+    const was = this.warnLevels[key] ?? 0;
+    this.warnLevels[key] = level;
+    if (level > was) this.ride.engineSound.blip('warn');
+  }
+
   /** The left window: speed, gear, revs (petrol), and the bars that show now. */
   #updateLeft(g) {
     const ride = this.ride, bike = ride.bike, spec = BIKES[bike.type], L = this.left;
     const electric = bike.type === 'electric';
     const blinkOn = Math.floor(this.time.now / 300) % 2 === 0;
+    const blinkFast = Math.floor(this.time.now / 150) % 2 === 0;
     const kmh = Math.abs(forwardSpeed(bike)) * 3.6;
     // Which bars show (Alp, 14 October 2026): the fuel or battery and the service always; the food bar
     // always in the modes with rider energy (medium and hard); the WC bar always in hard mode.
@@ -238,15 +250,27 @@ export class HudScene extends Phaser.Scene {
       if (!on) continue;
       r.icon.setPosition(L.x + 5, y);
       const bx = L.x + 17, bw = L.w - 23;
+      // Warnings (Alp, 15 October 2026): a low tank or a late service makes the icon, the bar and a word
+      // beside the window blink; faster on the reserve. A beep when a warning starts.
       if (r.key === 'energy') {
-        const low = bike.energy < 0.25;
+        const e = bike.energy, low = e < FUEL.lowAt, reserve = e < FUEL.reserveAt;
+        const blink = reserve ? blinkFast : blinkOn;
         r.icon.setFrame(electric ? 'battery' : 'fuel');
-        drawSegBar(g, bx, y + 1, bw, 7, bike.energy, low && blinkOn ? UI.white : low ? UI.red : electric || bike.boost > 0 ? COLOURS.ampersandYellow : PETROL_RED, 8);
-        if (low) r.text.setText(`${Math.round(bike.energy * 100)}%`).setVisible(true);
+        if (low && blink) r.icon.setTint(UI.red); else r.icon.clearTint();
+        drawSegBar(g, bx, y + 1, bw, 7, e, low && blink ? UI.white : low ? UI.red : electric || bike.boost > 0 ? COLOURS.ampersandYellow : PETROL_RED, 8);
+        r.text.setTint(UI.red);
+        if (low) r.text.setText(e <= 0 ? 'EMPTY' : `${reserve ? 'RESERVE' : 'LOW'} ${Math.max(1, Math.round(e * 100))}%`).setVisible(blink || !reserve);
+        this.#warn('fuel', e <= 0 ? 0 : reserve ? 2 : low ? 1 : 0);
       } else if (r.key === 'service') {
-        const late = due >= 1;
-        drawSegBar(g, bx, y + 1, bw, 7, Math.min(1, due), bike.brokenDown && blinkOn ? UI.white : late || bike.brokenDown ? UI.red : UI.orange, 8);
-        if (bike.brokenDown) r.text.setText('OUT').setVisible(true);
+        const late = due >= 1, soon = due >= 0.8;
+        const alarm = late || bike.brokenDown;
+        if (alarm && blinkOn) r.icon.setTint(UI.red); else r.icon.clearTint();
+        drawSegBar(g, bx, y + 1, bw, 7, Math.min(1, due), alarm && blinkOn ? UI.white : alarm ? UI.red : UI.orange, 8);
+        r.text.setTint(alarm ? UI.red : UI.orange);
+        if (bike.brokenDown) r.text.setText('OUT').setVisible(blinkOn);
+        else if (late) r.text.setText(electric ? 'SERVICE!' : 'OIL!').setVisible(true);
+        else if (soon) r.text.setText(electric ? 'SERVICE SOON' : 'OIL SOON').setVisible(true);
+        this.#warn('service', alarm ? 2 : soon ? 1 : 0);
       } else if (r.key === 'food') {
         const hungry = food < RIDER.hungryAt;
         drawSegBar(g, bx, y + 1, bw, 7, food, food <= 0.05 && blinkOn ? UI.white : hungry ? UI.red : UI.orange, 8);
@@ -397,7 +421,11 @@ export class HudScene extends Phaser.Scene {
     let top = bottom;
     // The station prompt (or a street hail in reach, or the refuel progress).
     let text = null, progress = null;
-    if (ride.refuel) {
+    this.tiltShown = false;
+    if (ride.tilt.t > 0) {
+      text = 'TILTING THE MOTO: THE LAST FUEL';
+      progress = 1 - ride.tilt.t / FUEL.tilt.seconds;
+    } else if (ride.refuel) {
       const r = ride.refuel;
       const what = r.kind === 'fuel' ? 'FILLING UP' : r.kind === 'swap' ? 'SWAPPING THE BATTERY' : r.kind === 'food' ? (r.food === 'drink' ? 'DRINKING' : 'EATING') : 'THE MECHANIC IS WORKING';
       text = `${what} · ${Math.ceil(r.timeLeft)} S`;
@@ -410,6 +438,10 @@ export class HudScene extends Phaser.Scene {
     } else {
       const offer = ride.stationOffer();
       if (offer) text = this.isTouch ? offer.text.replace('F: ', 'TAP: ') : offer.text;
+      else if (ride.tiltReady) {
+        text = `${this.isTouch ? 'TAP' : 'G'}: TILT THE MOTO FOR THE LAST FUEL`;
+        this.tiltShown = true;
+      }
     }
     const lines = text ? wrapRetro(text, Math.floor((Math.min(320, vw - 8) - 14) / RETRO_CELL.width)) : [];
     if (lines.length) {
@@ -421,7 +453,7 @@ export class HudScene extends Phaser.Scene {
       this.promptLines.forEach((l, i) => l.setText(lines[i] ?? '').setVisible(i < lines.length).setPosition(ox + Math.round((vw - retroWidth(lines[i] ?? '')) / 2), top + 5 + i * LINE));
       if (progress !== null) drawSegBar(g, x + 7, top + 5 + lines.length * LINE, w - 14, 6, progress, UI.green, 16);
       this.promptZone.setPosition(x, top).setSize(w, h);
-      this.promptZone.input.enabled = !ride.refuel;
+      this.promptZone.input.enabled = !ride.refuel && !(ride.tilt.t > 0);
     } else {
       this.promptLines.forEach((l) => l.setVisible(false));
       this.promptZone.input.enabled = false;

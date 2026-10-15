@@ -56,15 +56,18 @@ export class EngineSound {
     if (this.master) this.master.gain.setTargetAtTime(on ? 0.5 : 0, this.ctx.currentTime, 0.05);
   }
 
-  /** revs 0..1 (petrol: of the rev limit in this gear; electric: of top speed), throttle 0..1 */
-  update(type, revs, throttle) {
+  /**
+   * revs 0..1 (petrol: of the rev limit in this gear; electric: of top speed), throttle 0..1.
+   * misfire: a petrol engine with a nearly empty tank misses now (the sound drops for a moment).
+   */
+  update(type, revs, throttle, misfire = false) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
     const k = 0.08;
     if (type === 'petrol') {
       this.petrolOsc.frequency.setTargetAtTime(34 + revs * 95 + throttle * 10, t, k);
       this.petrolFilter.frequency.setTargetAtTime(300 + throttle * 500 + revs * 400, t, k);
-      this.petrolGain.gain.setTargetAtTime(0.1 + throttle * 0.12, t, k);
+      this.petrolGain.gain.setTargetAtTime(misfire ? 0.02 : 0.1 + throttle * 0.12, t, misfire ? 0.02 : k);
       this.elecGain.gain.setTargetAtTime(0, t, k);
     } else {
       this.elecOsc.frequency.setTargetAtTime(180 + revs * 520, t, k);
@@ -158,7 +161,7 @@ export class EngineSound {
   /** A short menu sound: 'move' (the cursor moves), 'select' or 'back'. */
   blip(kind) {
     if (!this.ctx || !this.enabled) return;
-    const notes = { move: [[1320, 0.04]], select: [[880, 0.05], [1760, 0.07]], back: [[660, 0.05], [440, 0.07]] }[kind] ?? [];
+    const notes = { move: [[1320, 0.04]], select: [[880, 0.05], [1760, 0.07]], back: [[660, 0.05], [440, 0.07]], warn: [[988, 0.08], [740, 0.08], [988, 0.08], [740, 0.1]] }[kind] ?? [];
     let t = this.ctx.currentTime + 0.01;
     for (const [f, len] of notes) {
       const o = this.ctx.createOscillator();
@@ -246,6 +249,44 @@ export class EngineSound {
       o.start(t + dt);
       o.stop(t + dt + 0.14);
     }
+  }
+
+  /** A cough of the petrol engine when it misses (low fuel): a low pop of noise. */
+  cough() {
+    if (!this.ctx || !this.enabled) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    const src = this.#noise(0.14), lp = ctx.createBiquadFilter(), g = ctx.createGain();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(700, t);
+    lp.frequency.exponentialRampToValueAtTime(150, t + 0.12);
+    g.gain.setValueAtTime(0.35, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+    src.connect(lp).connect(g).connect(this.master);
+    const o = ctx.createOscillator(), og = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(90, t);
+    o.frequency.exponentialRampToValueAtTime(45, t + 0.1);
+    og.gain.setValueAtTime(0.25, t);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+    o.connect(og).connect(this.master);
+    o.start(t);
+    o.stop(t + 0.13);
+  }
+
+  /** The last fuel moves in the tank (the fuel tilt): a short, wet swish. */
+  slosh() {
+    if (!this.ctx || !this.enabled) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    const src = this.#noise(0.3), bp = ctx.createBiquadFilter(), g = ctx.createGain();
+    bp.type = 'bandpass';
+    bp.Q.value = 4;
+    bp.frequency.setValueAtTime(500, t);
+    bp.frequency.linearRampToValueAtTime(1100, t + 0.15);
+    bp.frequency.linearRampToValueAtTime(600, t + 0.3);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.3, t + 0.08);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+    src.connect(bp).connect(g).connect(this.master);
   }
 
   /** A phone ring (the call of the Motari lesson): two short bursts of two quick tones. */

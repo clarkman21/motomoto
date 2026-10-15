@@ -37,6 +37,7 @@ const HELP = [
       '1 to 4: take a job. Stop next to a person who waves and press 1 to take a street hail.   Backspace: cancel the job.',
       'F: buy fuel (then 1, 2 or 3: 25% of a tank, 50% of a tank, or a full tank), swap the battery, open the garage (service, parts and upgrades), or eat (hard mode).',
       'T: phone a moto that brings you 1 litre of fuel (or a charged battery), for 20% more than at a station. You can call at any time.',
+      'G: out of fuel? Stop and tilt the moto: you lay it on its side and rock it, and the last fuel runs to the carburettor. About 30 s of riding, one time for each empty tank (petrol moto).',
       'Developer features (for tests): Settings, then DEVELOPER FEATURES: ON. In a ride, pause (Esc) and choose CHEATS. With them off, a new game starts at level 1.',
       'H: horn.   V: sound.   N: the next radio station (with the Bluetooth speaker).   L: skip the Motari lesson (level 1).   R: put the bike back on the nearest road (your fuel and the bike wear stay as they are).   M: map on or off.   Esc or P: pause menu.',
       'Touch: the stick on the left steers. GO and STOP are on the right, + and − shift, T calls the fuel moto. Tap a job line to take it.',

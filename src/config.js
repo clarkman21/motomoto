@@ -782,7 +782,7 @@ export const MUZUNGU = {
     { id: 'fountain', name: 'the MTN fountain', x: 41, y: 79.5, line: 'OH WOW, A FOUNTAIN!' },
     { id: 'heights', name: 'Kigali Heights', x: 117.5, y: 86.5, line: 'OH WOW! SO MODERN!' },
     { id: 'milleCollines', name: 'the Mille Collines', x: 55, y: 114.5, line: 'OH WOW, WHAT A VIEW!' },
-    { id: 'golfLake', name: 'the golf lake', x: 150, y: 36.5, line: 'OH WOW, THE HILLS!' },
+    { id: 'golfLake', name: 'the golf lake', x: 137, y: 37, line: 'OH WOW, THE HILLS!' }, // on the Nyarutarama link, by the lake
     { id: 'townMarket', name: 'the town market', x: 16, y: 102, line: 'EE-GEE-TOH-KEE! BANANA!' },
   ],
   sightMetres: 26, // near a sight
@@ -797,8 +797,11 @@ export const MUZUNGU = {
   marketMetres: 30,
   policeMetres: 22,
   uphillGrade: 0.06,
-  gapSeconds: 3.5, // at least this long between two lines
-  chatterSeconds: [8, 15], // a random line when nothing happens
+  // Alp, 15 October 2026: the lines are funny, but not too often. A photo still comes at once (it gives a tip).
+  gapSeconds: 15, // at least this long between two lines
+  chatterSeconds: [25, 35], // a random line when nothing happens
+  bumpSeconds: 30, // "OUCH!" on a bump at most this often
+  fastSeconds: 30, // "BUHORO BUHORO!" at most this often
   // Street hails (Alp: both, on the job board and at the roadside): a hail near a start place
   // (within hailMetres) is a visitor with this chance; at most maxHails visitor hails at a time.
   hailMetres: 50,
@@ -1195,6 +1198,14 @@ export const FUEL = {
   idleUse: 0.08, // fraction of the full throttle use while the engine runs with no throttle (petrol only)
   lowAt: 0.25, // "Fuel low": the HUD arrow points to the nearest station
   reserveAt: 0.1, // "Reserve!"
+  // Low fuel (Alp, 15 October 2026). Under sputterAt the petrol engine misses now and then: for a moment
+  // it loses its power and coughs. It misses more often when the tank is nearly empty (missShare: from
+  // the first to the second value). The pattern changes each sputterSlotSeconds.
+  sputterAt: 0.1, sputterSlotSeconds: 0.18, missShare: [0.12, 0.45], missThrottle: 0.1,
+  // The fuel tilt ("the dance", Alp): out of fuel, stop, lay the moto on its side and rock it, so that the
+  // last fuel in the tank runs to the carburettor. Once for each empty tank: you can do it again after you
+  // buy fuel (the tank is above againAt). It gives about 30 s of riding at full throttle.
+  tilt: { seconds: 3.5, fuel: 0.08, maxKmh: 3, againAt: 0.15 },
   // Buying fuel: fixed amounts, your choice (not from the jobs): a quarter or a half of a tank, or a full tank.
   // At the base price, 25% of a tank is 1,000 RWF. Job cards still show the fuel that each job needs.
   buySteps: [0.25, 0.5],

@@ -28,7 +28,7 @@ import { startRace, chaseHail, stepRivals, cancelMission } from '../sim/rivals.j
 import { PeopleView } from './PeopleView.js';
 import { CrewView } from './CrewView.js';
 import { placeCrews, crewAt, sweepersOut, daySweepers, stepCrews } from '../sim/crews.js';
-import { PERSON_LOOKS } from '../world/vehicle-sprites.js';
+import { PERSON_LOOKS, PERSON_CANVAS } from '../world/vehicle-sprites.js';
 import { trafficHonks } from '../sim/honk.js';
 import { levelSettings, milestoneReady, buyMilestone, startAtLevel, setLevel, streakMultiplier, updateStreak, savingsTarget } from '../sim/levels.js';
 import { loadGame, saveGame, clearSave, loadSettings, saveSettings } from './save.js';
@@ -59,6 +59,7 @@ import { oneWayRoads, noMotoRoads, pruneOneWay, strictOneWays, streetRule, pickS
 import { crossingPaths, stepCrossers } from '../sim/crossers.js';
 import { KiteView } from './KiteView.js';
 import { PlaneView } from './PlaneView.js';
+import { createTilt, tiltBlocked, startTilt, stepTilt, tiltAngle } from '../sim/fuel-tilt.js';
 import { SmogView } from './SmogView.js';
 import { smogAt, batterySpots, takeBattery } from '../sim/story.js';
 import { BatteryView } from './BatteryView.js';
@@ -171,6 +172,7 @@ export class RideScene extends Phaser.Scene {
     this.crossPaths = crossingPaths(this.world); // zebra crossings where people cross the road (sim/crossers.js)
     this.kitesView = new KiteView(this, this.world); // brown kites in the sky
     this.planeView = new PlaneView(this, this.world); // the planes at the airport
+    this.tilt = createTilt(); // the fuel tilt: out of fuel, rock the moto on its side for the last fuel (G)
     // Night lights and the colour of the day (see LightsView.js).
     this.lights = new LightsView(this, this.world);
     this.rainView = new RainView(this); // rain streaks on a rainy day
@@ -379,6 +381,7 @@ export class RideScene extends Phaser.Scene {
         case 'Backspace': if (this.hq?.stage === 'track') this.#hqF(); else this.cancelJob(); break;
         case 'KeyF': this.startRefuel(); break;
         case 'KeyT': this.callFuelMoto(); break;
+        case 'KeyG': this.tiltBike(); break;
         case 'KeyK': if (this.debug) this.dayTime = this.level.shift.realSeconds; break; // debug: end the shift now
       }
     });
@@ -1695,7 +1698,7 @@ export class RideScene extends Phaser.Scene {
     while (this.accumulator >= FIXED_DT) {
       // While you fill up or swap, the bike stands still.
       // On foot at HQ (sim/hq.js) the old moto stands still too.
-      this.controls = this.refuel || this.hq?.walker ? { throttle: 0, brake: 1, steer: 0, hold: true } : readControls(this.steeringMode, raw, this.bike);
+      this.controls = this.refuel || this.hq?.walker || this.tilt.t > 0 ? { throttle: 0, brake: 1, steer: 0, hold: true } : readControls(this.steeringMode, raw, this.bike);
       const events = stepBike(this.bike, this.controls, this.world, FIXED_DT);
       const crashed = events.some((e) => e.type === 'crash');
       for (const e of events) {
@@ -1710,6 +1713,16 @@ export class RideScene extends Phaser.Scene {
         }
         if (e.type === 'crash') {
           this.#crash(e);
+          continue;
+        }
+        if (e.type === 'sputter') {
+          this.#sputter();
+          continue;
+        }
+        if (e.type === 'empty' && this.bike.type === 'petrol') {
+          this.events.emit('bark', this.tilt.used
+            ? 'Out of fuel again! The tank is dry. Push the moto (throttle) to a station, or press T for a fuel moto'
+            : `Out of fuel! The moto rolls to a stop, and a customer on it will leave. Stop and ${this.sys.game.device.input.touch ? 'tap TILT' : 'press G'}: tilt the moto for the last fuel (one time). Or push it, or call a fuel moto (T)`);
           continue;
         }
         if (e.type === 'wall' && !e.hit && this.#closedAhead()) {
@@ -1767,6 +1780,7 @@ export class RideScene extends Phaser.Scene {
     this.#updateRadio(dt);
     this.#updateLesson(dt);
     this.#updateRescue(dt);
+    this.#updateTilt(dt);
     this.#updateStation();
     this.#updateEvent(dt);
     this.#updateFleet(dt);
@@ -1813,7 +1827,7 @@ export class RideScene extends Phaser.Scene {
       this.engineSound.silence(); // no engine sound: the bike rolls on, then you push it
       this.#updatePushing(dt);
       this.#loseJobWhenEmpty();
-    } else this.engineSound.update(this.bike.type, Math.min(1, this.bike.revs), this.controls.throttle);
+    } else this.engineSound.update(this.bike.type, Math.min(1, this.bike.revs), this.controls.throttle, this.bike.misfire);
     this.engineSound.jet(this.planeView.update(dt, this.bike)); // a plane takes off: the jet roars near the airport
     this.#updateStuck(dt);
     this.dayTime += dt;
@@ -2051,6 +2065,59 @@ export class RideScene extends Phaser.Scene {
     this.rescueSprite = this.add.image(0, 0, 'vehicles', 'moto-none-0').setOrigin(BIKE_CANVAS.groundX / BIKE_CANVAS.width, BIKE_CANVAS.groundY / BIKE_CANVAS.height).setVisible(false);
     this.engineSound.honk('moto', 0.4);
     this.events.emit('bark', `You phone a moto: ${offer.what} for ${money(offer.cost)} (20% more than at the station). It comes in about ${Math.ceil(r.eta)} s`);
+  }
+
+  /** A miss of the engine (low fuel): a cough, a dark puff, and now and then the sound in a bubble. */
+  #sputter() {
+    const b = this.bike;
+    this.engineSound.cough();
+    this.#spawnPuff(b.x - Math.cos(b.heading), b.y - Math.sin(b.heading), 0.45, true);
+    if (this.time.now - (this.sputterBubbleAt ?? -1e9) > 8000) {
+      this.sputterBubbleAt = this.time.now;
+      this.#bubble(b.x, b.y, 40, 'PUT... PUT-PUT...', 0xd8d8d8);
+    }
+  }
+
+  /** True when the HUD can offer the fuel tilt: the tank is empty, the moto stands, and you did not tilt yet. */
+  get tiltReady() {
+    return !this.refuel && !this.hq?.walker && !tiltBlocked(this.tilt, this.bike, Math.abs(forwardSpeed(this.bike)) * 3.6);
+  }
+
+  /**
+   * G: the fuel tilt ("the dance", sim/fuel-tilt.js). Out of fuel, stop, lay the moto on its side and rock
+   * it: the last fuel runs to the carburettor, for about 30 s of riding. Once for each empty tank.
+   */
+  tiltBike() {
+    if (this.refuel || this.hq?.walker) return;
+    const kmh = Math.abs(forwardSpeed(this.bike)) * 3.6;
+    const why = tiltBlocked(this.tilt, this.bike, kmh);
+    const say = {
+      electric: 'The Alpha has no carburettor: swap the battery, or press T',
+      broken: this.bike.crashed > 0 ? null : 'The moto is broken: push it to a garage',
+      fuel: 'The tilt is for an empty tank. Ride to a fuel station',
+      used: 'You did the tilt already: the tank is dry. Push the moto, or press T for a fuel moto',
+      moving: 'Stop first, then tilt the moto',
+    }[why];
+    if (why) {
+      if (say) this.events.emit('bark', say);
+      return;
+    }
+    startTilt(this.tilt, this.bike, kmh);
+    this.sloshTimer = 0.5;
+    this.#bubble(this.bike.x, this.bike.y, 44, 'SLOSH... SLOSH...', 0xd8e0ff);
+    this.events.emit('bark', 'You lay the moto on its side and rock it: the last fuel runs to the carburettor');
+  }
+
+  #updateTilt(dt) {
+    const busy = this.tilt.t > 0;
+    if (busy && (this.sloshTimer -= dt) <= 0) {
+      this.sloshTimer = FUEL.tilt.seconds / 4;
+      this.engineSound.slosh();
+    }
+    if (stepTilt(this.tilt, this.bike, dt) !== 'done') return;
+    this.engineSound.blip('select');
+    this.#bubble(this.bike.x, this.bike.y, 44, 'VROOM! KOMERA!', 0xffffff);
+    this.events.emit('bark', `The engine runs again: about ${Math.round(FUEL.tilt.fuel * BIKES.petrol.energySeconds)} s of fuel. Go to a fuel station now!`);
   }
 
   /** The fuel moto rides to you, gives you the fuel (you pay), and rides away. */
@@ -2726,11 +2793,21 @@ export class RideScene extends Phaser.Scene {
     this.bikeScreen = s;
     this.bikeDepth = depth;
     // After a crash the bike and the rider lie on the ground.
-    const angle = b.crashed > 0 ? (Math.cos(b.heading - Math.PI / 4) >= 0 ? 80 : -80) : 0;
+    const side = Math.cos(b.heading - Math.PI / 4) >= 0 ? 1 : -1;
+    const angle = b.crashed > 0 ? side * 80 : this.tilt.t > 0 ? side * tiltAngle(this.tilt) : 0; // the fuel tilt: it rocks on its side
     // On foot at HQ: the old moto stands without its rider; after the hand-in a staff member takes it (HqView).
     const hq = this.hq, onFoot = !!hq?.walker;
     const shown = !(onFoot && hq.stage !== 'desk');
-    const bikeKey = onFoot ? parkedKey(this, b.type, bikeFrameForHeading(b.heading), parts) : key;
+    // The fuel tilt: the rider stands beside the moto and rocks it on its side (the moto has no rider then).
+    const tilting = this.tilt.t > 0 && shown;
+    const bikeKey = onFoot || tilting ? parkedKey(this, b.type, bikeFrameForHeading(b.heading), parts) : key;
+    this.tiltRider ??= this.add.image(0, 0, 'hq-rider-petrol-0-0-R').setOrigin(PERSON_CANVAS.groundX / PERSON_CANVAS.width, PERSON_CANVAS.groundY / PERSON_CANVAS.height);
+    this.tiltRider.setVisible(tilting);
+    if (tilting) {
+      const step = Math.floor((FUEL.tilt.seconds - this.tilt.t) / 0.45) % 2; // he shifts his feet as he rocks it
+      this.tiltRider.setTexture(`hq-rider-petrol-0-${step}-${side > 0 ? 'R' : 'L'}`)
+        .setPosition(Math.round(s.x - side * 8), Math.round(s.y + 1)).setDepth(depth + 0.01);
+    }
     this.bikeSprite.setTexture(bikeKey).setPosition(s.x, s.y - bounce).setDepth(depth).setAngle(angle).setVisible(shown);
     this.ghost.setTexture(bikeKey).setPosition(s.x, s.y - bounce).setAngle(angle);
     this.shadow.setPosition(s.x, s.y).setDepth(depth - 0.002).setVisible(shown);

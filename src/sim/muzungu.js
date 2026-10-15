@@ -148,10 +148,10 @@ export function stepVisitor(job, ctx, dt, rng) {
   if (ctx.bump && v.bumpWait <= 0) {
     say(VISITOR_LINES.bump);
     if (rng() < 0.5) say(VISITOR_LINES.bumpReply, 'rider');
-    v.bumpWait = 8;
+    v.bumpWait = MUZUNGU.bumpSeconds;
   } else if (ctx.kmh > MUZUNGU.fastKmh && v.fastWait <= 0) {
     say(VISITOR_LINES.fast);
-    v.fastWait = 12;
+    v.fastWait = MUZUNGU.fastSeconds;
   } else if (ctx.police && once('police')) say(VISITOR_LINES.police);
   else if (ctx.market && once('market')) say(VISITOR_LINES.market);
   else if (ctx.uphill && once('uphill')) say(VISITOR_LINES.uphill);

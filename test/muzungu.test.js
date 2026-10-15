@@ -109,10 +109,19 @@ describe('the muzungu on the bike', () => {
     const job = ride();
     expect(stepVisitor(job, { ...calm, bump: true }, 0.1, always)[0].text).toBe(VISITOR_LINES.bump);
     expect(stepVisitor(job, { ...calm, kmh: 60 }, 0.1, always)).toEqual([]); // the gap between lines
-    for (let i = 0; i < 40; i++) stepVisitor(job, calm, 0.1, () => 0.99);
+    // Alp: at most one line in 15 s.
+    const wait = (s) => { for (let t = 0; t < s; t += 0.1) stepVisitor(job, calm, 0.1, () => 0.99); };
+    wait(MUZUNGU.gapSeconds - 1);
+    expect(stepVisitor(job, { ...calm, kmh: 60 }, 0.1, always)).toEqual([]);
+    wait(1.2);
     expect(stepVisitor(job, { ...calm, kmh: 60 }, 0.1, always)[0].text).toBe(VISITOR_LINES.fast);
-    for (let i = 0; i < 80; i++) stepVisitor(job, calm, 0.1, () => 0.99); // (a chatter line comes in this time)
+    job.visitorState.chatter = 999; // (no chatter line in this wait)
+    wait(MUZUNGU.gapSeconds + 0.2);
     expect(stepVisitor(job, { ...calm, police: true }, 0.1, always)[0].text).toBe(VISITOR_LINES.police);
+    // A minute of a calm ride: 2 or 3 lines, not more.
+    const said = [];
+    for (let t = 0; t < 60; t += 0.1) said.push(...stepVisitor(job, { ...calm, bump: t % 5 < 0.1 }, 0.1, () => 0.5).filter((e) => e.who === 'visitor'));
+    expect(said.length).toBeLessThanOrEqual(4);
   });
 
   it('says nothing near a quiet place', () => {

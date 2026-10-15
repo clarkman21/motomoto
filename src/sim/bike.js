@@ -133,7 +133,11 @@ export function stepBike(bike, input, world, dt) {
   const hasEnergy = bike.energy > 0;
   const engineRuns = hasEnergy && !bike.brokenDown;
   bike.engineDead = !engineRuns; // out of fuel or charge, or broken down: you push the bike
-  const throttle = engineRuns ? clamp(input.throttle, 0, 1) : 0;
+  // Low fuel: the petrol engine misses now and then (no power for a moment, and a cough).
+  const misfire = !!(engineRuns && spec.gears && input.throttle > 0) && sputters(bike, dt);
+  if (misfire && !bike.misfire) events.push({ type: 'sputter' });
+  bike.misfire = misfire;
+  const throttle = engineRuns ? clamp(input.throttle, 0, 1) * (misfire ? FUEL.missThrottle : 1) : 0;
   const brake = clamp(input.brake, 0, 1);
   bike.shiftTimer = Math.max(0, bike.shiftTimer - dt);
   if (spec.gears && bike.autoShift && bike.shiftTimer === 0) {
@@ -339,6 +343,18 @@ export function stepBike(bike, input, world, dt) {
   if (bike.energy > before) bike.regenToday += bike.energy - before;
   if (hasEnergy && bike.energy === 0) events.push({ type: 'empty' });
   return events;
+}
+
+/** True while a petrol engine with a nearly empty tank misses (see FUEL.sputterAt). */
+export function sputters(bike, dt) {
+  if (bike.energy >= FUEL.sputterAt) return false;
+  bike.sputterClock = (bike.sputterClock ?? 0) + dt;
+  const slot = Math.floor(bike.sputterClock / FUEL.sputterSlotSeconds);
+  const [lo, hi] = FUEL.missShare;
+  const share = lo + (hi - lo) * (1 - bike.energy / FUEL.sputterAt);
+  let h = Math.imul(slot ^ 0x5bd1e995, 0x27d4eb2d);
+  h = Math.imul(h ^ (h >>> 15), 0x165667b1);
+  return ((h ^ (h >>> 13)) >>> 0) / 4294967296 < share;
 }
 
 /**
